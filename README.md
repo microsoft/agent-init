@@ -4,6 +4,8 @@
 
 Primer is a CLI tool that analyzes your codebase and generates `.github/copilot-instructions.md` files to help AI coding assistants understand your project better.
 
+![Primer](primer.png)
+
 ## Features
 
 - **Repository Analysis** - Detects languages, frameworks, and package managers
