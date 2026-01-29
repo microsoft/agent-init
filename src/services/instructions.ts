@@ -65,7 +65,7 @@ export async function generateCopilotInstructions(options: GenerateInstructionsO
 
 Use tools to explore:
 1. Check for existing instruction files: glob for **/{.github/copilot-instructions.md,AGENT.md,CLAUDE.md,.cursorrules,README.md}
-2. Identify the tech stack: look at package.json, tsconfig.json, pyproject.toml, Cargo.toml, etc.
+2. Identify the tech stack: look at package.json, tsconfig.json, pyproject.toml, Cargo.toml, .csproj, .fsproj, .sln, global.json, etc.
 3. Understand the structure: list key directories
 
 Generate concise instructions (~20-50 lines) covering:
