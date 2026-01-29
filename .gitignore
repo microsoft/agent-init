@@ -22,3 +22,6 @@ npm-debug.log*
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Primer cache
+.primer-cache/
