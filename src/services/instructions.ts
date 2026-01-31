@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import path from "node:path";
 
 type GenerateInstructionsOptions = {
   repoPath: string;
@@ -9,20 +10,26 @@ type GenerateInstructionsOptions = {
   onProgress?: (message: string) => void;
 };
 
+type CopilotCliConfig = {
+  cliPath: string;
+  cliArgs?: string[];
+};
+
 export async function generateCopilotInstructions(options: GenerateInstructionsOptions): Promise<string> {
   const repoPath = options.repoPath;
-  const progress = options.onProgress ?? (() => {});
+  const progress = options.onProgress ?? (() => { });
 
   const originalCwd = process.cwd();
   process.chdir(repoPath);
 
   progress("Checking Copilot CLI...");
-  const cliPath = await assertCopilotCliReady();
+  const cliConfig = await assertCopilotCliReady();
 
   progress("Starting Copilot SDK...");
   const sdk = await import("@github/copilot-sdk");
   const client = new sdk.CopilotClient({
-    cliPath,
+    cliPath: cliConfig.cliPath,
+    cliArgs: cliConfig.cliArgs,
   });
 
   try {
@@ -39,7 +46,7 @@ export async function generateCopilotInstructions(options: GenerateInstructionsO
     });
 
     let content = "";
-    
+
     // Subscribe to events for progress and to capture content
     session.on((event) => {
       const e = event as { type: string; data?: Record<string, unknown> };
@@ -70,7 +77,7 @@ Use tools to explore:
 
 Generate concise instructions (~20-50 lines) covering:
 - Tech stack and architecture
-- Build/test commands  
+- Build/test commands
 - Project-specific conventions
 - Key files/directories
 
@@ -89,18 +96,48 @@ Output ONLY the markdown content for the instructions file.`;
 
 const execFileAsync = promisify(execFile);
 
-async function findCopilotCliPath(): Promise<string> {
-  // Try standard PATH first
+async function findCopilotCliConfig(): Promise<CopilotCliConfig> {
+  const isWindows = process.platform === "win32";
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+  const appData = process.env.APPDATA ?? "";
+
+  // On Windows, prefer npm-installed binary and use node + cliArgs approach
+  // This avoids issues with .cmd/.bat files that can't be directly spawned
+  // See: https://github.com/microsoft/vscode/issues/291990
+  if (isWindows) {
+    const npmLoaderPath = path.join(appData, "npm", "node_modules", "@github", "copilot", "npm-loader.js");
+    try {
+      await fs.access(npmLoaderPath);
+      // Use node with the loader script - this works reliably on Windows
+      return {
+        cliPath: "node",
+        cliArgs: [npmLoaderPath],
+      };
+    } catch {
+      // npm binary not found, will try VS Code shim
+    }
+  }
+
+  // Try standard PATH first (works on macOS/Linux)
   try {
-    const { stdout } = await execFileAsync("which", ["copilot"], { timeout: 5000 });
-    return stdout.trim();
+    const whichCmd = isWindows ? "where" : "which";
+    const copilotExe = isWindows ? "copilot.exe" : "copilot";
+    const { stdout } = await execFileAsync(whichCmd, [copilotExe], { timeout: 5000 });
+    const firstLine = stdout.trim().split(/\r?\n/)[0];
+    if (firstLine) return { cliPath: firstLine };
   } catch {
     // Ignore - will try VS Code location
   }
 
-  // VS Code Copilot Chat extension location
-  const home = process.env.HOME ?? "";
-  const vscodeLocations = [
+  // VS Code Copilot Chat extension location (fallback)
+  const vscodeLocations = isWindows ? [
+    // Windows locations - check for .bat scripts (preferred for cmd/powershell compatibility)
+    `${appData}\\Code - Insiders\\User\\globalStorage\\github.copilot-chat\\copilotCli\\copilot.bat`,
+    `${appData}\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli\\copilot.bat`,
+    `${home}\\.vscode-insiders\\extensions\\github.copilot-chat-*\\copilotCli\\copilot.bat`,
+    `${home}\\.vscode\\extensions\\github.copilot-chat-*\\copilotCli\\copilot.bat`,
+  ] : [
+    // macOS/Linux locations
     `${home}/Library/Application Support/Code - Insiders/User/globalStorage/github.copilot-chat/copilotCli/copilot`,
     `${home}/Library/Application Support/Code/User/globalStorage/github.copilot-chat/copilotCli/copilot`,
     `${home}/.vscode-insiders/extensions/github.copilot-chat-*/copilotCli/copilot`,
@@ -110,25 +147,35 @@ async function findCopilotCliPath(): Promise<string> {
   for (const location of vscodeLocations) {
     try {
       await fs.access(location);
-      return location;
+      return { cliPath: location };
     } catch {
       // Try next location
     }
   }
 
-  throw new Error("Copilot CLI not found. Install GitHub Copilot Chat extension in VS Code.");
+  throw new Error("Copilot CLI not found. Install GitHub Copilot Chat extension in VS Code or run: npm install -g @github/copilot");
 }
 
-async function assertCopilotCliReady(): Promise<string> {
-  const cliPath = await findCopilotCliPath();
-  
+async function assertCopilotCliReady(): Promise<CopilotCliConfig> {
+  const config = await findCopilotCliConfig();
+  const isWindows = process.platform === "win32";
+
   try {
-    await execFileAsync(cliPath, ["--version"], { timeout: 5000 });
+    // If using node + cliArgs, test that way
+    if (config.cliArgs && config.cliArgs.length > 0) {
+      await execFileAsync(config.cliPath, [...config.cliArgs, "--version"], { timeout: 5000 });
+    } else if (isWindows && (config.cliPath.endsWith(".bat") || config.cliPath.endsWith(".cmd"))) {
+      // On Windows, .bat and .cmd files need to be run via cmd /c
+      await execFileAsync("cmd", ["/c", config.cliPath, "--version"], { timeout: 5000 });
+    } else {
+      await execFileAsync(config.cliPath, ["--version"], { timeout: 5000 });
+    }
   } catch {
-    throw new Error(`Copilot CLI at ${cliPath} is not working.`);
+    const pathDesc = config.cliArgs ? `${config.cliPath} ${config.cliArgs.join(" ")}` : config.cliPath;
+    throw new Error(`Copilot CLI at ${pathDesc} is not working.`);
   }
 
   // Note: Copilot CLI uses its own auth system, not gh CLI.
   // User must run: copilot, then /login inside the CLI.
-  return cliPath;
+  return config;
 }
