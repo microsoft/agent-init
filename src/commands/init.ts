@@ -4,21 +4,38 @@ import { checkbox, select } from "@inquirer/prompts";
 import { analyzeRepo } from "../services/analyzer";
 import { generateConfigs } from "../services/generator";
 import { GitHubRepo, listAccessibleRepos } from "../services/github";
-import { cloneRepo, isGitRepo } from "../services/git";
+import {
+  AzureDevOpsOrg,
+  AzureDevOpsProject,
+  AzureDevOpsRepo,
+  getAzureDevOpsToken,
+  listOrganizations,
+  listProjects,
+  listRepos
+} from "../services/azureDevops";
+import { buildAuthedUrl, cloneRepo, isGitRepo } from "../services/git";
 import { generateCopilotInstructions } from "../services/instructions";
 import { ensureDir } from "../utils/fs";
 import { prettyPrintSummary } from "../utils/logger";
 
 type InitOptions = {
   github?: boolean;
+  provider?: string;
   yes?: boolean;
   force?: boolean;
 };
 
 export async function initCommand(repoPathArg: string | undefined, options: InitOptions): Promise<void> {
   let repoPath = path.resolve(repoPathArg ?? process.cwd());
+  const provider = options.provider ?? (options.github ? "github" : undefined);
 
-  if (options.github) {
+  if (provider && provider !== "github" && provider !== "azure") {
+    console.error("Invalid provider. Use github or azure.");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (provider === "github") {
     const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
     if (!token) {
       console.error("Set GITHUB_TOKEN or GH_TOKEN to use GitHub mode.");
@@ -48,6 +65,70 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
     const hasGit = await isGitRepo(repoPath);
     if (!hasGit) {
       await cloneRepo(selection.cloneUrl, repoPath);
+    }
+  }
+
+  if (provider === "azure") {
+    const token = getAzureDevOpsToken();
+    if (!token) {
+      console.error("Set AZURE_DEVOPS_PAT (or AZDO_PAT) to use Azure DevOps mode.");
+      process.exitCode = 1;
+      return;
+    }
+
+    const orgs = await listOrganizations(token);
+    if (orgs.length === 0) {
+      console.error("No Azure DevOps organizations found.");
+      process.exitCode = 1;
+      return;
+    }
+
+    const orgSelection = await select<AzureDevOpsOrg>({
+      message: "Choose an Azure DevOps organization",
+      choices: orgs.map((org) => ({
+        name: org.name,
+        value: org
+      }))
+    });
+
+    const projects = await listProjects(token, orgSelection.name);
+    if (projects.length === 0) {
+      console.error("No Azure DevOps projects found.");
+      process.exitCode = 1;
+      return;
+    }
+
+    const projectSelection = await select<AzureDevOpsProject>({
+      message: "Choose an Azure DevOps project",
+      choices: projects.map((project) => ({
+        name: project.name,
+        value: project
+      }))
+    });
+
+    const repos = await listRepos(token, orgSelection.name, projectSelection.name);
+    if (repos.length === 0) {
+      console.error("No Azure DevOps repositories found.");
+      process.exitCode = 1;
+      return;
+    }
+
+    const repoSelection = await select<AzureDevOpsRepo>({
+      message: "Choose a repository",
+      choices: repos.map((repo) => ({
+        name: `${repo.name}${repo.isPrivate ? " (private)" : ""}`,
+        value: repo
+      }))
+    });
+
+    const cacheRoot = path.join(process.cwd(), ".primer-cache");
+    repoPath = path.join(cacheRoot, orgSelection.name, projectSelection.name, repoSelection.name);
+    await ensureDir(repoPath);
+
+    const hasGit = await isGitRepo(repoPath);
+    if (!hasGit) {
+      const authedUrl = buildAuthedUrl(repoSelection.cloneUrl, token, "azure");
+      await cloneRepo(authedUrl, repoPath);
     }
   }
   const analysis = await analyzeRepo(repoPath);

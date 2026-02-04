@@ -8,13 +8,79 @@ import { runEval, type EvalResult } from "../services/evaluator";
 import { AnimatedBanner, StaticBanner } from "./AnimatedBanner";
 import { BatchTui } from "./BatchTui";
 import { getGitHubToken } from "../services/github";
+import { safeWriteFile } from "../utils/fs";
 
 type Props = {
   repoPath: string;
   skipAnimation?: boolean;
 };
 
-type Status = "intro" | "idle" | "analyzing" | "generating" | "evaluating" | "preview" | "done" | "error" | "batch";
+type Status =
+  | "intro"
+  | "idle"
+  | "analyzing"
+  | "generating"
+  | "evaluating"
+  | "preview"
+  | "done"
+  | "error"
+  | "batch"
+  | "bootstrapEvalCount"
+  | "bootstrapEvalConfirm";
+
+type EvalCase = {
+  id: string;
+  prompt: string;
+  expectation: string;
+};
+
+type EvalConfig = {
+  instructionFile?: string;
+  cases: EvalCase[];
+  systemMessage?: string;
+  outputPath?: string;
+};
+
+function buildBootstrapEvalConfig(count: number): EvalConfig {
+  const templates = [
+    {
+      prompt: "Summarize this repository's purpose and main entry points. Use the README and package.json if available.",
+      expectation: "A concise summary of repo purpose plus key entry points (CLI or main files) and how to run it."
+    },
+    {
+      prompt: "Identify the primary languages, frameworks, and package manager used in this repo.",
+      expectation: "A brief list of languages/frameworks and the detected package manager, with short justification."
+    },
+    {
+      prompt: "Draft a minimal .github/copilot-instructions.md tailored to this repo's conventions.",
+      expectation: "A short instruction file referencing observed conventions, avoiding assumptions or secrets."
+    },
+    {
+      prompt: "Describe how to run the CLI and list its core commands and flags.",
+      expectation: "Clear usage instructions with command names and key flags derived from docs or source."
+    },
+    {
+      prompt: "Propose an eval case that checks consistency between CLI and TUI behaviors.",
+      expectation: "One eval case that validates parity between CLI and TUI outputs or workflows."
+    }
+  ];
+
+  const cases = Array.from({ length: count }, (_, index) => {
+    const template = templates[index % templates.length];
+    const variant = Math.floor(index / templates.length);
+    const suffix = variant > 0 ? ` (variant ${variant + 1})` : "";
+    return {
+      id: `case-${index + 1}`,
+      prompt: `${template.prompt}${suffix}`,
+      expectation: `${template.expectation}${suffix}`
+    } satisfies EvalCase;
+  });
+
+  return {
+    instructionFile: ".github/copilot-instructions.md",
+    cases
+  };
+}
 
 export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
@@ -23,7 +89,10 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const [message, setMessage] = useState<string>("");
   const [generatedContent, setGeneratedContent] = useState<string>("");
   const [evalResults, setEvalResults] = useState<EvalResult[] | null>(null);
+  const [evalViewerPath, setEvalViewerPath] = useState<string | null>(null);
   const [batchToken, setBatchToken] = useState<string | null>(null);
+  const [evalCaseCountInput, setEvalCaseCountInput] = useState<string>("");
+  const [evalBootstrapCount, setEvalBootstrapCount] = useState<number | null>(null);
   const repoLabel = useMemo(() => repoPath, [repoPath]);
 
   const handleAnimationComplete = () => {
@@ -63,6 +132,78 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         setMessage("Discarded generated instructions.");
         setGeneratedContent("");
         return;
+      }
+      return;
+    }
+
+    if (status === "bootstrapEvalCount") {
+      if (key.return) {
+        const trimmed = evalCaseCountInput.trim();
+        const count = Number.parseInt(trimmed, 10);
+        if (!trimmed || !Number.isFinite(count) || count <= 0) {
+          setMessage("Enter a positive number of eval cases, then press Enter.");
+          return;
+        }
+
+        const configPath = path.join(repoPath, "primer.eval.json");
+        setEvalBootstrapCount(count);
+        try {
+          await fs.access(configPath);
+          setStatus("bootstrapEvalConfirm");
+          setMessage("primer.eval.json exists. Overwrite? (Y/N)");
+        } catch {
+          const config = buildBootstrapEvalConfig(count);
+          const resultMessage = await safeWriteFile(configPath, JSON.stringify(config, null, 2), false);
+          setStatus("done");
+          setMessage(`Bootstrapped eval: ${resultMessage}`);
+          setEvalCaseCountInput("");
+          setEvalBootstrapCount(null);
+        }
+        return;
+      }
+
+      if (key.backspace || key.delete) {
+        setEvalCaseCountInput((prev) => prev.slice(0, -1));
+        return;
+      }
+
+      if (/^\d$/.test(input)) {
+        setEvalCaseCountInput((prev) => prev + input);
+        return;
+      }
+
+      return;
+    }
+
+    if (status === "bootstrapEvalConfirm") {
+      if (input.toLowerCase() === "y") {
+        const count = evalBootstrapCount ?? 0;
+        if (count <= 0) {
+          setStatus("error");
+          setMessage("Missing eval case count. Restart bootstrap.");
+          return;
+        }
+        try {
+          const configPath = path.join(repoPath, "primer.eval.json");
+          const config = buildBootstrapEvalConfig(count);
+          const resultMessage = await safeWriteFile(configPath, JSON.stringify(config, null, 2), true);
+          setStatus("done");
+          setMessage(`Bootstrapped eval: ${resultMessage}`);
+        } catch (error) {
+          setStatus("error");
+          setMessage(error instanceof Error ? error.message : "Failed to write eval config.");
+        } finally {
+          setEvalCaseCountInput("");
+          setEvalBootstrapCount(null);
+        }
+        return;
+      }
+
+      if (input.toLowerCase() === "n") {
+        setStatus("idle");
+        setMessage("Bootstrap cancelled.");
+        setEvalCaseCountInput("");
+        setEvalBootstrapCount(null);
       }
       return;
     }
@@ -133,8 +274,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       setStatus("evaluating");
       setMessage("Running evals... (this may take a few minutes)");
       setEvalResults(null);
+      setEvalViewerPath(null);
       try {
-        const { results } = await runEval({
+        const { results, viewerPath } = await runEval({
           configPath,
           repoPath,
           model: "gpt-4.1",
@@ -142,6 +284,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           // Note: onProgress removed - causes issues with SDK in React/Ink context
         });
         setEvalResults(results);
+        setEvalViewerPath(viewerPath ?? null);
         const passed = results.filter(r => r.verdict === "pass").length;
         const failed = results.filter(r => r.verdict === "fail").length;
         setStatus("done");
@@ -150,6 +293,13 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         setStatus("error");
         setMessage(error instanceof Error ? error.message : "Eval failed.");
       }
+    }
+
+    if (input.toLowerCase() === "i") {
+      setStatus("bootstrapEvalCount");
+      setMessage("Enter number of eval cases, then press Enter.");
+      setEvalCaseCountInput("");
+      setEvalBootstrapCount(null);
     }
   });
 
@@ -186,6 +336,11 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       <Box marginTop={1}>
         <Text>{message}</Text>
       </Box>
+      {status === "bootstrapEvalCount" && (
+        <Box marginTop={1}>
+          <Text color="cyan">Eval case count: {evalCaseCountInput || ""}</Text>
+        </Box>
+      )}
       {status === "preview" && generatedContent && (
         <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
           <Text color="cyan" bold>Preview (.github/copilot-instructions.md):</Text>
@@ -200,6 +355,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
               {r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"} {r.id}: {r.verdict} (score: {r.score})
             </Text>
           ))}
+          {evalViewerPath && (
+            <Text>Trajectory viewer: {evalViewerPath}</Text>
+          )}
         </Box>
       )}
       <Box marginTop={1}>
@@ -207,8 +365,10 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           <Text color="gray">Press any key to skip animation...</Text>
         ) : status === "preview" ? (
           <Text color="cyan">Keys: [S] Save  [D] Discard  [Q] Quit</Text>
+        ) : status === "bootstrapEvalConfirm" ? (
+          <Text color="cyan">Keys: [Y] Overwrite  [N] Cancel  [Q] Quit</Text>
         ) : (
-          <Text color="cyan">Keys: [A] Analyze  [G] Generate  [E] Eval  [B] Batch  [Q] Quit</Text>
+          <Text color="cyan">Keys: [A] Analyze  [G] Generate  [E] Eval  [I] Init Eval  [B] Batch  [Q] Quit</Text>
         )}
       </Box>
     </Box>

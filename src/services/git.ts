@@ -65,6 +65,8 @@ export async function commitAll(repoPath: string, message: string): Promise<void
   await git.commit(message);
 }
 
+export type AuthProvider = "github" | "azure";
+
 /** Normalize a git URL by removing trailing slashes and any existing auth */
 function normalizeGitUrl(url: string): string {
   let normalized = url.trim();
@@ -74,10 +76,26 @@ function normalizeGitUrl(url: string): string {
   }
   // Remove any existing x-access-token auth
   normalized = normalized.replace(/https:\/\/x-access-token:[^@]+@/, "https://");
+  // Remove any existing PAT auth
+  normalized = normalized.replace(/https:\/\/pat:[^@]+@/, "https://");
   return normalized;
 }
 
-export async function pushBranch(repoPath: string, branch: string, token?: string): Promise<void> {
+export function buildAuthedUrl(url: string, token: string, provider: AuthProvider): string {
+  const normalizedUrl = normalizeGitUrl(url);
+  if (!normalizedUrl.startsWith("https://")) return normalizedUrl;
+  if (provider === "azure") {
+    return normalizedUrl.replace("https://", `https://pat:${token}@`);
+  }
+  return normalizedUrl.replace("https://", `https://x-access-token:${token}@`);
+}
+
+export async function pushBranch(
+  repoPath: string,
+  branch: string,
+  token?: string,
+  provider: AuthProvider = "github"
+): Promise<void> {
   const git = simpleGit(repoPath);
   
   if (token) {
@@ -85,7 +103,7 @@ export async function pushBranch(repoPath: string, branch: string, token?: strin
     const remoteUrl = (await git.remote(["get-url", "origin"])) ?? "";
     const normalizedUrl = normalizeGitUrl(remoteUrl);
     if (normalizedUrl.startsWith("https://")) {
-      const authedUrl = normalizedUrl.replace("https://", `https://x-access-token:${token}@`);
+      const authedUrl = buildAuthedUrl(normalizedUrl, token, provider);
       await git.remote(["set-url", "origin", authedUrl]);
       try {
         await git.push(["-u", "origin", branch]);

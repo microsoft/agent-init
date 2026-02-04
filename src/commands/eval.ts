@@ -53,7 +53,7 @@ export async function evalCommand(configPathArg: string | undefined, options: Ev
 
   const configPath = path.resolve(configPathArg ?? path.join(repoPath, "primer.eval.json"));
 
-  const { summary } = await runEval({
+  const { summary, viewerPath } = await runEval({
     configPath,
     repoPath,
     model: options.model ?? "gpt-5",
@@ -62,4 +62,7 @@ export async function evalCommand(configPathArg: string | undefined, options: Ev
   });
 
   console.log(summary);
+  if (viewerPath) {
+    console.log(`Trajectory viewer: ${viewerPath}`);
+  }
 }

@@ -1,0 +1,15 @@
+{
+  "instructionFile": ".github/copilot-instructions.md",
+  "cases": [
+    {
+      "id": "project-overview",
+      "prompt": "Summarize what this project does and list the main entry points.",
+      "expectation": "Should mention the primary purpose and key files/directories."
+    },
+    {
+      "id": "build-commands",
+      "prompt": "How do I build and test this project?",
+      "expectation": "Should provide the correct build and test commands from package.json or equivalent."
+    }
+  ]
+}

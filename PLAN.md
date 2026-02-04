@@ -16,9 +16,14 @@ Make any repository "AI-ready" with a single command — generating optimal conf
 - Detect language(s), frameworks, and project structure
 - Identify existing AI configurations
 - Analyze package managers, build tools, and testing frameworks
-- Detect monorepo vs single-project structure
+- Detect monorepo vs single-project structure (workspace-aware)
 
-### 2. **Configuration Generation**
+### 2. **Readiness Report**
+- Score AI readiness across key pillars
+- Provide fix-first checklists and maturity levels
+- Support monorepos with app-scoped checks
+
+### 3. **Configuration Generation**
 
 | Config Type | Description |
 |-------------|-------------|
@@ -26,19 +31,19 @@ Make any repository "AI-ready" with a single command — generating optimal conf
 | **MCP Server Config** | `.vscode/mcp.json` for Model Context Protocol servers |
 | **VS Code Settings** | `.vscode/settings.json` with AI-optimized workspace settings |
 
-### 3. **GitHub Integration**
+### 4. **GitHub Integration**
 - Authenticate via GitHub CLI (`gh auth`) or OAuth device flow
 - List and select from accessible repositories
 - Clone repos temporarily for analysis
 - **Auto-create PRs** with generated configurations
 - Support for GitHub Enterprise
 
-### 4. **Local Repository Support**
+### 5. **Local Repository Support**
 - Detect local Git repositories
 - Work offline with local-only mode
 - Push changes to remote when ready
 
-### 5. **Interactive & Non-Interactive Modes**
+### 6. **Interactive & Non-Interactive Modes**
 - Beautiful TUI with prompts and previews
 - CI/CD-friendly `--yes` flag for automation
 - JSON output for scripting
@@ -99,6 +104,9 @@ primer pr owner/repo
 # Analyze repo without making changes
 primer analyze
 
+# Readiness report
+primer readiness
+
 # Update existing configurations
 primer update
 
@@ -107,6 +115,18 @@ primer templates
 
 # Configure CLI settings
 primer config
+
+# Generate instructions
+primer instructions
+
+# Run evaluations
+primer eval primer.eval.json
+
+# Run TUI
+primer tui
+
+# Batch processing
+primer batch
 ```
 
 ---
@@ -370,23 +390,33 @@ primer/
 │   ├── index.ts              # Entry point
 │   ├── cli.ts                # Commander setup
 │   ├── commands/
-│   │   ├── init.ts
-│   │   ├── generate.ts
 │   │   ├── analyze.ts
+│   │   ├── batch.tsx
+│   │   ├── config.ts
+│   │   ├── eval.ts
+│   │   ├── generate.ts
+│   │   ├── init.ts
+│   │   ├── instructions.tsx
 │   │   ├── pr.ts
-│   │   └── config.ts
+│   │   ├── readiness.ts
+│   │   ├── templates.ts
+│   │   ├── tui.tsx
+│   │   └── update.ts
 │   ├── services/
-│   │   ├── github.ts         # GitHub API interactions
 │   │   ├── analyzer.ts       # Repo analysis logic
+│   │   ├── azureDevops.ts    # Azure DevOps integration
+│   │   ├── evaluator.ts      # Eval runner
 │   │   ├── generator.ts      # Config generation
-│   │   └── git.ts            # Local git operations
+│   │   ├── git.ts            # Local git operations
+│   │   ├── github.ts         # GitHub API interactions
+│   │   └── instructions.ts   # Copilot SDK integration
 │   ├── ui/
-│   │   ├── prompts.ts        # Inquirer prompts
-│   │   ├── spinner.ts        # Loading indicators
-│   │   └── preview.ts        # File previews
+│   │   ├── AnimatedBanner.tsx
+│   │   ├── BatchTui.tsx
+│   │   ├── BatchTuiAzure.tsx
+│   │   └── tui.tsx
 │   └── utils/
 │       ├── fs.ts             # File system helpers
-│       ├── detection.ts      # Language/framework detection
 │       └── logger.ts         # Styled console output
 ├── package.json
 ├── tsconfig.json
@@ -476,24 +506,24 @@ Create example repos for each major stack:
 # Install dependencies
 npm install
 
-# Development with watch mode
-npm run dev
-
 # Build for production
 npm run build
-
-# Run tests
-npm test
 
 # Lint and format
 npm run lint
 npm run format
 
+# Type check
+npm run typecheck
+
+# Run tests
+npm run test
+
+# Coverage
+npm run test:coverage
+
 # Link globally for testing
 npm link
-
-# Create standalone binaries
-npm run package
 ```
 
 ---

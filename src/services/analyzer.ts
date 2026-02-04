@@ -1,6 +1,15 @@
 import fs from "fs/promises";
 import path from "path";
+import fg from "fast-glob";
 import { isGitRepo } from "./git";
+
+export type RepoApp = {
+  name: string;
+  path: string;
+  packageJsonPath: string;
+  scripts: Record<string, string>;
+  hasTsConfig: boolean;
+};
 
 export type RepoAnalysis = {
   path: string;
@@ -8,6 +17,10 @@ export type RepoAnalysis = {
   languages: string[];
   frameworks: string[];
   packageManager?: string;
+  isMonorepo?: boolean;
+  workspaceType?: "npm" | "pnpm" | "yarn";
+  workspacePatterns?: string[];
+  apps?: RepoApp[];
 };
 
 const PACKAGE_MANAGERS: Array<{ file: string; name: string }> = [
@@ -41,14 +54,26 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
 
   analysis.packageManager = await detectPackageManager(repoPath, files);
 
+  let rootPackageJson: Record<string, unknown> | undefined;
+
   if (hasPackageJson) {
-    const packageJson = await readJson(path.join(repoPath, "package.json"));
+    rootPackageJson = await readJson(path.join(repoPath, "package.json"));
     const deps = Object.keys({
-      ...(packageJson?.dependencies ?? {}),
-      ...(packageJson?.devDependencies ?? {})
+      ...(rootPackageJson?.dependencies ?? {}),
+      ...(rootPackageJson?.devDependencies ?? {})
     });
     analysis.frameworks.push(...detectFrameworks(deps, files));
   }
+
+  const workspace = await detectWorkspace(repoPath, files, rootPackageJson);
+  if (workspace) {
+    analysis.workspaceType = workspace.type;
+    analysis.workspacePatterns = workspace.patterns;
+  }
+
+  const apps = await resolveWorkspaceApps(repoPath, workspace?.patterns ?? [], rootPackageJson);
+  analysis.apps = apps;
+  analysis.isMonorepo = apps.length > 1;
 
   analysis.languages = unique(analysis.languages);
   analysis.frameworks = unique(analysis.frameworks);
@@ -96,6 +121,117 @@ async function readJson(filePath: string): Promise<Record<string, unknown> | und
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {
     return undefined;
+  }
+}
+
+type WorkspaceConfig = {
+  type: "npm" | "pnpm" | "yarn";
+  patterns: string[];
+};
+
+async function detectWorkspace(
+  repoPath: string,
+  files: string[],
+  packageJson?: Record<string, unknown>
+): Promise<WorkspaceConfig | undefined> {
+  if (files.includes("pnpm-workspace.yaml")) {
+    const patterns = await readPnpmWorkspace(path.join(repoPath, "pnpm-workspace.yaml"));
+    if (patterns.length) return { type: "pnpm", patterns };
+  }
+
+  const workspaces = packageJson?.workspaces;
+  if (Array.isArray(workspaces)) {
+    return { type: files.includes("yarn.lock") ? "yarn" : "npm", patterns: workspaces.map(String) };
+  }
+
+  if (workspaces && typeof workspaces === "object") {
+    const packages = (workspaces as { packages?: unknown }).packages;
+    if (Array.isArray(packages)) {
+      return { type: files.includes("yarn.lock") ? "yarn" : "npm", patterns: packages.map(String) };
+    }
+  }
+
+  return undefined;
+}
+
+async function readPnpmWorkspace(filePath: string): Promise<string[]> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const lines = raw.split(/\r?\n/u);
+    const patterns: string[] = [];
+    let inPackages = false;
+    for (const line of lines) {
+      if (!inPackages && /^\s*packages\s*:/u.test(line)) {
+        inPackages = true;
+        continue;
+      }
+      if (inPackages) {
+        const match = line.match(/^\s*-\s*(.+)$/u);
+        if (match?.[1]) {
+          patterns.push(match[1].trim().replace(/^['"]|['"]$/gu, ""));
+          continue;
+        }
+        if (/^\S/u.test(line)) break;
+      }
+    }
+    return patterns;
+  } catch {
+    return [];
+  }
+}
+
+async function resolveWorkspaceApps(
+  repoPath: string,
+  patterns: string[],
+  rootPackageJson?: Record<string, unknown>
+): Promise<RepoApp[]> {
+  const workspacePatterns = patterns
+    .map((pattern) => pattern.replace(/\\/gu, "/"))
+    .map((pattern) => (pattern.endsWith("package.json") ? pattern : path.posix.join(pattern, "package.json")));
+
+  const packageJsonPaths = workspacePatterns.length
+    ? await fg(workspacePatterns, { cwd: repoPath, absolute: true, onlyFiles: true, dot: false })
+    : [];
+
+  if (!packageJsonPaths.length && rootPackageJson) {
+    const rootPath = path.join(repoPath, "package.json");
+    return [await buildRepoApp(repoPath, rootPath, rootPackageJson)];
+  }
+
+  const apps = await Promise.all(
+    packageJsonPaths.map(async (pkgPath) => {
+      const pkg = await readJson(pkgPath);
+      return buildRepoApp(path.dirname(pkgPath), pkgPath, pkg);
+    })
+  );
+
+  return apps.filter(Boolean) as RepoApp[];
+}
+
+async function buildRepoApp(
+  appPath: string,
+  packageJsonPath: string,
+  packageJson?: Record<string, unknown>
+): Promise<RepoApp> {
+  const scripts = (packageJson?.scripts ?? {}) as Record<string, string>;
+  const name = typeof packageJson?.name === "string" ? packageJson.name : path.basename(appPath);
+  const hasTsConfig = await fileExists(path.join(appPath, "tsconfig.json"));
+
+  return {
+    name,
+    path: appPath,
+    packageJsonPath,
+    scripts,
+    hasTsConfig
+  };
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
   }
 }
 

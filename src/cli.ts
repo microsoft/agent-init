@@ -10,6 +10,7 @@ import { evalCommand } from "./commands/eval";
 import { tuiCommand } from "./commands/tui";
 import { instructionsCommand } from "./commands/instructions";
 import { batchCommand } from "./commands/batch";
+import { readinessCommand } from "./commands/readiness";
 
 export function runCli(argv: string[]): void {
   const program = new Command();
@@ -23,6 +24,7 @@ export function runCli(argv: string[]): void {
     .command("init")
     .argument("[path]", "Path to a local repository")
     .option("--github", "Use a GitHub repository")
+    .option("--provider <provider>", "Repo provider (github|azure)")
     .option("--yes", "Accept defaults and skip prompts")
     .option("--force", "Overwrite existing files")
     .action(initCommand);
@@ -42,8 +44,9 @@ export function runCli(argv: string[]): void {
 
   program
     .command("pr")
-    .argument("[repo]", "GitHub repo in owner/name form")
-    .option("--branch <name>", "Branch name", "primer/add-configs")
+    .argument("[repo]", "Repo identifier (github: owner/name, azure: org/project/repo)")
+    .option("--branch <name>", "Branch name")
+    .option("--provider <provider>", "Repo provider (github|azure)")
     .action(prCommand);
 
   program
@@ -70,9 +73,17 @@ export function runCli(argv: string[]): void {
     .action(instructionsCommand);
 
   program
+    .command("readiness")
+    .argument("[path]", "Path to a local repository")
+    .option("--json", "Output JSON")
+    .option("--output <path>", "Write JSON report to file")
+    .action(readinessCommand);
+
+  program
     .command("batch")
     .description("Batch process multiple repos across orgs")
     .option("--output <path>", "Write results JSON to file")
+    .option("--provider <provider>", "Repo provider (github|azure)", "github")
     .action(batchCommand);
 
   program.command("templates").action(templatesCommand);

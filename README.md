@@ -2,6 +2,9 @@
 
 > Prime your repositories for AI-assisted development.
 
+[![CI](https://github.com/pierceboggan/primer/actions/workflows/ci.yml/badge.svg)](https://github.com/pierceboggan/primer/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Primer is a CLI tool that analyzes your codebase and generates `.github/copilot-instructions.md` files to help AI coding assistants understand your project better. It supports single repos, batch processing across organizations, and includes an evaluation framework to measure instruction effectiveness.
 
 ![Primer](primer.png)
@@ -12,6 +15,7 @@ Primer is a CLI tool that analyzes your codebase and generates `.github/copilot-
 - **AI-Powered Generation** - Uses the Copilot SDK to analyze your codebase and generate context-aware instructions
 - **Batch Processing** - Process multiple repos across organizations with a single command
 - **Evaluation Framework** - Test and measure how well your instructions improve AI responses
+- **Readiness Report** - Score AI readiness across key pillars with a fix-first checklist
 - **GitHub Integration** - Clone repos, create branches, and open PRs automatically
 - **Interactive TUI** - Beautiful terminal interface built with Ink
 - **Config Generation** - Generate MCP and VS Code configurations
@@ -22,14 +26,31 @@ Primer is a CLI tool that analyzes your codebase and generates `.github/copilot-
 2. **GitHub Copilot CLI** - Installed via VS Code's Copilot Chat extension
 3. **Copilot CLI Authentication** - Run `copilot` then `/login` to authenticate
 4. **GitHub CLI (optional)** - For batch processing and PR creation: `brew install gh && gh auth login`
+5. **Azure DevOps PAT (optional)** - For Azure DevOps batch/PR workflows: set `AZURE_DEVOPS_PAT`
 
 ## Installation
 
 ```bash
-# Clone and install
+# Install from npm
+npm install -g primer
+```
+
+### Quick Install
+
+```bash
+primer --help
+```
+
+### Local Development Install
+
+```bash
+# Clone and install dependencies
 git clone https://github.com/pierceboggan/primer.git
 cd primer
 npm install
+
+# Build and link the local CLI
+npm run build
 ```
 
 ## Usage
@@ -40,26 +61,29 @@ The easiest way to get started is with the `init` command:
 
 ```bash
 # Interactive setup for current directory
-npx tsx src/index.ts init
+primer init
 
 # Accept defaults and generate instructions automatically
-npx tsx src/index.ts init --yes
+primer init --yes
 
 # Work with a GitHub repository
-npx tsx src/index.ts init --github
+primer init --github
+
+# Work with an Azure DevOps repository
+primer init --provider azure
 ```
 
 ### Interactive Mode (TUI)
 
 ```bash
 # Run TUI in current directory
-npx tsx src/index.ts tui
+primer tui
 
 # Run on a specific repo
-npx tsx src/index.ts tui --repo /path/to/repo
+primer tui --repo /path/to/repo
 
 # Skip the animated intro
-npx tsx src/index.ts tui --no-animation
+primer tui --no-animation
 ```
 
 **Keys:**
@@ -73,13 +97,13 @@ npx tsx src/index.ts tui --no-animation
 
 ```bash
 # Generate instructions for current directory
-npx tsx src/index.ts instructions
+primer instructions
 
 # Generate for specific repo with custom output
-npx tsx src/index.ts instructions --repo /path/to/repo --output ./instructions.md
+primer instructions --repo /path/to/repo --output ./instructions.md
 
 # Use a specific model
-npx tsx src/index.ts instructions --model gpt-5
+primer instructions --model gpt-5
 ```
 
 ### Batch Processing
@@ -88,10 +112,13 @@ Process multiple repositories across organizations:
 
 ```bash
 # Launch batch TUI
-npx tsx src/index.ts batch
+primer batch
+
+# Launch batch TUI for Azure DevOps
+primer batch --provider azure
 
 # Save results to file
-npx tsx src/index.ts batch --output results.json
+primer batch --output results.json
 ```
 
 **Batch TUI Keys:**
@@ -105,11 +132,33 @@ npx tsx src/index.ts batch --output results.json
 
 ```bash
 # Analyze current directory
-npx tsx src/index.ts analyze
+primer analyze
 
 # Analyze specific path with JSON output
-npx tsx src/index.ts analyze /path/to/repo --json
+primer analyze /path/to/repo --json
 ```
+
+### Readiness Report
+
+Assess how ready a repository is for AI agents and get a prioritized checklist of fixes:
+
+```bash
+# Run readiness report in current directory
+primer readiness
+
+# Run readiness report on a specific repo
+primer readiness /path/to/repo
+
+# Output JSON only
+primer readiness --json
+
+# Write JSON report to a file
+primer readiness --output readiness.json
+```
+
+### Examples
+
+See [examples/README.md](examples/README.md) for quick usage snippets and a sample eval config.
 
 ### Generate Configs
 
@@ -117,19 +166,19 @@ Generate configuration files for your repo:
 
 ```bash
 # Generate MCP config
-npx tsx src/index.ts generate mcp
+primer generate mcp
 
 # Generate VS Code settings
-npx tsx src/index.ts generate vscode --force
+primer generate vscode --force
 
 # Generate custom prompts
-npx tsx src/index.ts generate prompts
+primer generate prompts
 
 # Generate agent configs
-npx tsx src/index.ts generate agents
+primer generate agents
 
 # Generate .aiignore file
-npx tsx src/index.ts generate aiignore
+primer generate aiignore
 ```
 
 ### Manage Templates
@@ -137,7 +186,7 @@ npx tsx src/index.ts generate aiignore
 View available instruction templates:
 
 ```bash
-npx tsx src/index.ts templates
+primer templates
 ```
 
 ### Configuration
@@ -145,7 +194,7 @@ npx tsx src/index.ts templates
 View and manage Primer configuration:
 
 ```bash
-npx tsx src/index.ts config
+primer config
 ```
 
 ### Update
@@ -153,7 +202,7 @@ npx tsx src/index.ts config
 Check for and apply updates:
 
 ```bash
-npx tsx src/index.ts update
+primer update
 ```
 
 ### Create Pull Requests
@@ -162,10 +211,13 @@ Automatically create a PR to add Primer configs to a repository:
 
 ```bash
 # Create PR for a GitHub repo
-npx tsx src/index.ts pr owner/repo-name
+primer pr owner/repo-name
 
 # Use custom branch name
-npx tsx src/index.ts pr owner/repo-name --branch primer/custom-branch
+primer pr owner/repo-name --branch primer/custom-branch
+
+# Create PR for an Azure DevOps repo (org/project/repo)
+primer pr my-org/my-project/my-repo --provider azure
 ```
 
 ### Evaluation Framework
@@ -174,19 +226,22 @@ Test how well your instructions improve AI responses:
 
 ```bash
 # Create a starter eval config
-npx tsx src/index.ts eval --init
+primer eval --init
 
 # Run evaluation
-npx tsx src/index.ts eval primer.eval.json --repo /path/to/repo
+primer eval primer.eval.json --repo /path/to/repo
 
 # Save results and use specific models
-npx tsx src/index.ts eval --output results.json --model gpt-5 --judge-model gpt-5
+primer eval --output results.json --model gpt-5 --judge-model gpt-5
 ```
+
+When `--output` is provided (or `outputPath` is set in the eval config), Primer writes a JSON report that includes per-case metrics and trajectory events, and also generates a companion HTML trajectory viewer next to the JSON file.
 
 Example `primer.eval.json`:
 ```json
 {
   "instructionFile": ".github/copilot-instructions.md",
+   "outputPath": "eval-results.json",
   "cases": [
     {
       "id": "project-overview",
@@ -264,8 +319,23 @@ primer/
 # Type check
 npx tsc -p tsconfig.json --noEmit
 
-# Run in dev mode
-npx tsx src/index.ts
+# Lint
+npm run lint
+
+# Format
+npm run format
+
+# Test
+npm run test
+
+# Coverage
+npm run test:coverage
+
+# Build and link the local CLI
+npm run build
+
+# Run locally
+primer
 ```
 
 ## Troubleshooting
