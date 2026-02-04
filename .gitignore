@@ -26,3 +26,6 @@ npm-debug.log*
 
 # Primer cache
 .primer-cache/
+
+# Primer outputs
+.primer/

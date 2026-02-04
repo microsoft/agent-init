@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Box, Key, Text, useApp, useInput } from "ink";
 import fs from "fs/promises";
 import path from "path";
-import { analyzeRepo, RepoAnalysis } from "../services/analyzer";
 import { generateCopilotInstructions } from "../services/instructions";
 import { runEval, type EvalResult } from "../services/evaluator";
 import { generateEvalScaffold } from "../services/evalScaffold";
+import { listCopilotModels } from "../services/copilot";
 import { AnimatedBanner, StaticBanner } from "./AnimatedBanner";
 import { BatchTui } from "./BatchTui";
 import { BatchTuiAzure } from "./BatchTuiAzure";
@@ -22,7 +22,6 @@ type Props = {
 type Status =
   | "intro"
   | "idle"
-  | "analyzing"
   | "generating"
   | "readiness"
   | "bootstrapping"
@@ -45,7 +44,6 @@ type EvalConfig = {
 export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
   const [status, setStatus] = useState<Status>(skipAnimation ? "idle" : "intro");
-  const [analysis, setAnalysis] = useState<RepoAnalysis | null>(null);
   const [message, setMessage] = useState<string>("");
   const [generatedContent, setGeneratedContent] = useState<string>("");
   const [evalResults, setEvalResults] = useState<EvalResult[] | null>(null);
@@ -55,11 +53,40 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const [evalCaseCountInput, setEvalCaseCountInput] = useState<string>("");
   const [evalBootstrapCount, setEvalBootstrapCount] = useState<number | null>(null);
   const [readinessReport, setReadinessReport] = useState<ReadinessReport | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [evalModel, setEvalModel] = useState<string>("gpt-4.1");
+  const [judgeModel, setJudgeModel] = useState<string>("gpt-4.1");
   const repoLabel = useMemo(() => repoPath, [repoPath]);
 
   const handleAnimationComplete = () => {
     setStatus("idle");
   };
+
+  const cycleModel = (current: string): string => {
+    if (!availableModels.length) return current;
+    const index = availableModels.indexOf(current);
+    const nextIndex = index === -1 ? 0 : (index + 1) % availableModels.length;
+    return availableModels[nextIndex];
+  };
+
+  useEffect(() => {
+    let active = true;
+    listCopilotModels()
+      .then((models) => {
+        if (!active) return;
+        setAvailableModels(models);
+        if (models.length === 0) return;
+        setEvalModel((current) => (models.includes(current) ? current : models[0]));
+        setJudgeModel((current) => (models.includes(current) ? current : models[0]));
+      })
+      .catch(() => {
+        if (!active) return;
+        setAvailableModels([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const bootstrapEvalConfig = async (count: number, force: boolean): Promise<void> => {
     const configPath = path.join(repoPath, "primer.eval.json");
@@ -68,225 +95,229 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       setMessage("Generating eval cases with Copilot SDK...");
       const config = await generateEvalScaffold({
         repoPath,
-        count,
-        model: "gpt-4.1",
-        onProgress: (msg) => setMessage(msg)
-      });
-      const resultMessage = await safeWriteFile(configPath, JSON.stringify(config, null, 2), force);
-      setStatus("done");
-      setMessage(`Bootstrapped eval: ${resultMessage}`);
-    } catch (error) {
-      setStatus("error");
-      const message = error instanceof Error ? error.message : "Failed to generate eval cases.";
-      if (message.toLowerCase().includes("auth") || message.toLowerCase().includes("login")) {
-        setMessage(`${message} Run 'copilot' then '/login' in a separate terminal.`);
-      } else {
-        setMessage(message);
+
+    useInput(async (input: string, key: Key) => {
+      if (status === "intro") {
+        setStatus("idle");
+        return;
       }
-    } finally {
-      setEvalCaseCountInput("");
-      setEvalBootstrapCount(null);
-    }
-  };
 
-  useInput(async (input: string, key: Key) => {
-    // During intro animation, any key skips it
-    if (status === "intro") {
-      setStatus("idle");
-      return;
-    }
+      if (key.escape || input.toLowerCase() === "q") {
+        app.exit();
+        return;
+      }
 
-    if (key.escape || input.toLowerCase() === "q") {
-      app.exit();
-      return;
-    }
-
-    // In preview mode, handle save/discard
-    if (status === "preview") {
-      if (input.toLowerCase() === "s") {
-        try {
-          const outputPath = path.join(repoPath, ".github", "copilot-instructions.md");
-          await fs.mkdir(path.dirname(outputPath), { recursive: true });
-          await fs.writeFile(outputPath, generatedContent, "utf8");
-          setStatus("done");
-          setMessage("Saved to .github/copilot-instructions.md");
+      if (status === "preview") {
+        if (input.toLowerCase() === "s") {
+          try {
+            const outputPath = path.join(repoPath, ".github", "copilot-instructions.md");
+            await fs.mkdir(path.dirname(outputPath), { recursive: true });
+            await fs.writeFile(outputPath, generatedContent, "utf8");
+            setStatus("done");
+            setMessage("Saved to .github/copilot-instructions.md");
+            setGeneratedContent("");
+          } catch (error) {
+            setStatus("error");
+            setMessage(error instanceof Error ? error.message : "Failed to save.");
+          }
+          return;
+        }
+        if (input.toLowerCase() === "d") {
+          setStatus("idle");
+          setMessage("Discarded generated instructions.");
           setGeneratedContent("");
+          return;
+        }
+        return;
+      }
+
+      if (status === "bootstrapEvalCount") {
+        if (key.return) {
+          const trimmed = evalCaseCountInput.trim();
+          const count = Number.parseInt(trimmed, 10);
+          if (!trimmed || !Number.isFinite(count) || count <= 0) {
+            setMessage("Enter a positive number of eval cases, then press Enter.");
+            return;
+          }
+
+          const configPath = path.join(repoPath, "primer.eval.json");
+          setEvalBootstrapCount(count);
+          try {
+            await fs.access(configPath);
+            setStatus("bootstrapEvalConfirm");
+            setMessage("primer.eval.json exists. Overwrite? (Y/N)");
+          } catch {
+            await bootstrapEvalConfig(count, false);
+          }
+          return;
+        }
+
+        if (key.backspace || key.delete) {
+          setEvalCaseCountInput((prev) => prev.slice(0, -1));
+          return;
+        }
+
+        if (/^\d$/.test(input)) {
+          setEvalCaseCountInput((prev) => prev + input);
+          return;
+        }
+
+        return;
+      }
+
+      if (status === "bootstrapEvalConfirm") {
+        if (input.toLowerCase() === "y") {
+          const count = evalBootstrapCount ?? 0;
+          if (count <= 0) {
+            setStatus("error");
+            setMessage("Missing eval case count. Restart bootstrap.");
+            return;
+          }
+          await bootstrapEvalConfig(count, true);
+          return;
+        }
+
+        if (input.toLowerCase() === "n") {
+          setStatus("idle");
+          setMessage("Bootstrap cancelled.");
+          setEvalCaseCountInput("");
+          setEvalBootstrapCount(null);
+        }
+        return;
+      }
+
+      if (input.toLowerCase() === "g") {
+        setStatus("generating");
+        setMessage("Starting generation...");
+        try {
+          const content = await generateCopilotInstructions({
+            repoPath,
+            onProgress: (msg) => setMessage(msg)
+          });
+          if (!content.trim()) {
+            throw new Error("Copilot SDK returned empty instructions.");
+          }
+          setGeneratedContent(content);
+          setStatus("preview");
+          setMessage("Review the generated instructions below.");
         } catch (error) {
           setStatus("error");
-          setMessage(error instanceof Error ? error.message : "Failed to save.");
+          const message = error instanceof Error ? error.message : "Generation failed.";
+          if (message.toLowerCase().includes("auth") || message.toLowerCase().includes("login")) {
+            setMessage(`${message} Run 'copilot' then '/login' in a separate terminal.`);
+          } else {
+            setMessage(message);
+          }
         }
-        return;
       }
-      if (input.toLowerCase() === "d") {
-        setStatus("idle");
-        setMessage("Discarded generated instructions.");
-        setGeneratedContent("");
-        return;
-      }
-      return;
-    }
 
-    if (status === "bootstrapEvalCount") {
-      if (key.return) {
-        const trimmed = evalCaseCountInput.trim();
-        const count = Number.parseInt(trimmed, 10);
-        if (!trimmed || !Number.isFinite(count) || count <= 0) {
-          setMessage("Enter a positive number of eval cases, then press Enter.");
+      if (input.toLowerCase() === "b") {
+        setStatus("generating");
+        setMessage("Checking GitHub authentication...");
+        const token = await getGitHubToken();
+        if (!token) {
+          setStatus("error");
+          setMessage("GitHub auth required. Run 'gh auth login' or set GITHUB_TOKEN.");
           return;
         }
+        setBatchToken(token);
+        setStatus("batch-github");
+        return;
+      }
 
+      if (input.toLowerCase() === "z") {
+        setStatus("generating");
+        setMessage("Checking Azure DevOps authentication...");
+        const token = getAzureDevOpsToken();
+        if (!token) {
+          setStatus("error");
+          setMessage("Azure DevOps PAT required. Set AZURE_DEVOPS_PAT or AZDO_PAT.");
+          return;
+        }
+        setBatchAzureToken(token);
+        setStatus("batch-azure");
+        return;
+      }
+
+      if (input.toLowerCase() === "e") {
         const configPath = path.join(repoPath, "primer.eval.json");
-        setEvalBootstrapCount(count);
+        const outputPath = path.join(repoPath, ".primer", "evals", buildTimestampedName("eval-results"));
         try {
           await fs.access(configPath);
-          setStatus("bootstrapEvalConfirm");
-          setMessage("primer.eval.json exists. Overwrite? (Y/N)");
         } catch {
-          await bootstrapEvalConfig(count, false);
-        }
-        return;
-      }
-
-      if (key.backspace || key.delete) {
-        setEvalCaseCountInput((prev) => prev.slice(0, -1));
-        return;
-      }
-
-      if (/^\d$/.test(input)) {
-        setEvalCaseCountInput((prev) => prev + input);
-        return;
-      }
-
-      return;
-    }
-
-    if (status === "bootstrapEvalConfirm") {
-      if (input.toLowerCase() === "y") {
-        const count = evalBootstrapCount ?? 0;
-        if (count <= 0) {
           setStatus("error");
-          setMessage("Missing eval case count. Restart bootstrap.");
+          setMessage("No primer.eval.json found. Run 'primer eval --init' to create one.");
           return;
         }
-        await bootstrapEvalConfig(count, true);
+
+        setStatus("evaluating");
+        setMessage("Running evals... (this may take a few minutes)");
+        setEvalResults(null);
+        setEvalViewerPath(null);
+        try {
+          const { results, viewerPath } = await runEval({
+            configPath,
+            repoPath,
+            model: evalModel,
+            judgeModel: judgeModel,
+            outputPath
+          });
+          setEvalResults(results);
+          setEvalViewerPath(viewerPath ?? null);
+          const passed = results.filter((r) => r.verdict === "pass").length;
+          const failed = results.filter((r) => r.verdict === "fail").length;
+          setStatus("done");
+          setMessage(`Eval complete: ${passed} pass, ${failed} fail out of ${results.length} cases.`);
+        } catch (error) {
+          setStatus("error");
+          setMessage(error instanceof Error ? error.message : "Eval failed.");
+        }
+      }
+
+      if (input.toLowerCase() === "m") {
+        if (!availableModels.length) {
+          setMessage("No Copilot CLI models detected; using defaults.");
+          return;
+        }
+        const next = cycleModel(evalModel);
+        setEvalModel(next);
+        setMessage(`Eval model: ${next}`);
         return;
       }
 
-      if (input.toLowerCase() === "n") {
-        setStatus("idle");
-        setMessage("Bootstrap cancelled.");
+      if (input.toLowerCase() === "j") {
+        if (!availableModels.length) {
+          setMessage("No Copilot CLI models detected; using defaults.");
+          return;
+        }
+        const next = cycleModel(judgeModel);
+        setJudgeModel(next);
+        setMessage(`Judge model: ${next}`);
+        return;
+      }
+
+      if (input.toLowerCase() === "i") {
+        setStatus("bootstrapEvalCount");
+        setMessage("Enter number of eval cases, then press Enter.");
         setEvalCaseCountInput("");
         setEvalBootstrapCount(null);
       }
-      return;
-    }
 
-    if (input.toLowerCase() === "a") {
-      setStatus("analyzing");
-      try {
-        const result = await analyzeRepo(repoPath);
-        setAnalysis(result);
-        setStatus("done");
-        setMessage("Analysis complete.");
-      } catch (error) {
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Analysis failed.");
-      }
-      return;
-    }
-
-    if (input.toLowerCase() === "g") {
-      setStatus("generating");
-      setMessage("Starting generation...");
-      try {
-        const content = await generateCopilotInstructions({ 
-          repoPath,
-          onProgress: (msg) => setMessage(msg),
-        });
-        if (!content.trim()) {
-          throw new Error("Copilot SDK returned empty instructions.");
-        }
-        setGeneratedContent(content);
-        setStatus("preview");
-        setMessage("Review the generated instructions below.");
-      } catch (error) {
-        setStatus("error");
-        const message = error instanceof Error ? error.message : "Generation failed.";
-        if (message.toLowerCase().includes("auth") || message.toLowerCase().includes("login")) {
-          setMessage(`${message} Run 'copilot' then '/login' in a separate terminal.`);
-        } else {
-          setMessage(message);
+      if (input.toLowerCase() === "r") {
+        setStatus("readiness");
+        setMessage("Running readiness report...");
+        setReadinessReport(null);
+        try {
+          const report = await runReadinessReport({ repoPath });
+          setReadinessReport(report);
+          setStatus("done");
+          setMessage("Readiness report complete.");
+        } catch (error) {
+          setStatus("error");
+          setMessage(error instanceof Error ? error.message : "Readiness report failed.");
         }
       }
-    }
-
-    if (input.toLowerCase() === "b") {
-      setStatus("analyzing");
-      setMessage("Checking GitHub authentication...");
-      const token = await getGitHubToken();
-      if (!token) {
-        setStatus("error");
-        setMessage("GitHub auth required. Run 'gh auth login' or set GITHUB_TOKEN.");
-        return;
-      }
-      setBatchToken(token);
-      setStatus("batch-github");
-      return;
-    }
-
-    if (input.toLowerCase() === "z") {
-      setStatus("analyzing");
-      setMessage("Checking Azure DevOps authentication...");
-      const token = getAzureDevOpsToken();
-      if (!token) {
-        setStatus("error");
-        setMessage("Azure DevOps PAT required. Set AZURE_DEVOPS_PAT or AZDO_PAT.");
-        return;
-      }
-      setBatchAzureToken(token);
-      setStatus("batch-azure");
-      return;
-    }
-
-    if (input.toLowerCase() === "e") {
-      const configPath = path.join(repoPath, "primer.eval.json");
-      const outputPath = path.join(repoPath, "eval-results.json");
-      try {
-        await fs.access(configPath);
-      } catch {
-        setStatus("error");
-        setMessage("No primer.eval.json found. Run 'primer eval --init' to create one.");
-        return;
-      }
-      
-      setStatus("evaluating");
-      setMessage("Running evals... (this may take a few minutes)");
-      setEvalResults(null);
-      setEvalViewerPath(null);
-      try {
-        const { results, viewerPath } = await runEval({
-          configPath,
-          repoPath,
-          model: "gpt-4.1",
-          judgeModel: "gpt-4.1",
-          outputPath,
-          // Note: onProgress removed - causes issues with SDK in React/Ink context
-        });
-        setEvalResults(results);
-        setEvalViewerPath(viewerPath ?? null);
-        const passed = results.filter(r => r.verdict === "pass").length;
-        const failed = results.filter(r => r.verdict === "fail").length;
-        setStatus("done");
-        setMessage(`Eval complete: ${passed} pass, ${failed} fail out of ${results.length} cases.`);
-      } catch (error) {
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Eval failed.");
-      }
-    }
-
-    if (input.toLowerCase() === "i") {
-      setStatus("bootstrapEvalCount");
-      setMessage("Enter number of eval cases, then press Enter.");
+    });
       setEvalCaseCountInput("");
       setEvalBootstrapCount(null);
     }
@@ -343,24 +374,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         <Text color={statusColor}>● {statusLabel}</Text>
       </Box>
       <Text color="gray">Repo: {repoLabel}</Text>
-
-      <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="gray" paddingX={1}>
-        <Text color="gray" bold>
-          Repository signals
-        </Text>
-        {analysis ? (
-          <Box flexDirection="column">
-            <Text>Languages: {analysis.languages.join(", ") || "unknown"}</Text>
-            <Text>Frameworks: {analysis.frameworks.join(", ") || "none"}</Text>
-            <Text>Package manager: {analysis.packageManager ?? "unknown"}</Text>
-            {analysis.isMonorepo && (
-              <Text>Monorepo: yes ({analysis.apps?.length ?? 0} apps)</Text>
-            )}
-          </Box>
-        ) : (
-          <Text color="gray">Run analysis to populate repo signals.</Text>
-        )}
-      </Box>
+      <Text color="gray">Eval model: {evalModel} • Judge model: {judgeModel}</Text>
 
       <Box marginTop={1} borderStyle="round" borderColor="gray" paddingX={1}>
         <Text color="gray" bold>
@@ -423,11 +437,16 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         ) : status === "bootstrapEvalConfirm" ? (
           <Text color="cyan">Keys: [Y] Overwrite  [N] Cancel  [Q] Quit</Text>
         ) : (
-          <Text color="cyan">Keys: [A] Analyze  [G] Generate  [R] Readiness  [E] Eval  [I] Init Eval  [B] Batch  [Z] Batch Azure  [Q] Quit</Text>
+          <Text color="cyan">Keys: [A] Analyze  [G] Generate  [R] Readiness  [E] Eval  [I] Init Eval  [M] Model  [J] Judge  [B] Batch  [Z] Batch Azure  [Q] Quit</Text>
         )}
       </Box>
     </Box>
   );
+}
+
+function buildTimestampedName(baseName: string): string {
+  const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
+  return `${baseName}-${stamp}.json`;
 }
 
 function topFixes(criteria: ReadinessCriterionResult[]): ReadinessCriterionResult[] {

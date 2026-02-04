@@ -84,7 +84,13 @@ export async function runEval(options: EvalRunOptions): Promise<{ summary: strin
   const instructionText = await readOptionalFile(instructionPath);
   const baseSystemMessage = config.systemMessage ?? DEFAULT_SYSTEM_MESSAGE;
   const progress = options.onProgress ?? (() => {});
-  const outputPath = resolveOutputPath(options.repoPath, options.outputPath, config.outputPath);
+  const defaultOutputPath = path.resolve(
+    options.repoPath,
+    ".primer",
+    "evals",
+    buildTimestampedName("eval-results")
+  );
+  const outputPath = resolveOutputPath(options.repoPath, options.outputPath, config.outputPath) ?? defaultOutputPath;
   const runStartedAt = Date.now();
 
   progress("Starting Copilot SDK...");
@@ -169,6 +175,7 @@ export async function runEval(options: EvalRunOptions): Promise<{ summary: strin
     };
     let viewerPath: string | undefined;
     if (outputPath) {
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
       await fs.writeFile(outputPath, JSON.stringify(output, null, 2), "utf8");
       viewerPath = buildViewerPath(outputPath);
       await fs.writeFile(viewerPath, buildTrajectoryViewerHtml(output), "utf8");
@@ -613,6 +620,11 @@ function resolveOutputPath(repoPath: string, override?: string, configValue?: st
   const chosen = override ?? configValue;
   if (!chosen) return undefined;
   return path.isAbsolute(chosen) ? chosen : path.resolve(repoPath, chosen);
+}
+
+function buildTimestampedName(baseName: string): string {
+  const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
+  return `${baseName}-${stamp}.json`;
 }
 
 function buildViewerPath(outputPath: string): string {

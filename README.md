@@ -128,16 +128,6 @@ primer batch --output results.json
 - `[Y/N]` Confirm/cancel processing
 - `[Q]` Quit
 
-### Analyze Repository
-
-```bash
-# Analyze current directory
-primer analyze
-
-# Analyze specific path with JSON output
-primer analyze /path/to/repo --json
-```
-
 ### Readiness Report
 
 Assess how ready a repository is for AI agents and get a prioritized checklist of fixes:

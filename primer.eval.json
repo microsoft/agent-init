@@ -1,20 +1,21 @@
 {
   "instructionFile": ".github/copilot-instructions.md",
+  "systemMessage": "You are answering questions about the Primer repository. Scope your answers to this repo's architecture, usage, configuration, and workflows. Do not provide generic Copilot CLI details unless specifically asked.",
   "cases": [
     {
       "id": "case-1",
-      "prompt": "What is the main purpose of the Primer CLI tool and what are its key features?",
-      "expectation": "Primer is a CLI tool that analyzes codebases and generates .github/copilot-instructions.md files to help AI coding assistants understand projects better. Key features include repository analysis, AI-powered instruction generation, batch processing, an evaluation framework, readiness reports, GitHub integration, an interactive TUI, and config generation."
+      "prompt": "What is the main purpose of the Primer project and what are its key entrypoints?",
+      "expectation": "Primer is a TypeScript CLI tool for priming repositories for AI-assisted development and evaluation. The main entrypoint is src/index.ts, which calls runCli in src/cli.ts. Key directories include src/commands/ for CLI subcommands, src/services/ for core logic, and src/ui/ for the Ink/React-based terminal UI."
     },
     {
       "id": "case-2",
-      "prompt": "How do you run the Primer CLI locally to analyze a repository and generate VS Code settings?",
-      "expectation": "To analyze a repository, run `npx tsx src/index.ts analyze [path] --json`. To generate VS Code settings, run `npx tsx src/index.ts generate vscode [path] [--force]`."
+      "prompt": "How do I build, lint, and test the Primer project locally?",
+      "expectation": "Install dependencies with npm install. Build with npm run build, lint with npm run lint, and test with npm run test. Type checking is done with npx tsc -p tsconfig.json --noEmit, and coverage with npm run test:coverage."
     },
     {
       "id": "case-3",
-      "prompt": "Where should new CLI commands and core logic be placed in the Primer codebase, and what architectural patterns are followed?",
-      "expectation": "New CLI commands should be placed in src/commands/, and core logic in src/services/. The architecture uses Commander for CLI, Ink/React for TUI, and simple-git/Octokit for GitHub automation, following strict ESM TypeScript conventions."
+      "prompt": "Where should new CLI commands and core logic be placed, and what conventions should be followed for configuration files?",
+      "expectation": "New CLI commands should be placed in src/commands/, and core logic in src/services/. Use ESM syntax everywhere, strict TypeScript targeting ES2022 and module ESNext, and only overwrite config files like .vscode/settings.json and .vscode/mcp.json with --force. All Copilot/VS Code settings reference .github/copilot-instructions.md and enable MCP."
     }
   ]
 }

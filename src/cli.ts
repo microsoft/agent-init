@@ -1,6 +1,5 @@
 import { Command } from "commander";
 import { initCommand } from "./commands/init";
-import { analyzeCommand } from "./commands/analyze";
 import { generateCommand } from "./commands/generate";
 import { prCommand } from "./commands/pr";
 import { templatesCommand } from "./commands/templates";
@@ -29,11 +28,6 @@ export function runCli(argv: string[]): void {
     .option("--force", "Overwrite existing files")
     .action(initCommand);
 
-  program
-    .command("analyze")
-    .argument("[path]", "Path to a local repository")
-    .option("--json", "Output JSON")
-    .action(analyzeCommand);
 
   program
     .command("generate")
