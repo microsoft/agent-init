@@ -2,9 +2,6 @@ import { Command } from "commander";
 import { initCommand } from "./commands/init";
 import { generateCommand } from "./commands/generate";
 import { prCommand } from "./commands/pr";
-import { templatesCommand } from "./commands/templates";
-import { updateCommand } from "./commands/update";
-import { configCommand } from "./commands/config";
 import { evalCommand } from "./commands/eval";
 import { tuiCommand } from "./commands/tui";
 import { instructionsCommand } from "./commands/instructions";
@@ -89,10 +86,6 @@ export function runCli(argv: string[]): void {
     .description("Generate batch AI readiness report for multiple repos")
     .option("--output <path>", "Write HTML report to file")
     .action(batchReadinessCommand);
-
-  program.command("templates").action(templatesCommand);
-  program.command("update").action(updateCommand);
-  program.command("config").action(configCommand);
 
   program.parse(argv);
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Box, Key, Text, useApp, useInput } from "ink";
 import fs from "fs/promises";
 import path from "path";
@@ -12,7 +12,6 @@ import { BatchTuiAzure } from "./BatchTuiAzure";
 import { getGitHubToken } from "../services/github";
 import { getAzureDevOpsToken } from "../services/azureDevops";
 import { safeWriteFile } from "../utils/fs";
-import { ReadinessReport, ReadinessCriterionResult, runReadinessReport } from "../services/readiness";
 
 type Props = {
   repoPath: string;
@@ -23,23 +22,69 @@ type Status =
   | "intro"
   | "idle"
   | "generating"
-  | "readiness"
   | "bootstrapping"
   | "evaluating"
   | "preview"
   | "done"
   | "error"
+  | "batch-pick"
   | "batch-github"
   | "batch-azure"
+  | "eval-pick"
   | "bootstrapEvalCount"
   | "bootstrapEvalConfirm";
 
-type EvalConfig = {
-  instructionFile?: string;
-  cases: Array<{ id: string; prompt: string; expectation: string }>;
-  systemMessage?: string;
-  outputPath?: string;
+type LogEntry = {
+  text: string;
+  type: "info" | "success" | "error" | "progress";
+  time: string;
 };
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+function useSpinner(active: boolean): string {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => {
+      setFrame((f) => (f + 1) % SPINNER_FRAMES.length);
+    }, 80);
+    return () => clearInterval(interval);
+  }, [active]);
+  return active ? SPINNER_FRAMES[frame] : "";
+}
+
+function timestamp(): string {
+  return new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function KeyHint({ k, label }: { k: string; label: string }): React.JSX.Element {
+  return (
+    <Text>
+      <Text color="gray" dimColor>{"["}</Text>
+      <Text color="cyanBright" bold>{k}</Text>
+      <Text color="gray" dimColor>{"]"}</Text>
+      <Text color="gray"> {label}  </Text>
+    </Text>
+  );
+}
+
+function Divider({ label }: { label?: string }): React.JSX.Element {
+  if (label) {
+    return (
+      <Box marginTop={1}>
+        <Text color="gray" dimColor>{"── "}</Text>
+        <Text color="gray" bold>{label}</Text>
+        <Text color="gray" dimColor>{" ──────────────────────────────────────────"}</Text>
+      </Box>
+    );
+  }
+  return (
+    <Box marginTop={1}>
+      <Text color="gray" dimColor>{"────────────────────────────────────────────────────"}</Text>
+    </Box>
+  );
+}
 
 export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
@@ -52,11 +97,19 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const [batchAzureToken, setBatchAzureToken] = useState<string | null>(null);
   const [evalCaseCountInput, setEvalCaseCountInput] = useState<string>("");
   const [evalBootstrapCount, setEvalBootstrapCount] = useState<number | null>(null);
-  const [readinessReport, setReadinessReport] = useState<ReadinessReport | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [evalModel, setEvalModel] = useState<string>("gpt-4.1");
   const [judgeModel, setJudgeModel] = useState<string>("gpt-4.1");
-  const repoLabel = useMemo(() => repoPath, [repoPath]);
+  const [hasEvalConfig, setHasEvalConfig] = useState<boolean | null>(null);
+  const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
+  const repoLabel = useMemo(() => path.basename(repoPath), [repoPath]);
+  const repoFull = useMemo(() => repoPath, [repoPath]);
+  const isLoading = status === "generating" || status === "bootstrapping" || status === "evaluating";
+  const spinner = useSpinner(isLoading);
+
+  const addLog = (text: string, type: LogEntry["type"] = "info") => {
+    setActivityLog((prev) => [...prev.slice(-4), { text, type, time: timestamp() }]);
+  };
 
   const handleAnimationComplete = () => {
     setStatus("idle");
@@ -68,6 +121,12 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     const nextIndex = index === -1 ? 0 : (index + 1) % availableModels.length;
     return availableModels[nextIndex];
   };
+
+  // Check for eval config on mount
+  useEffect(() => {
+    const configPath = path.join(repoPath, "primer.eval.json");
+    fs.access(configPath).then(() => setHasEvalConfig(true)).catch(() => setHasEvalConfig(false));
+  }, [repoPath]);
 
   useEffect(() => {
     let active = true;
@@ -93,6 +152,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     try {
       setStatus("bootstrapping");
       setMessage("Generating eval cases with Copilot SDK...");
+      addLog("Generating eval scaffold...", "progress");
       const config = await generateEvalScaffold({
         repoPath,
         count,
@@ -100,11 +160,16 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         onProgress: (msg) => setMessage(msg)
       });
       await safeWriteFile(configPath, JSON.stringify(config, null, 2), force);
+      setHasEvalConfig(true);
       setStatus("idle");
-      setMessage(`Generated primer.eval.json with ${config.cases.length} cases.`);
+      const msg = `Generated primer.eval.json with ${config.cases.length} cases.`;
+      setMessage(msg);
+      addLog(msg, "success");
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Failed to generate eval config.");
+      const msg = error instanceof Error ? error.message : "Failed to generate eval config.";
+      setMessage(msg);
+      addLog(msg, "error");
     }
   };
 
@@ -126,17 +191,22 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             await fs.mkdir(path.dirname(outputPath), { recursive: true });
             await fs.writeFile(outputPath, generatedContent, "utf8");
             setStatus("done");
-            setMessage("Saved to .github/copilot-instructions.md");
+            const msg = "Saved to .github/copilot-instructions.md";
+            setMessage(msg);
+            addLog(msg, "success");
             setGeneratedContent("");
           } catch (error) {
             setStatus("error");
-            setMessage(error instanceof Error ? error.message : "Failed to save.");
+            const msg = error instanceof Error ? error.message : "Failed to save.";
+            setMessage(msg);
+            addLog(msg, "error");
           }
           return;
         }
         if (input.toLowerCase() === "d") {
           setStatus("idle");
           setMessage("Discarded generated instructions.");
+          addLog("Discarded instructions.", "info");
           setGeneratedContent("");
           return;
         }
@@ -198,9 +268,110 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         return;
       }
 
+      if (status === "eval-pick") {
+        if (input.toLowerCase() === "r") {
+          // Run eval
+          const configPath = path.join(repoPath, "primer.eval.json");
+          const outputPath = path.join(repoPath, ".primer", "evals", buildTimestampedName("eval-results"));
+          try {
+            await fs.access(configPath);
+          } catch {
+            setStatus("error");
+            const msg = "No primer.eval.json found. Press [E] then [I] to create one.";
+            setMessage(msg);
+            addLog(msg, "error");
+            return;
+          }
+
+          setStatus("evaluating");
+          setMessage("Running evals... (this may take a few minutes)");
+          addLog("Running evals...", "progress");
+          setEvalResults(null);
+          setEvalViewerPath(null);
+          try {
+            const { results, viewerPath } = await runEval({
+              configPath,
+              repoPath,
+              model: evalModel,
+              judgeModel: judgeModel,
+              outputPath
+            });
+            setEvalResults(results);
+            setEvalViewerPath(viewerPath ?? null);
+            const passed = results.filter((r) => r.verdict === "pass").length;
+            const failed = results.filter((r) => r.verdict === "fail").length;
+            setStatus("done");
+            const msg = `Eval complete: ${passed} pass, ${failed} fail out of ${results.length} cases.`;
+            setMessage(msg);
+            addLog(msg, "success");
+          } catch (error) {
+            setStatus("error");
+            const msg = error instanceof Error ? error.message : "Eval failed.";
+            setMessage(msg);
+            addLog(msg, "error");
+          }
+          return;
+        }
+        if (input.toLowerCase() === "i") {
+          setStatus("bootstrapEvalCount");
+          setMessage("Enter number of eval cases, then press Enter.");
+          setEvalCaseCountInput("");
+          setEvalBootstrapCount(null);
+          return;
+        }
+        if (key.escape || input.toLowerCase() === "b") {
+          setStatus("idle");
+          setMessage("");
+          return;
+        }
+        return;
+      }
+
+      if (status === "batch-pick") {
+        if (input.toLowerCase() === "g") {
+          setStatus("generating");
+          setMessage("Checking GitHub authentication...");
+          addLog("Starting batch (GitHub)...", "progress");
+          const token = await getGitHubToken();
+          if (!token) {
+            setStatus("error");
+            const msg = "GitHub auth required. Run 'gh auth login' or set GITHUB_TOKEN.";
+            setMessage(msg);
+            addLog(msg, "error");
+            return;
+          }
+          setBatchToken(token);
+          setStatus("batch-github");
+          return;
+        }
+        if (input.toLowerCase() === "a") {
+          setStatus("generating");
+          setMessage("Checking Azure DevOps authentication...");
+          addLog("Starting batch (Azure DevOps)...", "progress");
+          const token = getAzureDevOpsToken();
+          if (!token) {
+            setStatus("error");
+            const msg = "Azure DevOps PAT required. Set AZURE_DEVOPS_PAT or AZDO_PAT.";
+            setMessage(msg);
+            addLog(msg, "error");
+            return;
+          }
+          setBatchAzureToken(token);
+          setStatus("batch-azure");
+          return;
+        }
+        if (key.escape || input.toLowerCase() === "b") {
+          setStatus("idle");
+          setMessage("");
+          return;
+        }
+        return;
+      }
+
       if (input.toLowerCase() === "g") {
         setStatus("generating");
         setMessage("Starting generation...");
+        addLog("Generating copilot instructions...", "progress");
         try {
           const content = await generateCopilotInstructions({
             repoPath,
@@ -212,78 +383,29 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           setGeneratedContent(content);
           setStatus("preview");
           setMessage("Review the generated instructions below.");
+          addLog("Instructions generated — review and save.", "success");
         } catch (error) {
           setStatus("error");
-          const message = error instanceof Error ? error.message : "Generation failed.";
-          if (message.toLowerCase().includes("auth") || message.toLowerCase().includes("login")) {
-            setMessage(`${message} Run 'copilot' then '/login' in a separate terminal.`);
+          const msg = error instanceof Error ? error.message : "Generation failed.";
+          if (msg.toLowerCase().includes("auth") || msg.toLowerCase().includes("login")) {
+            setMessage(`${msg} Run 'copilot' then '/login' in a separate terminal.`);
           } else {
-            setMessage(message);
+            setMessage(msg);
           }
+          addLog(msg, "error");
         }
       }
 
       if (input.toLowerCase() === "b") {
-        setStatus("generating");
-        setMessage("Checking GitHub authentication...");
-        const token = await getGitHubToken();
-        if (!token) {
-          setStatus("error");
-          setMessage("GitHub auth required. Run 'gh auth login' or set GITHUB_TOKEN.");
-          return;
-        }
-        setBatchToken(token);
-        setStatus("batch-github");
-        return;
-      }
-
-      if (input.toLowerCase() === "z") {
-        setStatus("generating");
-        setMessage("Checking Azure DevOps authentication...");
-        const token = getAzureDevOpsToken();
-        if (!token) {
-          setStatus("error");
-          setMessage("Azure DevOps PAT required. Set AZURE_DEVOPS_PAT or AZDO_PAT.");
-          return;
-        }
-        setBatchAzureToken(token);
-        setStatus("batch-azure");
+        setStatus("batch-pick");
+        setMessage("Select batch provider.");
         return;
       }
 
       if (input.toLowerCase() === "e") {
-        const configPath = path.join(repoPath, "primer.eval.json");
-        const outputPath = path.join(repoPath, ".primer", "evals", buildTimestampedName("eval-results"));
-        try {
-          await fs.access(configPath);
-        } catch {
-          setStatus("error");
-          setMessage("No primer.eval.json found. Run 'primer eval --init' to create one.");
-          return;
-        }
-
-        setStatus("evaluating");
-        setMessage("Running evals... (this may take a few minutes)");
-        setEvalResults(null);
-        setEvalViewerPath(null);
-        try {
-          const { results, viewerPath } = await runEval({
-            configPath,
-            repoPath,
-            model: evalModel,
-            judgeModel: judgeModel,
-            outputPath
-          });
-          setEvalResults(results);
-          setEvalViewerPath(viewerPath ?? null);
-          const passed = results.filter((r) => r.verdict === "pass").length;
-          const failed = results.filter((r) => r.verdict === "fail").length;
-          setStatus("done");
-          setMessage(`Eval complete: ${passed} pass, ${failed} fail out of ${results.length} cases.`);
-        } catch (error) {
-          setStatus("error");
-          setMessage(error instanceof Error ? error.message : "Eval failed.");
-        }
+        setStatus("eval-pick");
+        setMessage("Select eval action.");
+        return;
       }
 
       if (input.toLowerCase() === "m") {
@@ -293,7 +415,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         }
         const next = cycleModel(evalModel);
         setEvalModel(next);
-        setMessage(`Eval model: ${next}`);
+        setMessage(`Eval model → ${next}`);
         return;
       }
 
@@ -304,35 +426,15 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         }
         const next = cycleModel(judgeModel);
         setJudgeModel(next);
-        setMessage(`Judge model: ${next}`);
+        setMessage(`Judge model → ${next}`);
         return;
-      }
-
-      if (input.toLowerCase() === "i") {
-        setStatus("bootstrapEvalCount");
-        setMessage("Enter number of eval cases, then press Enter.");
-        setEvalCaseCountInput("");
-        setEvalBootstrapCount(null);
-      }
-
-      if (input.toLowerCase() === "r") {
-        setStatus("readiness");
-        setMessage("Running readiness report...");
-        setReadinessReport(null);
-        try {
-          const report = await runReadinessReport({ repoPath });
-          setReadinessReport(report);
-          setStatus("done");
-          setMessage("Readiness report complete.");
-        } catch (error) {
-          setStatus("error");
-          setMessage(error instanceof Error ? error.message : "Readiness report failed.");
-        }
       }
   });
 
-  const statusLabel = status === "intro" ? "starting" : status === "idle" ? "ready" : status;
-  const statusColor = status === "error" ? "red" : status === "done" ? "green" : "yellow";
+  const statusIcon = status === "error" ? "✗" : status === "done" ? "✓" : isLoading ? spinner : "●";
+  const statusLabel = status === "intro" ? "starting" : status === "idle" ? "ready" : status === "bootstrapEvalCount" ? "input" : status === "bootstrapEvalConfirm" ? "confirm" : status === "eval-pick" ? "eval" : status === "batch-pick" ? "batch" : status;
+  const statusColor = status === "error" ? "red" : status === "done" ? "green" : isLoading ? "yellow" : "cyanBright";
+
   const formatTokens = (result: EvalResult): string => {
     const withUsage = result.metrics?.withInstructions?.tokenUsage;
     const withoutUsage = result.metrics?.withoutInstructions?.tokenUsage;
@@ -342,11 +444,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     return `tokens w/: ${withTotal ?? "n/a"} • w/o: ${withoutTotal ?? "n/a"}`;
   };
 
-  // Truncate preview to fit terminal
   const previewLines = generatedContent.split("\n").slice(0, 20);
   const truncatedPreview = previewLines.join("\n") + (generatedContent.split("\n").length > 20 ? "\n..." : "");
 
-  // Render BatchTui when in batch mode
   if (status === "batch-github" && batchToken) {
     return <BatchTui token={batchToken} />;
   }
@@ -362,75 +462,143 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       ) : (
         <StaticBanner />
       )}
-      <Box marginTop={1} justifyContent="space-between">
-        <Text color="cyanBright">Prime your repo for AI</Text>
-        <Text color={statusColor}>● {statusLabel}</Text>
-      </Box>
-      <Text color="gray">Repo: {repoLabel}</Text>
-      <Text color="gray">Eval model: {evalModel} • Judge model: {judgeModel}</Text>
 
-      <Box marginTop={1} borderStyle="round" borderColor="gray" paddingX={1}>
-        <Text color="gray" bold>
-          Activity
-        </Text>
-        <Text>{message || "Awaiting input."}</Text>
+      {/* Status Bar */}
+      <Box marginTop={1} justifyContent="space-between">
+        <Text color="cyanBright" bold>Prime your repo for AI</Text>
+        <Text color={statusColor}>{statusIcon} {statusLabel}</Text>
       </Box>
+
+      {/* Context */}
+      <Divider label="Context" />
+      <Box marginTop={0} flexDirection="column" paddingLeft={1}>
+        <Text>
+          <Text color="gray">Repo  </Text>
+          <Text color="white" bold>{repoLabel}</Text>
+          <Text color="gray" dimColor>  {repoFull}</Text>
+        </Text>
+        <Text>
+          <Text color="gray">Model </Text>
+          <Text color="cyanBright">{evalModel}</Text>
+          <Text color="gray"> • Judge </Text>
+          <Text color="cyanBright">{judgeModel}</Text>
+          {availableModels.length > 0 && <Text color="gray" dimColor>  ({availableModels.length} available)</Text>}
+        </Text>
+        <Text>
+          <Text color="gray">Eval  </Text>
+          {hasEvalConfig === null ? (
+            <Text color="gray" dimColor>checking...</Text>
+          ) : hasEvalConfig ? (
+            <Text color="green">primer.eval.json found</Text>
+          ) : (
+            <Text color="yellow">no eval config — press [I] to create</Text>
+          )}
+        </Text>
+      </Box>
+
+      {/* Activity */}
+      <Divider label="Activity" />
+      <Box marginTop={0} flexDirection="column" paddingLeft={1}>
+        {activityLog.length === 0 && !message ? (
+          <Text color="gray" dimColor>Awaiting input.</Text>
+        ) : (
+          <>
+            {activityLog.slice(-3).map((entry, i) => (
+              <Text key={i}>
+                <Text color="gray" dimColor>{entry.time} </Text>
+                <Text color={entry.type === "error" ? "red" : entry.type === "success" ? "green" : entry.type === "progress" ? "yellow" : "gray"} dimColor={entry.type === "info"}>
+                  {entry.text}
+                </Text>
+              </Text>
+            ))}
+            {message && !activityLog.some(e => e.text === message) && (
+              <Text>
+                <Text color={isLoading ? "yellow" : "white"}>{isLoading ? `${spinner} ` : ""}{message}</Text>
+              </Text>
+            )}
+          </>
+        )}
+      </Box>
+
+      {/* Input: eval case count */}
       {status === "bootstrapEvalCount" && (
-        <Box marginTop={1}>
-          <Text color="cyan">Eval case count: {evalCaseCountInput || ""}</Text>
+        <Box marginTop={1} paddingLeft={1}>
+          <Text color="cyan">Eval case count: </Text>
+          <Text color="white" bold>{evalCaseCountInput || "▍"}</Text>
         </Box>
       )}
+
+      {/* Preview */}
       {status === "preview" && generatedContent && (
         <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="cyan" bold>Preview (.github/copilot-instructions.md):</Text>
+          <Text color="cyan" bold>Preview (.github/copilot-instructions.md)</Text>
           <Text color="gray">{truncatedPreview}</Text>
         </Box>
       )}
+
+      {/* Eval Results */}
       {evalResults && evalResults.length > 0 && (
-        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="cyan" bold>Eval Results:</Text>
-          {evalResults.map((r) => (
-            <Text key={r.id} color={r.verdict === "pass" ? "green" : r.verdict === "fail" ? "red" : "yellow"}>
-              {r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"} {r.id}: {r.verdict} (score: {r.score}) • {formatTokens(r)}
-            </Text>
-          ))}
-          {evalViewerPath && (
-            <Text>Trajectory viewer: {evalViewerPath}</Text>
-          )}
-        </Box>
-      )}
-      {readinessReport && (
-        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="cyan" bold>Readiness Report:</Text>
-          <Text>Level: {readinessReport.achievedLevel || 1} ({levelName(readinessReport.achievedLevel || 1)})</Text>
-          <Text>Monorepo: {readinessReport.isMonorepo ? "yes" : "no"}{readinessReport.apps.length ? ` (${readinessReport.apps.length} apps)` : ""}</Text>
-          <Text color="gray">Pillars:</Text>
-          {readinessReport.pillars.map((pillar) => (
-            <Text key={pillar.id} color={pillar.passRate >= 0.8 ? "green" : "yellow"}>
-              {pillar.name}: {pillar.passed}/{pillar.total} ({formatPercent(pillar.passRate)})
-            </Text>
-          ))}
-          {topFixes(readinessReport.criteria).length > 0 && (
-            <>
-              <Text color="gray">Fix first:</Text>
-              {topFixes(readinessReport.criteria).map((fix) => (
-                <Text key={fix.id}>
-                  - {fix.title} ({fix.impact}/{fix.effort})
+        <>
+          <Divider label="Eval Results" />
+          <Box flexDirection="column" paddingLeft={1}>
+            {evalResults.map((r) => (
+              <Text key={r.id}>
+                <Text color={r.verdict === "pass" ? "green" : r.verdict === "fail" ? "red" : "yellow"}>
+                  {r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"}{" "}
                 </Text>
-              ))}
-            </>
-          )}
-        </Box>
+                <Text>{r.id}</Text>
+                <Text color="gray"> score:{r.score} • {formatTokens(r)}</Text>
+              </Text>
+            ))}
+            {evalViewerPath && (
+              <Text color="gray" dimColor>Viewer: {evalViewerPath}</Text>
+            )}
+          </Box>
+        </>
       )}
-      <Box marginTop={1}>
+
+      {/* Commands */}
+      <Divider label="Commands" />
+      <Box marginTop={0} paddingLeft={1} flexDirection="column">
         {status === "intro" ? (
           <Text color="gray">Press any key to skip animation...</Text>
         ) : status === "preview" ? (
-          <Text color="cyan">Keys: [S] Save  [D] Discard  [Q] Quit</Text>
+          <Box>
+            <KeyHint k="S" label="Save" />
+            <KeyHint k="D" label="Discard" />
+            <KeyHint k="Q" label="Quit" />
+          </Box>
         ) : status === "bootstrapEvalConfirm" ? (
-          <Text color="cyan">Keys: [Y] Overwrite  [N] Cancel  [Q] Quit</Text>
+          <Box>
+            <KeyHint k="Y" label="Overwrite" />
+            <KeyHint k="N" label="Cancel" />
+            <KeyHint k="Q" label="Quit" />
+          </Box>
+        ) : status === "eval-pick" ? (
+          <Box>
+            <KeyHint k="R" label="Run eval" />
+            <KeyHint k="I" label="Init eval" />
+            <KeyHint k="Esc" label="Back" />
+          </Box>
+        ) : status === "batch-pick" ? (
+          <Box>
+            <KeyHint k="G" label="GitHub" />
+            <KeyHint k="A" label="Azure DevOps" />
+            <KeyHint k="Esc" label="Back" />
+          </Box>
         ) : (
-          <Text color="cyan">Keys: [A] Analyze  [G] Generate  [R] Readiness  [E] Eval  [I] Init Eval  [M] Model  [J] Judge  [B] Batch  [Z] Batch Azure  [Q] Quit</Text>
+          <Box flexDirection="column">
+            <Box>
+              <KeyHint k="G" label="Generate" />
+              <KeyHint k="E" label="Eval" />
+              <KeyHint k="B" label="Batch" />
+            </Box>
+            <Box>
+              <KeyHint k="M" label="Cycle model" />
+              <KeyHint k="J" label="Cycle judge" />
+              <KeyHint k="Q" label="Quit" />
+            </Box>
+          </Box>
         )}
       </Box>
     </Box>
@@ -440,39 +608,4 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
 function buildTimestampedName(baseName: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
   return `${baseName}-${stamp}.json`;
-}
-
-function topFixes(criteria: ReadinessCriterionResult[]): ReadinessCriterionResult[] {
-  return criteria
-    .filter((criterion) => criterion.status === "fail")
-    .sort((a, b) => {
-      const impactDelta = impactWeight(b.impact) - impactWeight(a.impact);
-      if (impactDelta !== 0) return impactDelta;
-      return effortWeight(a.effort) - effortWeight(b.effort);
-    })
-    .slice(0, 5);
-}
-
-function impactWeight(value: "high" | "medium" | "low"): number {
-  if (value === "high") return 3;
-  if (value === "medium") return 2;
-  return 1;
-}
-
-function effortWeight(value: "low" | "medium" | "high"): number {
-  if (value === "low") return 1;
-  if (value === "medium") return 2;
-  return 3;
-}
-
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-function levelName(level: number): string {
-  if (level === 2) return "Documented";
-  if (level === 3) return "Standardized";
-  if (level === 4) return "Optimized";
-  if (level === 5) return "Autonomous";
-  return "Functional";
 }
