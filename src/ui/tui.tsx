@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Box, Key, Text, useApp, useInput } from "ink";
 import fs from "fs/promises";
 import path from "path";
@@ -12,7 +12,7 @@ import { BatchTuiAzure } from "./BatchTuiAzure";
 import { getGitHubToken } from "../services/github";
 import { getAzureDevOpsToken } from "../services/azureDevops";
 import { safeWriteFile } from "../utils/fs";
-import { ReadinessReport, ReadinessCriterionResult, runReadinessReport } from "../services/readiness";
+import { analyzeRepo, RepoApp } from "../services/analyzer";
 
 type Props = {
   repoPath: string;
@@ -23,23 +23,81 @@ type Status =
   | "intro"
   | "idle"
   | "generating"
-  | "readiness"
   | "bootstrapping"
   | "evaluating"
   | "preview"
   | "done"
   | "error"
+  | "batch-pick"
   | "batch-github"
   | "batch-azure"
+  | "eval-pick"
+  | "model-pick"
+  | "generate-pick"
+  | "generate-app-pick"
   | "bootstrapEvalCount"
   | "bootstrapEvalConfirm";
 
-type EvalConfig = {
-  instructionFile?: string;
-  cases: Array<{ id: string; prompt: string; expectation: string }>;
-  systemMessage?: string;
-  outputPath?: string;
+type LogEntry = {
+  text: string;
+  type: "info" | "success" | "error" | "progress";
+  time: string;
 };
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+function useSpinner(active: boolean): string {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => {
+      setFrame((f) => (f + 1) % SPINNER_FRAMES.length);
+    }, 80);
+    return () => clearInterval(interval);
+  }, [active]);
+  return active ? SPINNER_FRAMES[frame] : "";
+}
+
+function timestamp(): string {
+  return new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function KeyHint({ k, label }: { k: string; label: string }): React.JSX.Element {
+  return (
+    <Text>
+      <Text color="gray" dimColor>{"["}</Text>
+      <Text color="cyanBright" bold>{k}</Text>
+      <Text color="gray" dimColor>{"]"}</Text>
+      <Text color="gray"> {label}  </Text>
+    </Text>
+  );
+}
+
+function Divider({ label }: { label?: string }): React.JSX.Element {
+  if (label) {
+    return (
+      <Box marginTop={1}>
+        <Text color="gray" dimColor>{"── "}</Text>
+        <Text color="gray" bold>{label}</Text>
+        <Text color="gray" dimColor>{" ──────────────────────────────────────────"}</Text>
+      </Box>
+    );
+  }
+  return (
+    <Box marginTop={1}>
+      <Text color="gray" dimColor>{"────────────────────────────────────────────────────"}</Text>
+    </Box>
+  );
+}
+
+const PREFERRED_MODELS = ["claude-sonnet-4.5", "claude-sonnet-4", "gpt-4.1", "gpt-5"];
+
+function pickBestModel(available: string[], fallback: string): string {
+  for (const preferred of PREFERRED_MODELS) {
+    if (available.includes(preferred)) return preferred;
+  }
+  return available[0] || fallback;
+}
 
 export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
@@ -52,22 +110,41 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const [batchAzureToken, setBatchAzureToken] = useState<string | null>(null);
   const [evalCaseCountInput, setEvalCaseCountInput] = useState<string>("");
   const [evalBootstrapCount, setEvalBootstrapCount] = useState<number | null>(null);
-  const [readinessReport, setReadinessReport] = useState<ReadinessReport | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [evalModel, setEvalModel] = useState<string>("gpt-4.1");
-  const [judgeModel, setJudgeModel] = useState<string>("gpt-4.1");
-  const repoLabel = useMemo(() => repoPath, [repoPath]);
+  const [evalModel, setEvalModel] = useState<string>("claude-sonnet-4.5");
+  const [judgeModel, setJudgeModel] = useState<string>("claude-sonnet-4.5");
+  const [modelPickTarget, setModelPickTarget] = useState<"eval" | "judge">("eval");
+  const [modelCursor, setModelCursor] = useState(0);
+  const [hasEvalConfig, setHasEvalConfig] = useState<boolean | null>(null);
+  const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
+  const [generateTarget, setGenerateTarget] = useState<"copilot-instructions" | "agents-md">("copilot-instructions");
+  const [generateSavePath, setGenerateSavePath] = useState<string>("");
+  const [repoApps, setRepoApps] = useState<RepoApp[]>([]);
+  const [isMonorepo, setIsMonorepo] = useState(false);
+  const repoLabel = useMemo(() => path.basename(repoPath), [repoPath]);
+  const repoFull = useMemo(() => repoPath, [repoPath]);
+  const isLoading = status === "generating" || status === "bootstrapping" || status === "evaluating";
+  const isMenu = status === "model-pick" || status === "eval-pick" || status === "batch-pick" || status === "generate-pick" || status === "generate-app-pick";
+  const spinner = useSpinner(isLoading);
+
+  const addLog = (text: string, type: LogEntry["type"] = "info") => {
+    setActivityLog((prev) => [...prev.slice(-4), { text, type, time: timestamp() }]);
+  };
 
   const handleAnimationComplete = () => {
     setStatus("idle");
   };
 
-  const cycleModel = (current: string): string => {
-    if (!availableModels.length) return current;
-    const index = availableModels.indexOf(current);
-    const nextIndex = index === -1 ? 0 : (index + 1) % availableModels.length;
-    return availableModels[nextIndex];
-  };
+  // Check for eval config and repo structure on mount
+  useEffect(() => {
+    const configPath = path.join(repoPath, "primer.eval.json");
+    fs.access(configPath).then(() => setHasEvalConfig(true)).catch(() => setHasEvalConfig(false));
+    analyzeRepo(repoPath).then((analysis) => {
+      const apps = analysis.apps ?? [];
+      setRepoApps(apps);
+      setIsMonorepo(analysis.isMonorepo ?? false);
+    }).catch(() => {});
+  }, [repoPath]);
 
   useEffect(() => {
     let active = true;
@@ -76,8 +153,8 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         if (!active) return;
         setAvailableModels(models);
         if (models.length === 0) return;
-        setEvalModel((current) => (models.includes(current) ? current : models[0]));
-        setJudgeModel((current) => (models.includes(current) ? current : models[0]));
+        setEvalModel((current) => (models.includes(current) ? current : pickBestModel(models, current)));
+        setJudgeModel((current) => (models.includes(current) ? current : pickBestModel(models, current)));
       })
       .catch(() => {
         if (!active) return;
@@ -88,15 +165,62 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     };
   }, []);
 
+  const doGenerate = async (targetRepoPath: string, savePath: string, target: string): Promise<void> => {
+    setStatus("generating");
+    setMessage(`Generating ${target}...`);
+    addLog(`Generating ${target}...`, "progress");
+    try {
+      const content = await generateCopilotInstructions({
+        repoPath: targetRepoPath,
+        onProgress: (msg) => setMessage(msg)
+      });
+      if (!content.trim()) {
+        throw new Error("Copilot SDK returned empty content.");
+      }
+      setGeneratedContent(content);
+      setGenerateSavePath(savePath);
+      setStatus("preview");
+      setMessage("Review the generated content below.");
+      addLog(`${target} generated — review and save.`, "success");
+    } catch (error) {
+      setStatus("error");
+      const msg = error instanceof Error ? error.message : "Generation failed.";
+      if (msg.toLowerCase().includes("auth") || msg.toLowerCase().includes("login")) {
+        setMessage(`${msg} Run 'copilot' then '/login' in a separate terminal.`);
+      } else {
+        setMessage(msg);
+      }
+      addLog(msg, "error");
+    }
+  };
+
   const bootstrapEvalConfig = async (count: number, force: boolean): Promise<void> => {
     const configPath = path.join(repoPath, "primer.eval.json");
     try {
       setStatus("bootstrapping");
       setMessage("Generating eval cases with Copilot SDK...");
+      addLog("Generating eval scaffold...", "progress");
       const config = await generateEvalScaffold({
         repoPath,
+        count,
+        model: evalModel,
+        onProgress: (msg) => setMessage(msg)
+      });
+      await safeWriteFile(configPath, JSON.stringify(config, null, 2), force);
+      setHasEvalConfig(true);
+      setStatus("idle");
+      const msg = `Generated primer.eval.json with ${config.cases.length} cases.`;
+      setMessage(msg);
+      addLog(msg, "success");
+    } catch (error) {
+      setStatus("error");
+      const msg = error instanceof Error ? error.message : "Failed to generate eval config.";
+      setMessage(msg);
+      addLog(msg, "error");
+    }
+  };
 
-    useInput(async (input: string, key: Key) => {
+  useInput(async (input: string, key: Key) => {
       if (status === "intro") {
         setStatus("idle");
         return;
@@ -110,21 +234,27 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       if (status === "preview") {
         if (input.toLowerCase() === "s") {
           try {
-            const outputPath = path.join(repoPath, ".github", "copilot-instructions.md");
+            const outputPath = generateSavePath || path.join(repoPath, ".github", "copilot-instructions.md");
             await fs.mkdir(path.dirname(outputPath), { recursive: true });
             await fs.writeFile(outputPath, generatedContent, "utf8");
             setStatus("done");
-            setMessage("Saved to .github/copilot-instructions.md");
+            const relPath = path.relative(repoPath, outputPath);
+            const msg = `Saved to ${relPath}`;
+            setMessage(msg);
+            addLog(msg, "success");
             setGeneratedContent("");
           } catch (error) {
             setStatus("error");
-            setMessage(error instanceof Error ? error.message : "Failed to save.");
+            const msg = error instanceof Error ? error.message : "Failed to save.";
+            setMessage(msg);
+            addLog(msg, "error");
           }
           return;
         }
         if (input.toLowerCase() === "d") {
           setStatus("idle");
           setMessage("Discarded generated instructions.");
+          addLog("Discarded instructions.", "info");
           setGeneratedContent("");
           return;
         }
@@ -186,92 +316,246 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         return;
       }
 
-      if (input.toLowerCase() === "g") {
-        setStatus("generating");
-        setMessage("Starting generation...");
-        try {
-          const content = await generateCopilotInstructions({
-            repoPath,
-            onProgress: (msg) => setMessage(msg)
-          });
-          if (!content.trim()) {
-            throw new Error("Copilot SDK returned empty instructions.");
-          }
-          setGeneratedContent(content);
-          setStatus("preview");
-          setMessage("Review the generated instructions below.");
-        } catch (error) {
-          setStatus("error");
-          const message = error instanceof Error ? error.message : "Generation failed.";
-          if (message.toLowerCase().includes("auth") || message.toLowerCase().includes("login")) {
-            setMessage(`${message} Run 'copilot' then '/login' in a separate terminal.`);
+      if (status === "generate-pick") {
+        if (input.toLowerCase() === "c") {
+          setGenerateTarget("copilot-instructions");
+          if (isMonorepo && repoApps.length > 1) {
+            setStatus("generate-app-pick");
+            setMessage("Generate for root or per-app?");
           } else {
-            setMessage(message);
+            const savePath = path.join(repoPath, ".github", "copilot-instructions.md");
+            setGenerateSavePath(savePath);
+            await doGenerate(repoPath, savePath, "copilot-instructions");
           }
-        }
-      }
-
-      if (input.toLowerCase() === "b") {
-        setStatus("generating");
-        setMessage("Checking GitHub authentication...");
-        const token = await getGitHubToken();
-        if (!token) {
-          setStatus("error");
-          setMessage("GitHub auth required. Run 'gh auth login' or set GITHUB_TOKEN.");
           return;
         }
-        setBatchToken(token);
-        setStatus("batch-github");
+        if (input.toLowerCase() === "a") {
+          setGenerateTarget("agents-md");
+          if (isMonorepo && repoApps.length > 1) {
+            setStatus("generate-app-pick");
+            setMessage("Generate for root or per-app?");
+          } else {
+            const savePath = path.join(repoPath, "AGENTS.md");
+            setGenerateSavePath(savePath);
+            await doGenerate(repoPath, savePath, "agents-md");
+          }
+          return;
+        }
+        if (key.escape) {
+          setStatus("idle");
+          setMessage("");
+          return;
+        }
         return;
       }
 
-      if (input.toLowerCase() === "z") {
-        setStatus("generating");
-        setMessage("Checking Azure DevOps authentication...");
-        const token = getAzureDevOpsToken();
-        if (!token) {
-          setStatus("error");
-          setMessage("Azure DevOps PAT required. Set AZURE_DEVOPS_PAT or AZDO_PAT.");
+      if (status === "generate-app-pick") {
+        if (input.toLowerCase() === "r") {
+          // Root only
+          const savePath = generateTarget === "copilot-instructions"
+            ? path.join(repoPath, ".github", "copilot-instructions.md")
+            : path.join(repoPath, "AGENTS.md");
+          setGenerateSavePath(savePath);
+          await doGenerate(repoPath, savePath, generateTarget);
           return;
         }
-        setBatchAzureToken(token);
-        setStatus("batch-azure");
+        if (input.toLowerCase() === "a") {
+          // All apps sequentially
+          setStatus("generating");
+          addLog(`Generating ${generateTarget} for ${repoApps.length} apps...`, "progress");
+          let count = 0;
+          for (const app of repoApps) {
+            const savePath = generateTarget === "copilot-instructions"
+              ? path.join(app.path, ".github", "copilot-instructions.md")
+              : path.join(app.path, "AGENTS.md");
+            setMessage(`Generating for ${app.name} (${count + 1}/${repoApps.length})...`);
+            try {
+              const content = await generateCopilotInstructions({
+                repoPath: app.path,
+                onProgress: (msg) => setMessage(`${app.name}: ${msg}`)
+              });
+              if (content.trim()) {
+                await fs.mkdir(path.dirname(savePath), { recursive: true });
+                await fs.writeFile(savePath, content, "utf8");
+                count++;
+                addLog(`${app.name}: saved ${path.basename(savePath)}`, "success");
+              }
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : "Failed.";
+              addLog(`${app.name}: ${msg}`, "error");
+            }
+          }
+          setStatus("done");
+          setMessage(`Generated ${generateTarget} for ${count}/${repoApps.length} apps.`);
+          return;
+        }
+        // Number to pick a specific app
+        const num = Number.parseInt(input, 10);
+        if (Number.isFinite(num) && num >= 1 && num <= repoApps.length) {
+          const app = repoApps[num - 1];
+          const savePath = generateTarget === "copilot-instructions"
+            ? path.join(app.path, ".github", "copilot-instructions.md")
+            : path.join(app.path, "AGENTS.md");
+          setGenerateSavePath(savePath);
+          await doGenerate(app.path, savePath, generateTarget);
+          return;
+        }
+        if (key.escape) {
+          setStatus("generate-pick");
+          setMessage("Select what to generate.");
+          return;
+        }
+        return;
+      }
+
+      if (status === "model-pick") {
+        if (key.escape) {
+          setStatus("idle");
+          setMessage("");
+          return;
+        }
+        if (key.upArrow) {
+          setModelCursor((prev) => Math.max(0, prev - 1));
+          return;
+        }
+        if (key.downArrow) {
+          setModelCursor((prev) => Math.min(availableModels.length - 1, prev + 1));
+          return;
+        }
+        if (key.return) {
+          const chosen = availableModels[modelCursor];
+          if (chosen) {
+            if (modelPickTarget === "eval") {
+              setEvalModel(chosen);
+              addLog(`Eval model → ${chosen}`, "success");
+            } else {
+              setJudgeModel(chosen);
+              addLog(`Judge model → ${chosen}`, "success");
+            }
+            setStatus("idle");
+            setMessage(`${modelPickTarget === "eval" ? "Eval" : "Judge"} model set to ${chosen}`);
+          }
+          return;
+        }
+        return;
+      }
+
+      if (status === "eval-pick") {
+        if (input.toLowerCase() === "r") {
+          // Run eval
+          const configPath = path.join(repoPath, "primer.eval.json");
+          const outputPath = path.join(repoPath, ".primer", "evals", buildTimestampedName("eval-results"));
+          try {
+            await fs.access(configPath);
+          } catch {
+            setStatus("error");
+            const msg = "No primer.eval.json found. Press [E] then [I] to create one.";
+            setMessage(msg);
+            addLog(msg, "error");
+            return;
+          }
+
+          setStatus("evaluating");
+          setMessage("Running evals... (this may take a few minutes)");
+          addLog("Running evals...", "progress");
+          setEvalResults(null);
+          setEvalViewerPath(null);
+          try {
+            const { results, viewerPath } = await runEval({
+              configPath,
+              repoPath,
+              model: evalModel,
+              judgeModel: judgeModel,
+              outputPath
+            });
+            setEvalResults(results);
+            setEvalViewerPath(viewerPath ?? null);
+            const passed = results.filter((r) => r.verdict === "pass").length;
+            const failed = results.filter((r) => r.verdict === "fail").length;
+            setStatus("done");
+            const msg = `Eval complete: ${passed} pass, ${failed} fail out of ${results.length} cases.`;
+            setMessage(msg);
+            addLog(msg, "success");
+          } catch (error) {
+            setStatus("error");
+            const msg = error instanceof Error ? error.message : "Eval failed.";
+            setMessage(msg);
+            addLog(msg, "error");
+          }
+          return;
+        }
+        if (input.toLowerCase() === "i") {
+          setStatus("bootstrapEvalCount");
+          setMessage("Enter number of eval cases, then press Enter.");
+          setEvalCaseCountInput("");
+          setEvalBootstrapCount(null);
+          return;
+        }
+        if (key.escape || input.toLowerCase() === "b") {
+          setStatus("idle");
+          setMessage("");
+          return;
+        }
+        return;
+      }
+
+      if (status === "batch-pick") {
+        if (input.toLowerCase() === "g") {
+          setStatus("generating");
+          setMessage("Checking GitHub authentication...");
+          addLog("Starting batch (GitHub)...", "progress");
+          const token = await getGitHubToken();
+          if (!token) {
+            setStatus("error");
+            const msg = "GitHub auth required. Run 'gh auth login' or set GITHUB_TOKEN.";
+            setMessage(msg);
+            addLog(msg, "error");
+            return;
+          }
+          setBatchToken(token);
+          setStatus("batch-github");
+          return;
+        }
+        if (input.toLowerCase() === "a") {
+          setStatus("generating");
+          setMessage("Checking Azure DevOps authentication...");
+          addLog("Starting batch (Azure DevOps)...", "progress");
+          const token = getAzureDevOpsToken();
+          if (!token) {
+            setStatus("error");
+            const msg = "Azure DevOps PAT required. Set AZURE_DEVOPS_PAT or AZDO_PAT.";
+            setMessage(msg);
+            addLog(msg, "error");
+            return;
+          }
+          setBatchAzureToken(token);
+          setStatus("batch-azure");
+          return;
+        }
+        if (key.escape || input.toLowerCase() === "b") {
+          setStatus("idle");
+          setMessage("");
+          return;
+        }
+        return;
+      }
+
+      if (input.toLowerCase() === "g") {
+        setStatus("generate-pick");
+        setMessage("Select what to generate.");
+        return;
+      }
+
+      if (input.toLowerCase() === "b") {
+        setStatus("batch-pick");
+        setMessage("Select batch provider.");
         return;
       }
 
       if (input.toLowerCase() === "e") {
-        const configPath = path.join(repoPath, "primer.eval.json");
-        const outputPath = path.join(repoPath, ".primer", "evals", buildTimestampedName("eval-results"));
-        try {
-          await fs.access(configPath);
-        } catch {
-          setStatus("error");
-          setMessage("No primer.eval.json found. Run 'primer eval --init' to create one.");
-          return;
-        }
-
-        setStatus("evaluating");
-        setMessage("Running evals... (this may take a few minutes)");
-        setEvalResults(null);
-        setEvalViewerPath(null);
-        try {
-          const { results, viewerPath } = await runEval({
-            configPath,
-            repoPath,
-            model: evalModel,
-            judgeModel: judgeModel,
-            outputPath
-          });
-          setEvalResults(results);
-          setEvalViewerPath(viewerPath ?? null);
-          const passed = results.filter((r) => r.verdict === "pass").length;
-          const failed = results.filter((r) => r.verdict === "fail").length;
-          setStatus("done");
-          setMessage(`Eval complete: ${passed} pass, ${failed} fail out of ${results.length} cases.`);
-        } catch (error) {
-          setStatus("error");
-          setMessage(error instanceof Error ? error.message : "Eval failed.");
-        }
+        setStatus("eval-pick");
+        setMessage("Select eval action.");
+        return;
       }
 
       if (input.toLowerCase() === "m") {
@@ -279,9 +563,12 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           setMessage("No Copilot CLI models detected; using defaults.");
           return;
         }
-        const next = cycleModel(evalModel);
-        setEvalModel(next);
-        setMessage(`Eval model: ${next}`);
+        setModelPickTarget("eval");
+        setStatus("model-pick");
+        setMessage("Pick eval model.");
+        // Set cursor to current model
+        const idx = availableModels.indexOf(evalModel);
+        setModelCursor(idx >= 0 ? idx : 0);
         return;
       }
 
@@ -290,56 +577,19 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           setMessage("No Copilot CLI models detected; using defaults.");
           return;
         }
-        const next = cycleModel(judgeModel);
-        setJudgeModel(next);
-        setMessage(`Judge model: ${next}`);
+        setModelPickTarget("judge");
+        setStatus("model-pick");
+        setMessage("Pick judge model.");
+        const idx = availableModels.indexOf(judgeModel);
+        setModelCursor(idx >= 0 ? idx : 0);
         return;
       }
-
-      if (input.toLowerCase() === "i") {
-        setStatus("bootstrapEvalCount");
-        setMessage("Enter number of eval cases, then press Enter.");
-        setEvalCaseCountInput("");
-        setEvalBootstrapCount(null);
-      }
-
-      if (input.toLowerCase() === "r") {
-        setStatus("readiness");
-        setMessage("Running readiness report...");
-        setReadinessReport(null);
-        try {
-          const report = await runReadinessReport({ repoPath });
-          setReadinessReport(report);
-          setStatus("done");
-          setMessage("Readiness report complete.");
-        } catch (error) {
-          setStatus("error");
-          setMessage(error instanceof Error ? error.message : "Readiness report failed.");
-        }
-      }
-    });
-      setEvalCaseCountInput("");
-      setEvalBootstrapCount(null);
-    }
-
-    if (input.toLowerCase() === "r") {
-      setStatus("readiness");
-      setMessage("Running readiness report...");
-      setReadinessReport(null);
-      try {
-        const report = await runReadinessReport({ repoPath });
-        setReadinessReport(report);
-        setStatus("done");
-        setMessage("Readiness report complete.");
-      } catch (error) {
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Readiness report failed.");
-      }
-    }
   });
 
-  const statusLabel = status === "intro" ? "starting" : status === "idle" ? "ready" : status;
-  const statusColor = status === "error" ? "red" : status === "done" ? "green" : "yellow";
+  const statusIcon = status === "error" ? "✗" : status === "done" ? "✓" : isLoading ? spinner : "●";
+  const statusLabel = status === "intro" ? "starting" : status === "idle" ? "ready" : status === "bootstrapEvalCount" ? "input" : status === "bootstrapEvalConfirm" ? "confirm" : status === "eval-pick" ? "eval" : status === "batch-pick" ? "batch" : status === "model-pick" ? "models" : status;
+  const statusColor = status === "error" ? "red" : status === "done" ? "green" : isLoading ? "yellow" : isMenu ? "magentaBright" : "cyanBright";
+
   const formatTokens = (result: EvalResult): string => {
     const withUsage = result.metrics?.withInstructions?.tokenUsage;
     const withoutUsage = result.metrics?.withoutInstructions?.tokenUsage;
@@ -349,11 +599,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     return `tokens w/: ${withTotal ?? "n/a"} • w/o: ${withoutTotal ?? "n/a"}`;
   };
 
-  // Truncate preview to fit terminal
   const previewLines = generatedContent.split("\n").slice(0, 20);
   const truncatedPreview = previewLines.join("\n") + (generatedContent.split("\n").length > 20 ? "\n..." : "");
 
-  // Render BatchTui when in batch mode
   if (status === "batch-github" && batchToken) {
     return <BatchTui token={batchToken} />;
   }
@@ -369,75 +617,211 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       ) : (
         <StaticBanner />
       )}
-      <Box marginTop={1} justifyContent="space-between">
-        <Text color="cyanBright">Prime your repo for AI</Text>
-        <Text color={statusColor}>● {statusLabel}</Text>
-      </Box>
-      <Text color="gray">Repo: {repoLabel}</Text>
-      <Text color="gray">Eval model: {evalModel} • Judge model: {judgeModel}</Text>
 
-      <Box marginTop={1} borderStyle="round" borderColor="gray" paddingX={1}>
-        <Text color="gray" bold>
-          Activity
-        </Text>
-        <Text>{message || "Awaiting input."}</Text>
+      {/* Status Bar */}
+      <Box marginTop={1} justifyContent="space-between">
+        <Text color="cyanBright" bold>Prime your repo for AI</Text>
+        <Text color={statusColor}>{statusIcon} {statusLabel}</Text>
       </Box>
+
+      {/* Context */}
+      <Divider label="Context" />
+      <Box marginTop={0} flexDirection="column" paddingLeft={1}>
+        <Text>
+          <Text color="gray">Repo  </Text>
+          <Text color="white" bold>{repoLabel}</Text>
+          {isMonorepo && <Text color="magentaBright"> monorepo · {repoApps.length} apps</Text>}
+          <Text color="gray" dimColor>  {repoFull}</Text>
+        </Text>
+        <Text>
+          <Text color="gray">Model </Text>
+          <Text color="cyanBright">{evalModel}</Text>
+          <Text color="gray"> • Judge </Text>
+          <Text color="cyanBright">{judgeModel}</Text>
+          {availableModels.length > 0 && <Text color="gray" dimColor>  ({availableModels.length} available)</Text>}
+        </Text>
+        <Text>
+          <Text color="gray">Eval  </Text>
+          {hasEvalConfig === null ? (
+            <Text color="gray" dimColor>checking...</Text>
+          ) : hasEvalConfig ? (
+            <Text color="green">primer.eval.json found</Text>
+          ) : (
+            <Text color="yellow">no eval config — press [I] to create</Text>
+          )}
+        </Text>
+      </Box>
+
+      {/* Activity */}
+      <Divider label="Activity" />
+      <Box marginTop={0} flexDirection="column" paddingLeft={1}>
+        {activityLog.length === 0 && !message ? (
+          <Text color="gray" dimColor>Awaiting input.</Text>
+        ) : (
+          <>
+            {activityLog.slice(-3).map((entry, i) => (
+              <Text key={i}>
+                <Text color="gray" dimColor>{entry.time} </Text>
+                <Text color={entry.type === "error" ? "red" : entry.type === "success" ? "green" : entry.type === "progress" ? "yellow" : "gray"} dimColor={entry.type === "info"}>
+                  {entry.text}
+                </Text>
+              </Text>
+            ))}
+            {message && !activityLog.some(e => e.text === message) && (
+              <Text>
+                <Text color={isLoading ? "yellow" : "white"}>{isLoading ? `${spinner} ` : ""}{message}</Text>
+              </Text>
+            )}
+          </>
+        )}
+      </Box>
+
+      {/* Model Picker */}
+      {status === "model-pick" && availableModels.length > 0 && (
+        <>
+          <Divider label={`Pick ${modelPickTarget} model`} />
+          <Box flexDirection="column" paddingLeft={1}>
+            {availableModels.map((model, i) => {
+              const current = modelPickTarget === "eval" ? evalModel : judgeModel;
+              const isCurrent = model === current;
+              const isCursor = i === modelCursor;
+              return (
+                <Text key={model}>
+                  <Text color={isCursor ? "cyan" : undefined}>{isCursor ? "\u276F " : "  "}</Text>
+                  <Text color={isCurrent ? "green" : isCursor ? "cyanBright" : "white"} bold={isCursor}>{model}</Text>
+                  {isCurrent && <Text color="green" dimColor> (current)</Text>}
+                </Text>
+              );
+            })}
+            {availableModels.length > 15 && (
+              <Text color="gray" dimColor>Use {"\u2191\u2193"} to scroll</Text>
+            )}
+          </Box>
+        </>
+      )}
+
+      {/* App picker for monorepo generate */}
+      {status === "generate-app-pick" && repoApps.length > 0 && (
+        <>
+          <Divider label={`Generate ${generateTarget}`} />
+          <Box flexDirection="column" paddingLeft={1}>
+            {repoApps.map((app, i) => (
+              <Text key={app.name}>
+                <Text color="cyanBright" bold>{i + 1}</Text>
+                <Text color="gray"> </Text>
+                <Text color="white">{app.name}</Text>
+                <Text color="gray" dimColor>  {path.relative(repoPath, app.path)}</Text>
+              </Text>
+            ))}
+          </Box>
+        </>
+      )}
+
+      {/* Input: eval case count */}
       {status === "bootstrapEvalCount" && (
-        <Box marginTop={1}>
-          <Text color="cyan">Eval case count: {evalCaseCountInput || ""}</Text>
+        <Box marginTop={1} paddingLeft={1}>
+          <Text color="cyan">Eval case count: </Text>
+          <Text color="white" bold>{evalCaseCountInput || "▍"}</Text>
         </Box>
       )}
+
+      {/* Preview */}
       {status === "preview" && generatedContent && (
         <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="cyan" bold>Preview (.github/copilot-instructions.md):</Text>
+          <Text color="cyan" bold>Preview ({path.relative(repoPath, generateSavePath) || generateTarget})</Text>
           <Text color="gray">{truncatedPreview}</Text>
         </Box>
       )}
+
+      {/* Eval Results */}
       {evalResults && evalResults.length > 0 && (
-        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="cyan" bold>Eval Results:</Text>
-          {evalResults.map((r) => (
-            <Text key={r.id} color={r.verdict === "pass" ? "green" : r.verdict === "fail" ? "red" : "yellow"}>
-              {r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"} {r.id}: {r.verdict} (score: {r.score}) • {formatTokens(r)}
-            </Text>
-          ))}
-          {evalViewerPath && (
-            <Text>Trajectory viewer: {evalViewerPath}</Text>
-          )}
-        </Box>
-      )}
-      {readinessReport && (
-        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="cyan" bold>Readiness Report:</Text>
-          <Text>Level: {readinessReport.achievedLevel || 1} ({levelName(readinessReport.achievedLevel || 1)})</Text>
-          <Text>Monorepo: {readinessReport.isMonorepo ? "yes" : "no"}{readinessReport.apps.length ? ` (${readinessReport.apps.length} apps)` : ""}</Text>
-          <Text color="gray">Pillars:</Text>
-          {readinessReport.pillars.map((pillar) => (
-            <Text key={pillar.id} color={pillar.passRate >= 0.8 ? "green" : "yellow"}>
-              {pillar.name}: {pillar.passed}/{pillar.total} ({formatPercent(pillar.passRate)})
-            </Text>
-          ))}
-          {topFixes(readinessReport.criteria).length > 0 && (
-            <>
-              <Text color="gray">Fix first:</Text>
-              {topFixes(readinessReport.criteria).map((fix) => (
-                <Text key={fix.id}>
-                  - {fix.title} ({fix.impact}/{fix.effort})
+        <>
+          <Divider label="Eval Results" />
+          <Box flexDirection="column" paddingLeft={1}>
+            {evalResults.map((r) => (
+              <Text key={r.id}>
+                <Text color={r.verdict === "pass" ? "green" : r.verdict === "fail" ? "red" : "yellow"}>
+                  {r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"}{" "}
                 </Text>
-              ))}
-            </>
-          )}
-        </Box>
+                <Text>{r.id}</Text>
+                <Text color="gray"> score:{r.score} • {formatTokens(r)}</Text>
+              </Text>
+            ))}
+            {evalViewerPath && (
+              <Text color="gray" dimColor>Viewer: {evalViewerPath}</Text>
+            )}
+          </Box>
+        </>
       )}
-      <Box marginTop={1}>
+
+      {/* Commands */}
+      <Divider label="Commands" />
+      <Box marginTop={0} paddingLeft={1} flexDirection="column">
         {status === "intro" ? (
           <Text color="gray">Press any key to skip animation...</Text>
         ) : status === "preview" ? (
-          <Text color="cyan">Keys: [S] Save  [D] Discard  [Q] Quit</Text>
+          <Box>
+            <KeyHint k="S" label="Save" />
+            <KeyHint k="D" label="Discard" />
+            <KeyHint k="Q" label="Quit" />
+          </Box>
         ) : status === "bootstrapEvalConfirm" ? (
-          <Text color="cyan">Keys: [Y] Overwrite  [N] Cancel  [Q] Quit</Text>
+          <Box>
+            <KeyHint k="Y" label="Overwrite" />
+            <KeyHint k="N" label="Cancel" />
+            <KeyHint k="Q" label="Quit" />
+          </Box>
+        ) : status === "model-pick" ? (
+          <Box>
+            <Text color="cyan">Use </Text>
+            <Text color="cyanBright" bold>{"\u2191\u2193"}</Text>
+            <Text color="cyan"> to navigate, </Text>
+            <Text color="cyanBright" bold>Enter</Text>
+            <Text color="cyan"> to select  </Text>
+            <KeyHint k="Esc" label="Back" />
+          </Box>
+        ) : status === "generate-pick" ? (
+          <Box>
+            <KeyHint k="C" label="Copilot instructions" />
+            <KeyHint k="A" label="AGENTS.md" />
+            <KeyHint k="Esc" label="Back" />
+          </Box>
+        ) : status === "generate-app-pick" ? (
+          <Box>
+            <KeyHint k="R" label="Root only" />
+            <KeyHint k="A" label="All apps" />
+            <Text color="gray" dimColor>  or press </Text>
+            <Text color="cyanBright" bold>1</Text>
+            <Text color="gray" dimColor>-</Text>
+            <Text color="cyanBright" bold>{repoApps.length}</Text>
+            <Text color="gray" dimColor>  </Text>
+            <KeyHint k="Esc" label="Back" />
+          </Box>
+        ) : status === "eval-pick" ? (
+          <Box>
+            <KeyHint k="R" label="Run eval" />
+            <KeyHint k="I" label="Init eval" />
+            <KeyHint k="Esc" label="Back" />
+          </Box>
+        ) : status === "batch-pick" ? (
+          <Box>
+            <KeyHint k="G" label="GitHub" />
+            <KeyHint k="A" label="Azure DevOps" />
+            <KeyHint k="Esc" label="Back" />
+          </Box>
         ) : (
-          <Text color="cyan">Keys: [A] Analyze  [G] Generate  [R] Readiness  [E] Eval  [I] Init Eval  [M] Model  [J] Judge  [B] Batch  [Z] Batch Azure  [Q] Quit</Text>
+          <Box flexDirection="column">
+            <Box>
+              <KeyHint k="G" label="Generate" />
+              <KeyHint k="E" label="Eval" />
+              <KeyHint k="B" label="Batch" />
+            </Box>
+            <Box>
+              <KeyHint k="M" label="Model" />
+              <KeyHint k="J" label="Judge" />
+              <KeyHint k="Q" label="Quit" />
+            </Box>
+          </Box>
         )}
       </Box>
     </Box>
@@ -447,39 +831,4 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
 function buildTimestampedName(baseName: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
   return `${baseName}-${stamp}.json`;
-}
-
-function topFixes(criteria: ReadinessCriterionResult[]): ReadinessCriterionResult[] {
-  return criteria
-    .filter((criterion) => criterion.status === "fail")
-    .sort((a, b) => {
-      const impactDelta = impactWeight(b.impact) - impactWeight(a.impact);
-      if (impactDelta !== 0) return impactDelta;
-      return effortWeight(a.effort) - effortWeight(b.effort);
-    })
-    .slice(0, 5);
-}
-
-function impactWeight(value: "high" | "medium" | "low"): number {
-  if (value === "high") return 3;
-  if (value === "medium") return 2;
-  return 1;
-}
-
-function effortWeight(value: "low" | "medium" | "high"): number {
-  if (value === "low") return 1;
-  if (value === "medium") return 2;
-  return 3;
-}
-
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-function levelName(level: number): string {
-  if (level === 2) return "Documented";
-  if (level === 3) return "Standardized";
-  if (level === 4) return "Optimized";
-  if (level === 5) return "Autonomous";
-  return "Functional";
 }

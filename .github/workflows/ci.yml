@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, vnext]
   pull_request:
 
 jobs:
@@ -23,10 +23,15 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Test
-        run: npm run test:coverage
+        run: npm run test
       - name: Build
         run: npm run build
+      - name: Verify CLI
+        run: |
+          chmod +x dist/index.js
+          node dist/index.js --version
       - name: Upload coverage
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage

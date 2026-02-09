@@ -637,281 +637,314 @@ function buildViewerPath(outputPath: string): string {
 function buildTrajectoryViewerHtml(data: Record<string, unknown>): string {
   const serialized = JSON.stringify(data).replace(/</g, "\\u003c");
   return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Primer Eval Trajectory</title>
-    <style>
-      body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; background: #0f1115; color: #e6e9ef; }
-      h1 { font-size: 20px; margin-bottom: 8px; }
-      .summary { margin-bottom: 24px; color: #b7bdc8; }
-      .layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
-      .panel { background: #151924; border: 1px solid #23283b; border-radius: 10px; padding: 12px; }
-      .section { margin-top: 16px; }
-      .section h3 { margin: 8px 0; font-size: 14px; color: #c7ccd6; }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-      .chip { background: #1e2232; border: 1px solid #2c3250; border-radius: 999px; padding: 2px 8px; font-size: 12px; color: #c9d1e3; }
-      .chip.phase { background: #23283b; border-color: #3a4163; color: #aeb7c6; }
-      .muted { color: #8a93a5; font-size: 12px; }
-      .filters { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
-      .filters label { font-size: 12px; color: #b7bdc8; }
-      .case { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 6px; }
-      .case.active { background: #23283b; }
-      .case span { display: block; font-size: 12px; color: #9aa3b2; }
-      pre { white-space: pre-wrap; word-break: break-word; background: #0b0d12; padding: 12px; border-radius: 8px; border: 1px solid #1e2232; }
-      .pill { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #23283b; margin-right: 6px; font-size: 12px; }
-      .trajectory { max-height: 520px; overflow-y: auto; }
-      .event { border-bottom: 1px solid #1e2232; padding: 8px 0; }
-      .event:last-child { border-bottom: none; }
-    </style>
-  </head>
-  <body>
-    <h1>Primer Eval Trajectory</h1>
-    <div class="summary" id="summary"></div>
-    <div class="panel" id="toolSummary"></div>
-    <div class="layout">
-      <div class="panel" id="caseList"></div>
-      <div class="panel" id="caseDetails"></div>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Primer Eval Results</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --border: #30363d; --text: #e6edf3; --text2: #8b949e; --text3: #6e7681; --accent: #8b5cf6; --accent2: #a78bfa; --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --red: #f85149; --red-bg: rgba(248,81,73,0.1); --yellow: #d29922; --yellow-bg: rgba(210,153,34,0.1); --blue: #58a6ff; --blue-bg: rgba(88,166,255,0.1); }
+  [data-theme="light"] { --bg: #ffffff; --surface: #f6f8fa; --surface2: #eaeef2; --border: #d0d7de; --text: #1f2328; --text2: #656d76; --text3: #8b949e; --accent: #8b5cf6; --accent2: #7c3aed; --green: #1a7f37; --green-bg: rgba(26,127,55,0.1); --red: #cf222e; --red-bg: rgba(207,34,46,0.1); --yellow: #9a6700; --yellow-bg: rgba(154,103,0,0.1); --blue: #0969da; --blue-bg: rgba(9,105,218,0.1); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  /* Header */
+  .header { padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header-meta { font-size: 13px; color: var(--text2); display: flex; gap: 16px; align-items: center; }
+  .header-meta code { background: var(--surface); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; }
+  .theme-toggle { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; color: var(--text2); font-size: 13px; }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Hero metrics */
+  .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 24px 32px; }
+  .hero-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .hero-card .label { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-bottom: 4px; }
+  .hero-card .value { font-size: 28px; font-weight: 700; }
+  .hero-card .sub { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .delta { font-size: 13px; font-weight: 600; margin-left: 8px; }
+  .delta.better { color: var(--green); }
+  .delta.worse { color: var(--red); }
+  .delta.neutral { color: var(--text3); }
+
+  /* Section */
+  .section { padding: 0 32px 24px; }
+  .section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+
+  /* Comparison table */
+  .comparison-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .comparison-table th { background: var(--surface); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  .comparison-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
+  .comparison-table tr:last-child td { border-bottom: none; }
+  .comparison-table tr:hover td { background: var(--surface); }
+  .case-id { font-weight: 600; }
+  .verdict-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .verdict-badge.pass { background: var(--green-bg); color: var(--green); }
+  .verdict-badge.fail { background: var(--red-bg); color: var(--red); }
+  .verdict-badge.unknown { background: var(--yellow-bg); color: var(--yellow); }
+  .score-bar { width: 60px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .score-fill { height: 100%; border-radius: 3px; }
+  .metric-pair { display: flex; gap: 4px; align-items: baseline; }
+  .metric-old { color: var(--text3); text-decoration: line-through; font-size: 12px; }
+  .metric-new { font-weight: 600; }
+
+  /* Impact bar chart */
+  .impact-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .impact-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .impact-card h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-label { font-size: 13px; min-width: 80px; color: var(--text2); text-align: right; }
+  .bar-track { flex: 1; height: 24px; background: var(--surface2); border-radius: 6px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 6px; transition: width 0.3s; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 11px; font-weight: 600; color: white; min-width: 40px; }
+  .bar-fill.without { background: var(--text3); }
+  .bar-fill.with { background: var(--accent); }
+  .bar-legend { display: flex; gap: 16px; margin-bottom: 12px; }
+  .bar-legend span { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 4px; }
+  .bar-legend .dot { width: 10px; height: 10px; border-radius: 3px; }
+
+  /* Case details */
+  .case-detail { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  .case-detail-header { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+  .case-detail-header:hover { background: var(--surface2); }
+  .case-detail-body { display: none; padding: 0 20px 20px; }
+  .case-detail.open .case-detail-body { display: block; }
+  .case-detail .chevron { transition: transform 0.2s; color: var(--text3); }
+  .case-detail.open .chevron { transform: rotate(90deg); }
+
+  .response-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .response-col h4 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .response-col pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-size: 13px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; line-height: 1.6; }
+  .rationale { background: var(--blue-bg); border: 1px solid var(--blue); border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: 13px; color: var(--text); }
+  .rationale strong { color: var(--blue); }
+  .prompt-text { font-size: 14px; color: var(--text); margin-bottom: 4px; }
+  .expect-text { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  .metric-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .metric-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 12px; }
+  .metric-chip .chip-label { color: var(--text3); margin-right: 4px; }
+  .metric-chip .chip-value { font-weight: 600; color: var(--text); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero { grid-template-columns: 1fr 1fr; }
+    .impact-bars { grid-template-columns: 1fr; }
+    .response-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor" style="color:var(--accent)"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <div>
+      <h1>Eval Results</h1>
+      <div class="header-meta" id="headerMeta"></div>
     </div>
-    <script>
-      const data = ${serialized};
-      const summaryEl = document.getElementById('summary');
-      const toolSummaryEl = document.getElementById('toolSummary');
-      const caseListEl = document.getElementById('caseList');
-      const caseDetailsEl = document.getElementById('caseDetails');
+  </div>
+  <button class="theme-toggle" onclick="toggleTheme()">Toggle theme</button>
+</div>
 
-      const escapeHtml = (value) => String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+<div class="hero" id="heroCards"></div>
 
-      const results = data.results || [];
-      let activeCaseId = null;
-      let toolsOnly = false;
-      let phaseFilter = 'all';
-      summaryEl.textContent =
-        'Repo: ' +
-        (data.repoPath || 'unknown') +
-        ' • Model: ' +
-        (data.model || 'unknown') +
-        ' • Judge: ' +
-        (data.judgeModel || 'unknown');
+<div class="section">
+  <div class="section-title">Impact of Instructions</div>
+  <div class="impact-bars" id="impactBars"></div>
+</div>
 
-      function collectToolCounts(events, phase) {
-        const counts = { total: 0, byName: {} };
-        if (!events) return counts;
-        events.forEach((event) => {
-          if (phase && event.phase !== phase) return;
-          if (event.type !== 'tool.execution_start') return;
-          const name = (event.data && event.data.toolName) || 'unknown';
-          counts.total += 1;
-          counts.byName[name] = (counts.byName[name] || 0) + 1;
-        });
-        return counts;
-      }
+<div class="section">
+  <div class="section-title">Results by Case</div>
+  <table class="comparison-table" id="comparisonTable"></table>
+</div>
 
-      function mergeToolCounts(target, source) {
-        target.total += source.total;
-        Object.entries(source.byName).forEach(([name, count]) => {
-          target.byName[name] = (target.byName[name] || 0) + count;
-        });
-      }
+<div class="section">
+  <div class="section-title">Case Details</div>
+  <div id="caseDetails"></div>
+</div>
 
-      function renderToolChips(counts, limit) {
-        const entries = Object.entries(counts.byName)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, limit);
-        if (!entries.length) return '<span class="muted">No tool calls recorded.</span>';
-        return '<div class="chips">' +
-          entries.map(([name, count]) => '<span class="chip">' + name + ': ' + count + '</span>').join('') +
-          '</div>';
-      }
+<script>
+const data = ${serialized};
+const results = data.results || [];
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-      function renderOverallToolSummary() {
-        const overall = { total: 0, byName: {} };
-        results.forEach((result) => mergeToolCounts(overall, collectToolCounts(result.trajectory || [])));
-        toolSummaryEl.innerHTML =
-          '<div>' +
-          '<strong>Tool call summary (all cases)</strong>' +
-          '<div class="muted">Total tool calls: ' + overall.total + '</div>' +
-          renderToolChips(overall, 10) +
-          '</div>';
-      }
+function toggleTheme() {
+  const html = document.documentElement;
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+}
 
-      function renderCaseList(activeId) {
-        caseListEl.innerHTML = '';
-        results.forEach((result) => {
-          const row = document.createElement('div');
-          row.className = 'case ' + (result.id === activeId ? 'active' : '');
-          row.textContent = result.id + ' (' + (result.verdict ?? 'unknown') + ')';
-          const sub = document.createElement('span');
-          sub.textContent = 'Score: ' + (result.score ?? 0);
-          row.appendChild(sub);
-          row.addEventListener('click', () => renderCaseDetails(result.id));
-          caseListEl.appendChild(row);
-        });
-      }
+// Aggregates
+const agg = { passCount: 0, failCount: 0, totalScore: 0, totalWithoutDur: 0, totalWithDur: 0, totalWithoutTokens: 0, totalWithTokens: 0, totalWithoutTools: 0, totalWithTools: 0 };
+results.forEach(r => {
+  if (r.verdict === 'pass') agg.passCount++;
+  else agg.failCount++;
+  agg.totalScore += (r.score ?? 0);
+  const m = r.metrics || {};
+  const wo = m.withoutInstructions || {};
+  const wi = m.withInstructions || {};
+  agg.totalWithoutDur += (wo.durationMs || 0);
+  agg.totalWithDur += (wi.durationMs || 0);
+  agg.totalWithoutTokens += (wo.tokenUsage?.totalTokens || 0);
+  agg.totalWithTokens += (wi.tokenUsage?.totalTokens || 0);
+  agg.totalWithoutTools += (wo.toolCalls?.count || 0);
+  agg.totalWithTools += (wi.toolCalls?.count || 0);
+});
 
-      function renderMetrics(metrics) {
-        if (!metrics) return '<p>No metrics available.</p>';
-        const fmt = (m) => {
-          const usage = m.tokenUsage;
-          const prompt = usage?.promptTokens ?? 'n/a';
-          const completion = usage?.completionTokens ?? 'n/a';
-          const total = usage?.totalTokens ?? (usage ? (Number(usage.promptTokens ?? 0) + Number(usage.completionTokens ?? 0)) : 'n/a');
-          return (
-            'Duration: ' +
-            m.durationMs +
-            'ms • Tokens (prompt/completion/total): ' +
-            prompt +
-            ' / ' +
-            completion +
-            ' / ' +
-            total +
-            ' • Tool calls: ' +
-            (m.toolCalls?.count ?? 0)
-          );
-        };
-        return (
-          '<div>' +
-          '<div class="pill">Without Instructions</div><span>' +
-          fmt(metrics.withoutInstructions) +
-          '</span><br />' +
-          '<div class="pill">With Instructions</div><span>' +
-          fmt(metrics.withInstructions) +
-          '</span><br />' +
-          '<div class="pill">Judge</div><span>' +
-          fmt(metrics.judge) +
-          '</span><br />' +
-          '<div class="pill">Total</div><span>' +
-          metrics.totalDurationMs +
-          'ms</span>' +
-          '</div>'
-        );
-      }
+const avgScore = results.length ? Math.round(agg.totalScore / results.length) : 0;
+const durDelta = agg.totalWithoutDur ? Math.round((agg.totalWithDur - agg.totalWithoutDur) / agg.totalWithoutDur * 100) : 0;
+const tokenDelta = agg.totalWithoutTokens ? Math.round((agg.totalWithTokens - agg.totalWithoutTokens) / agg.totalWithoutTokens * 100) : 0;
+const toolDelta = agg.totalWithoutTools ? Math.round((agg.totalWithTools - agg.totalWithoutTools) / agg.totalWithoutTools * 100) : 0;
+const runDuration = data.runMetrics?.durationMs || 0;
 
-      function renderTrajectory(events) {
-        if (!events || !events.length) return '<p>No trajectory events captured.</p>';
-        const filtered = events.filter((event) => {
-          if (phaseFilter !== 'all' && event.phase !== phaseFilter) return false;
-          if (toolsOnly && !event.type.startsWith('tool.')) return false;
-          return true;
-        });
-        return (
-          '<div class="trajectory">' +
-          filtered
-            .map(
-              (event) =>
-                '<div class="event">' +
-                '<div><strong>' +
-                event.type +
-                '</strong> <span class="pill">' +
-                event.phase +
-                '</span> <span>' +
-                new Date(event.timestampMs).toISOString() +
-                '</span></div>' +
-                '<pre>' +
-                JSON.stringify(event.data ?? {}, null, 2) +
-                '</pre>' +
-                '</div>'
-            )
-            .join('') +
-          '</div>'
-        );
-      }
+function deltaTag(val, invertBetter) {
+  const sign = val > 0 ? '+' : '';
+  const cls = val === 0 ? 'neutral' : (invertBetter ? (val > 0 ? 'worse' : 'better') : (val > 0 ? 'better' : 'worse'));
+  return '<span class="delta ' + cls + '">' + sign + val + '%</span>';
+}
 
-      function renderCaseDetails(caseId) {
-        const result = results.find((r) => r.id === caseId) ?? results[0];
-        if (!result) {
-          caseDetailsEl.innerHTML = '<p>No results available.</p>';
-          return;
-        }
-        activeCaseId = result.id;
-        renderCaseList(result.id);
-        const toolCounts = collectToolCounts(result.trajectory || []);
-        const toolCountsWithout = collectToolCounts(result.trajectory || [], 'withoutInstructions');
-        const toolCountsWith = collectToolCounts(result.trajectory || [], 'withInstructions');
-        const toolCountsJudge = collectToolCounts(result.trajectory || [], 'judge');
-        caseDetailsEl.innerHTML =
-          '<h2>' +
-          escapeHtml(result.id) +
-          '</h2>' +
-          '<div class="filters">' +
-          '<label><input type="checkbox" id="toolsOnly" ' + (toolsOnly ? 'checked' : '') + ' /> Tools only</label>' +
-          '<label>Phase ' +
-          '<select id="phaseFilter">' +
-          '<option value="all" ' + (phaseFilter === 'all' ? 'selected' : '') + '>All</option>' +
-          '<option value="withoutInstructions" ' + (phaseFilter === 'withoutInstructions' ? 'selected' : '') + '>Without instructions</option>' +
-          '<option value="withInstructions" ' + (phaseFilter === 'withInstructions' ? 'selected' : '') + '>With instructions</option>' +
-          '<option value="judge" ' + (phaseFilter === 'judge' ? 'selected' : '') + '>Judge</option>' +
-          '</select>' +
-          '</label>' +
+function fmtMs(ms) { return ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's'; }
+function fmtTokens(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n); }
+
+// Header
+document.getElementById('headerMeta').innerHTML =
+  '<code>' + esc(data.model) + '</code>' +
+  '<span>Judge: <code>' + esc(data.judgeModel) + '</code></span>' +
+  '<span>' + esc(data.repoPath?.split('/').pop()) + '</span>' +
+  '<span>' + fmtMs(runDuration) + ' total</span>';
+
+// Hero cards
+const heroData = [
+  { label: 'Pass Rate', value: agg.passCount + '/' + results.length, sub: agg.failCount > 0 ? agg.failCount + ' failed' : 'All passing', color: agg.failCount === 0 ? 'var(--green)' : 'var(--yellow)' },
+  { label: 'Avg Score', value: avgScore, sub: 'out of 100', color: avgScore >= 80 ? 'var(--green)' : avgScore >= 50 ? 'var(--yellow)' : 'var(--red)' },
+  { label: 'Speed Impact', value: deltaTag(durDelta, true), sub: fmtMs(agg.totalWithoutDur) + ' → ' + fmtMs(agg.totalWithDur), color: 'var(--text)' },
+  { label: 'Token Impact', value: deltaTag(tokenDelta, true), sub: fmtTokens(agg.totalWithoutTokens) + ' → ' + fmtTokens(agg.totalWithTokens), color: 'var(--text)' },
+  { label: 'Tool Calls', value: deltaTag(toolDelta, true), sub: agg.totalWithoutTools + ' → ' + agg.totalWithTools + ' calls', color: 'var(--text)' },
+];
+document.getElementById('heroCards').innerHTML = heroData.map(h =>
+  '<div class="hero-card"><div class="label">' + h.label + '</div>' +
+  '<div class="value" style="color:' + h.color + '">' + h.value + '</div>' +
+  '<div class="sub">' + h.sub + '</div></div>'
+).join('');
+
+// Impact bars
+function renderImpactBars() {
+  const maxDur = Math.max(...results.map(r => Math.max(r.metrics?.withoutInstructions?.durationMs || 0, r.metrics?.withInstructions?.durationMs || 0)), 1);
+  const maxTok = Math.max(...results.map(r => Math.max(r.metrics?.withoutInstructions?.tokenUsage?.totalTokens || 0, r.metrics?.withInstructions?.tokenUsage?.totalTokens || 0)), 1);
+
+  const legend = '<div class="bar-legend"><span><span class="dot" style="background:var(--text3)"></span> Without instructions</span><span><span class="dot" style="background:var(--accent)"></span> With instructions</span></div>';
+
+  let durHtml = '<div class="impact-card"><h3>Response Time</h3>' + legend;
+  let tokHtml = '<div class="impact-card"><h3>Token Usage</h3>' + legend;
+  results.forEach(r => {
+    const m = r.metrics || {};
+    const woDur = m.withoutInstructions?.durationMs || 0;
+    const wiDur = m.withInstructions?.durationMs || 0;
+    const woTok = m.withoutInstructions?.tokenUsage?.totalTokens || 0;
+    const wiTok = m.withInstructions?.tokenUsage?.totalTokens || 0;
+
+    durHtml += '<div class="bar-row"><div class="bar-label">' + esc(r.id) + '</div><div class="bar-track">' +
+      '<div class="bar-fill without" style="width:' + (woDur/maxDur*100) + '%">' + fmtMs(woDur) + '</div></div></div>' +
+      '<div class="bar-row"><div class="bar-label"></div><div class="bar-track">' +
+      '<div class="bar-fill with" style="width:' + (wiDur/maxDur*100) + '%">' + fmtMs(wiDur) + '</div></div></div>';
+
+    tokHtml += '<div class="bar-row"><div class="bar-label">' + esc(r.id) + '</div><div class="bar-track">' +
+      '<div class="bar-fill without" style="width:' + (woTok/maxTok*100) + '%">' + fmtTokens(woTok) + '</div></div></div>' +
+      '<div class="bar-row"><div class="bar-label"></div><div class="bar-track">' +
+      '<div class="bar-fill with" style="width:' + (wiTok/maxTok*100) + '%">' + fmtTokens(wiTok) + '</div></div></div>';
+  });
+  durHtml += '</div>';
+  tokHtml += '</div>';
+  document.getElementById('impactBars').innerHTML = durHtml + tokHtml;
+}
+renderImpactBars();
+
+// Comparison table
+function renderTable() {
+  let html = '<thead><tr><th>Case</th><th>Verdict</th><th>Score</th><th>Speed</th><th>Tokens</th><th>Tool Calls</th></tr></thead><tbody>';
+  results.forEach(r => {
+    const m = r.metrics || {};
+    const wo = m.withoutInstructions || {};
+    const wi = m.withInstructions || {};
+    const woDur = wo.durationMs || 0;
+    const wiDur = wi.durationMs || 0;
+    const woTok = wo.tokenUsage?.totalTokens || 0;
+    const wiTok = wi.tokenUsage?.totalTokens || 0;
+    const woTools = wo.toolCalls?.count || 0;
+    const wiTools = wi.toolCalls?.count || 0;
+    const durPct = woDur ? Math.round((wiDur - woDur) / woDur * 100) : 0;
+    const tokPct = woTok ? Math.round((wiTok - woTok) / woTok * 100) : 0;
+    const toolPct = woTools ? Math.round((wiTools - woTools) / woTools * 100) : 0;
+    const score = r.score ?? 0;
+    const scoreColor = score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)';
+
+    html += '<tr>' +
+      '<td class="case-id">' + esc(r.id) + '</td>' +
+      '<td><span class="verdict-badge ' + (r.verdict || 'unknown') + '">' + (r.verdict === 'pass' ? '✓' : r.verdict === 'fail' ? '✗' : '?') + ' ' + (r.verdict || 'unknown') + '</span></td>' +
+      '<td><div class="score-bar"><div class="score-fill" style="width:' + score + '%;background:' + scoreColor + '"></div></div>' + score + '</td>' +
+      '<td><div class="metric-pair"><span class="metric-old">' + fmtMs(woDur) + '</span><span class="metric-new">' + fmtMs(wiDur) + '</span>' + deltaTag(durPct, true) + '</div></td>' +
+      '<td><div class="metric-pair"><span class="metric-old">' + fmtTokens(woTok) + '</span><span class="metric-new">' + fmtTokens(wiTok) + '</span>' + deltaTag(tokPct, true) + '</div></td>' +
+      '<td><div class="metric-pair"><span class="metric-old">' + woTools + '</span><span class="metric-new">' + wiTools + '</span>' + deltaTag(toolPct, true) + '</div></td>' +
+      '</tr>';
+  });
+  html += '</tbody>';
+  document.getElementById('comparisonTable').innerHTML = html;
+}
+renderTable();
+
+// Case details (expandable)
+function renderCaseDetails() {
+  let html = '';
+  results.forEach(r => {
+    const m = r.metrics || {};
+    const wo = m.withoutInstructions || {};
+    const wi = m.withInstructions || {};
+    const score = r.score ?? 0;
+    const scoreColor = score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)';
+
+    html += '<div class="case-detail" id="detail-' + esc(r.id) + '">' +
+      '<div class="case-detail-header" onclick="this.parentElement.classList.toggle(\'open\')">' +
+        '<div style="display:flex;align-items:center;gap:12px">' +
+          '<span class="chevron">▶</span>' +
+          '<span class="case-id">' + esc(r.id) + '</span>' +
+          '<span class="verdict-badge ' + (r.verdict || 'unknown') + '">' + (r.verdict === 'pass' ? '✓' : '✗') + ' ' + (r.verdict || 'unknown') + '</span>' +
+          '<span style="color:' + scoreColor + ';font-weight:600">' + score + '</span>' +
+        '</div>' +
+        '<div class="metric-chips">' +
+          '<div class="metric-chip"><span class="chip-label">Speed</span><span class="chip-value">' + fmtMs(wi.durationMs || 0) + '</span></div>' +
+          '<div class="metric-chip"><span class="chip-label">Tokens</span><span class="chip-value">' + fmtTokens(wi.tokenUsage?.totalTokens || 0) + '</span></div>' +
+          '<div class="metric-chip"><span class="chip-label">Tools</span><span class="chip-value">' + (wi.toolCalls?.count || 0) + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="case-detail-body">' +
+        '<div class="prompt-text"><strong>Prompt:</strong> ' + esc(r.prompt) + '</div>' +
+        '<div class="expect-text"><strong>Expected:</strong> ' + esc(r.expectation) + '</div>' +
+        (r.rationale ? '<div class="rationale"><strong>Judge rationale:</strong> ' + esc(r.rationale) + '</div>' : '') +
+        '<div class="response-grid">' +
+          '<div class="response-col"><h4>Without Instructions</h4>' +
+            '<div class="metric-chips" style="margin-bottom:8px">' +
+              '<div class="metric-chip"><span class="chip-label">Time</span><span class="chip-value">' + fmtMs(wo.durationMs || 0) + '</span></div>' +
+              '<div class="metric-chip"><span class="chip-label">Tokens</span><span class="chip-value">' + fmtTokens(wo.tokenUsage?.totalTokens || 0) + '</span></div>' +
+              '<div class="metric-chip"><span class="chip-label">Tools</span><span class="chip-value">' + (wo.toolCalls?.count || 0) + '</span></div>' +
+            '</div>' +
+            '<pre>' + esc(r.withoutInstructions || 'No response') + '</pre>' +
           '</div>' +
-          '<div class="section">' +
-          '<h3>Tool calls</h3>' +
-          '<div class="muted">Total tool calls: ' + toolCounts.total + '</div>' +
-          renderToolChips(toolCounts, 8) +
+          '<div class="response-col"><h4>With Instructions</h4>' +
+            '<div class="metric-chips" style="margin-bottom:8px">' +
+              '<div class="metric-chip"><span class="chip-label">Time</span><span class="chip-value">' + fmtMs(wi.durationMs || 0) + '</span></div>' +
+              '<div class="metric-chip"><span class="chip-label">Tokens</span><span class="chip-value">' + fmtTokens(wi.tokenUsage?.totalTokens || 0) + '</span></div>' +
+              '<div class="metric-chip"><span class="chip-label">Tools</span><span class="chip-value">' + (wi.toolCalls?.count || 0) + '</span></div>' +
+            '</div>' +
+            '<pre>' + esc(r.withInstructions || 'No response') + '</pre>' +
           '</div>' +
-          '<div class="section">' +
-          '<h3>Tool calls by phase</h3>' +
-          '<div class="muted">Without: ' + toolCountsWithout.total + ' • With: ' + toolCountsWith.total + ' • Judge: ' + toolCountsJudge.total + '</div>' +
-          '<div class="chips">' +
-          '<span class="chip phase">withoutInstructions</span>' + renderToolChips(toolCountsWithout, 6) +
-          '</div>' +
-          '<div class="chips">' +
-          '<span class="chip phase">withInstructions</span>' + renderToolChips(toolCountsWith, 6) +
-          '</div>' +
-          '<div class="chips">' +
-          '<span class="chip phase">judge</span>' + renderToolChips(toolCountsJudge, 6) +
-          '</div>' +
-          '</div>' +
-          '<div class="section">' +
-          '<h3>Summary</h3>' +
-          '<p><strong>Verdict:</strong> ' +
-          escapeHtml(result.verdict ?? 'unknown') +
-          ' (score: ' +
-          escapeHtml(result.score ?? 0) +
-          ')</p>' +
-          '<p><strong>Prompt:</strong> ' +
-          escapeHtml(result.prompt ?? '') +
-          '</p>' +
-          '<p><strong>Expectation:</strong> ' +
-          escapeHtml(result.expectation ?? '') +
-          '</p>' +
-          '</div>' +
-          '<div class="section">' +
-          '<h3>Metrics</h3>' +
-          renderMetrics(result.metrics) +
-          '</div>' +
-          '<div class="section">' +
-          '<h3>Trajectory</h3>' +
-          renderTrajectory(result.trajectory) +
-          '</div>';
-
-        const toolsCheckbox = document.getElementById('toolsOnly');
-        if (toolsCheckbox) {
-          toolsCheckbox.addEventListener('change', (event) => {
-            toolsOnly = event.target.checked;
-            renderCaseDetails(activeCaseId);
-          });
-        }
-
-        const phaseSelect = document.getElementById('phaseFilter');
-        if (phaseSelect) {
-          phaseSelect.addEventListener('change', (event) => {
-            phaseFilter = event.target.value || 'all';
-            renderCaseDetails(activeCaseId);
-          });
-        }
-      }
-
-      renderOverallToolSummary();
-      renderCaseDetails(results[0]?.id);
-    </script>
-  </body>
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  document.getElementById('caseDetails').innerHTML = html;
+}
+renderCaseDetails();
+</script>
+</body>
 </html>`;
 }
 

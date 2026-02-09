@@ -10,7 +10,8 @@ export type ReadinessPillar =
   | "dev-environment"
   | "code-quality"
   | "observability"
-  | "security-governance";
+  | "security-governance"
+  | "ai-tooling";
 
 export type ReadinessScope = "repo" | "app";
 
@@ -403,6 +404,99 @@ function buildCriteria(): ReadinessCriterion[] {
           reason: "No observability dependencies detected (OpenTelemetry/logging)."
         };
       }
+    },
+    {
+      id: "custom-instructions",
+      title: "Custom AI instructions or agent guidance",
+      pillar: "ai-tooling",
+      level: 1,
+      scope: "repo",
+      impact: "high",
+      effort: "low",
+      check: async (context) => {
+        const rootFound = await hasCustomInstructions(context.repoPath);
+        if (rootFound.length === 0) {
+          return {
+            status: "fail",
+            reason: "Missing custom AI instructions (e.g. copilot-instructions.md, CLAUDE.md, AGENTS.md, .cursorrules).",
+            evidence: ["copilot-instructions.md", "CLAUDE.md", "AGENTS.md", ".cursorrules", ".github/copilot-instructions.md"]
+          };
+        }
+
+        // For monorepos, also check that each app has its own instructions
+        if (context.analysis.isMonorepo && context.apps.length > 1) {
+          const appsMissing: string[] = [];
+          for (const app of context.apps) {
+            const appFound = await hasCustomInstructions(app.path);
+            if (appFound.length === 0) {
+              appsMissing.push(app.name);
+            }
+          }
+          if (appsMissing.length > 0) {
+            return {
+              status: "pass",
+              reason: `Root instructions found, but ${appsMissing.length}/${context.apps.length} apps missing their own: ${appsMissing.join(", ")}`,
+              evidence: [...rootFound, ...appsMissing.map(name => `${name}: missing app-level instructions`)]
+            };
+          }
+        }
+
+        return {
+          status: "pass",
+          evidence: rootFound
+        };
+      }
+    },
+    {
+      id: "mcp-config",
+      title: "MCP configuration present",
+      pillar: "ai-tooling",
+      level: 2,
+      scope: "repo",
+      impact: "high",
+      effort: "low",
+      check: async (context) => {
+        const found = await hasMcpConfig(context.repoPath);
+        return {
+          status: found.length > 0 ? "pass" : "fail",
+          reason: "Missing MCP (Model Context Protocol) configuration (e.g. .vscode/mcp.json).",
+          evidence: found.length > 0 ? found : [".vscode/mcp.json", ".vscode/settings.json (mcp section)", "mcp.json"]
+        };
+      }
+    },
+    {
+      id: "custom-agents",
+      title: "Custom AI agents configured",
+      pillar: "ai-tooling",
+      level: 3,
+      scope: "repo",
+      impact: "medium",
+      effort: "medium",
+      check: async (context) => {
+        const found = await hasCustomAgents(context.repoPath);
+        return {
+          status: found.length > 0 ? "pass" : "fail",
+          reason: "No custom AI agents configured (e.g. .github/agents/, .copilot/agents/).",
+          evidence: found.length > 0 ? found : [".github/agents/", ".copilot/agents/", ".github/copilot/agents/"]
+        };
+      }
+    },
+    {
+      id: "copilot-skills",
+      title: "Copilot/Claude skills present",
+      pillar: "ai-tooling",
+      level: 3,
+      scope: "repo",
+      impact: "medium",
+      effort: "medium",
+      check: async (context) => {
+        const found = await hasCopilotSkills(context.repoPath);
+        return {
+          status: found.length > 0 ? "pass" : "fail",
+          reason: "No Copilot or Claude skills found (e.g. .copilot/skills/, .github/skills/).",
+          evidence: found.length > 0 ? found : [".copilot/skills/", ".github/skills/", ".claude/skills/"]
+        };
+      }
     }
   ];
 }
@@ -450,7 +544,8 @@ function summarizePillars(criteria: ReadinessCriterionResult[]): ReadinessPillar
     "dev-environment": "Dev Environment",
     "code-quality": "Code Quality",
     observability: "Observability",
-    "security-governance": "Security & Governance"
+    "security-governance": "Security & Governance",
+    "ai-tooling": "AI Tooling"
   };
 
   return (Object.keys(pillarNames) as ReadinessPillar[]).map((pillar) => {
@@ -620,6 +715,91 @@ async function hasArchitectureDoc(repoPath: string): Promise<boolean> {
   const files = await safeReadDir(repoPath);
   if (files.some((file) => file.toLowerCase() === "architecture.md")) return true;
   return fileExists(path.join(repoPath, "docs", "architecture.md"));
+}
+
+async function hasCustomInstructions(repoPath: string): Promise<string[]> {
+  const found: string[] = [];
+  const candidates = [
+    ".github/copilot-instructions.md",
+    "CLAUDE.md",
+    ".claude/CLAUDE.md",
+    "AGENTS.md",
+    ".github/AGENTS.md",
+    ".cursorrules",
+    ".cursorignore",
+    ".windsurfrules",
+    ".github/instructions.md",
+    "copilot-instructions.md"
+  ];
+  for (const candidate of candidates) {
+    if (await fileExists(path.join(repoPath, candidate))) {
+      found.push(candidate);
+    }
+  }
+  return found;
+}
+
+async function hasMcpConfig(repoPath: string): Promise<string[]> {
+  const found: string[] = [];
+  // Check .vscode/mcp.json
+  if (await fileExists(path.join(repoPath, ".vscode", "mcp.json"))) {
+    found.push(".vscode/mcp.json");
+  }
+  // Check root mcp.json
+  if (await fileExists(path.join(repoPath, "mcp.json"))) {
+    found.push("mcp.json");
+  }
+  // Check .vscode/settings.json for MCP section
+  const settings = await readJson(path.join(repoPath, ".vscode", "settings.json"));
+  if (settings && (settings["mcp"] || settings["github.copilot.chat.mcp.enabled"])) {
+    found.push(".vscode/settings.json (mcp section)");
+  }
+  // Check .claude/mcp.json
+  if (await fileExists(path.join(repoPath, ".claude", "mcp.json"))) {
+    found.push(".claude/mcp.json");
+  }
+  return found;
+}
+
+async function hasCustomAgents(repoPath: string): Promise<string[]> {
+  const found: string[] = [];
+  const agentDirs = [
+    ".github/agents",
+    ".copilot/agents",
+    ".github/copilot/agents"
+  ];
+  for (const dir of agentDirs) {
+    if (await fileExists(path.join(repoPath, dir))) {
+      found.push(dir);
+    }
+  }
+  // Check for agent config files
+  const agentFiles = [
+    ".github/copilot-agents.yml",
+    ".github/copilot-agents.yaml"
+  ];
+  for (const agentFile of agentFiles) {
+    if (await fileExists(path.join(repoPath, agentFile))) {
+      found.push(agentFile);
+    }
+  }
+  return found;
+}
+
+async function hasCopilotSkills(repoPath: string): Promise<string[]> {
+  const found: string[] = [];
+  const skillDirs = [
+    ".copilot/skills",
+    ".github/skills",
+    ".claude/skills",
+    ".github/copilot/skills"
+  ];
+  for (const dir of skillDirs) {
+    if (await fileExists(path.join(repoPath, dir))) {
+      found.push(dir);
+    }
+  }
+  return found;
 }
 
 async function readAllDependencies(context: ReadinessContext): Promise<string[]> {

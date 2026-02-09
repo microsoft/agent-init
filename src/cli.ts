@@ -2,14 +2,12 @@ import { Command } from "commander";
 import { initCommand } from "./commands/init";
 import { generateCommand } from "./commands/generate";
 import { prCommand } from "./commands/pr";
-import { templatesCommand } from "./commands/templates";
-import { updateCommand } from "./commands/update";
-import { configCommand } from "./commands/config";
 import { evalCommand } from "./commands/eval";
 import { tuiCommand } from "./commands/tui";
 import { instructionsCommand } from "./commands/instructions";
 import { batchCommand } from "./commands/batch";
 import { readinessCommand } from "./commands/readiness";
+import { batchReadinessCommand } from "./commands/batchReadiness";
 
 export function runCli(argv: string[]): void {
   const program = new Command();
@@ -31,9 +29,10 @@ export function runCli(argv: string[]): void {
 
   program
     .command("generate")
-    .argument("<type>", "prompts|agents|mcp|vscode|aiignore")
+    .argument("<type>", "instructions|agents|mcp|vscode")
     .argument("[path]", "Path to a local repository")
     .option("--force", "Overwrite existing files")
+    .option("--per-app", "Generate per-app in monorepos")
     .action(generateCommand);
 
   program
@@ -47,8 +46,8 @@ export function runCli(argv: string[]): void {
     .command("eval")
     .argument("[path]", "Path to eval config JSON")
     .option("--repo <path>", "Repository path", process.cwd())
-    .option("--model <name>", "Model for responses", "gpt-5")
-    .option("--judge-model <name>", "Model for judging", "gpt-5")
+    .option("--model <name>", "Model for responses", "claude-sonnet-4.5")
+    .option("--judge-model <name>", "Model for judging", "claude-sonnet-4.5")
     .option("--list-models", "List Copilot CLI models and exit")
     .option("--output <path>", "Write results JSON to file")
     .option("--init", "Create a starter primer.eval.json file")
@@ -65,14 +64,15 @@ export function runCli(argv: string[]): void {
     .command("instructions")
     .option("--repo <path>", "Repository path", process.cwd())
     .option("--output <path>", "Output path for copilot instructions")
-    .option("--model <name>", "Model for instructions generation", "gpt-4.1")
+    .option("--model <name>", "Model for instructions generation", "claude-sonnet-4.5")
     .action(instructionsCommand);
 
   program
     .command("readiness")
     .argument("[path]", "Path to a local repository")
     .option("--json", "Output JSON")
-    .option("--output <path>", "Write JSON report to file")
+    .option("--output <path>", "Write report to file (.json or .html)")
+    .option("--visual", "Generate visual HTML report")
     .action(readinessCommand);
 
   program
@@ -82,9 +82,11 @@ export function runCli(argv: string[]): void {
     .option("--provider <provider>", "Repo provider (github|azure)", "github")
     .action(batchCommand);
 
-  program.command("templates").action(templatesCommand);
-  program.command("update").action(updateCommand);
-  program.command("config").action(configCommand);
+  program
+    .command("batch-readiness")
+    .description("Generate batch AI readiness report for multiple repos")
+    .option("--output <path>", "Write HTML report to file")
+    .action(batchReadinessCommand);
 
   program.parse(argv);
 }

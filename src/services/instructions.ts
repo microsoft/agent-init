@@ -26,7 +26,7 @@ export async function generateCopilotInstructions(options: GenerateInstructionsO
   try {
     progress("Creating session...");
     // Try requested model, fall back to gpt-4.1 if gpt-5 fails
-    const preferredModel = options.model ?? "gpt-4.1";
+    const preferredModel = options.model ?? "claude-sonnet-4.5";
     const session = await client.createSession({
       model: preferredModel,
       streaming: true,

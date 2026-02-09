@@ -6,19 +6,41 @@ import {
   ReadinessCriterionResult,
   runReadinessReport
 } from "../services/readiness";
+import { generateVisualReport } from "../services/visualReport";
 
 type ReadinessOptions = {
   json?: boolean;
   output?: string;
+  visual?: boolean;
 };
 
 export async function readinessCommand(repoPathArg: string | undefined, options: ReadinessOptions): Promise<void> {
   const repoPath = path.resolve(repoPathArg ?? process.cwd());
   const report = await runReadinessReport({ repoPath });
+  const repoName = path.basename(repoPath);
 
-  if (options.output) {
+  // Generate visual HTML report
+  if (options.visual || (options.output && options.output.endsWith('.html'))) {
+    const html = generateVisualReport({
+      reports: [{ repo: repoName, report }],
+      title: `AI Readiness Report: ${repoName}`,
+      generatedAt: new Date().toISOString()
+    });
+
+    const outputPath = options.output
+      ? path.resolve(options.output)
+      : path.join(repoPath, 'readiness-report.html');
+
+    await fs.writeFile(outputPath, html, "utf8");
+    console.log(chalk.green(`✓ Visual report generated: ${outputPath}`));
+    return;
+  }
+
+  // Output JSON
+  if (options.output && options.output.endsWith('.json')) {
     const outputPath = path.resolve(options.output);
     await fs.writeFile(outputPath, JSON.stringify(report, null, 2), "utf8");
+    console.log(chalk.green(`✓ JSON report saved: ${outputPath}`));
   }
 
   if (options.json) {

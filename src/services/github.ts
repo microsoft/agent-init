@@ -113,7 +113,7 @@ export async function listUserOrgs(token: string): Promise<GitHubOrg[]> {
 
   return orgs.map((org) => ({
     login: org.login,
-    name: org.name ?? null
+    name: org.description ?? null
   }));
 }
 
