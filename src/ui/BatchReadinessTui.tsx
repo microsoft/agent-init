@@ -3,6 +3,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import path from "path";
 import fs from "fs/promises";
 import os from "os";
+import simpleGit from "simple-git";
 import {
   GitHubOrg,
   GitHubRepo,
@@ -10,7 +11,7 @@ import {
   listOrgRepos,
   listAccessibleRepos
 } from "../services/github";
-import { cloneRepo } from "../services/git";
+import { buildAuthedUrl, cloneRepo } from "../services/git";
 import { runReadinessReport, ReadinessReport } from "../services/readiness";
 import { generateVisualReport } from "../services/visualReport";
 import { ensureDir } from "../utils/fs";
@@ -128,8 +129,11 @@ export function BatchReadinessTui({ token, outputPath }: Props): React.JSX.Eleme
         try {
           // Clone repo
           setProcessingMessage(`Cloning ${repo.fullName}...`);
-          const repoUrl = `https://${token}@github.com/${repo.fullName}`;
-          await cloneRepo(repoUrl, repoDir, { shallow: true });
+          const authedUrl = buildAuthedUrl(repo.cloneUrl, token, "github");
+          await cloneRepo(authedUrl, repoDir, { shallow: true });
+          // Strip credentials from persisted remote URL
+          const git = simpleGit(repoDir);
+          await git.remote(["set-url", "origin", repo.cloneUrl]);
 
           // Run readiness report
           setProcessingMessage(`Running readiness report for ${repo.fullName}...`);
@@ -151,11 +155,13 @@ export function BatchReadinessTui({ token, outputPath }: Props): React.JSX.Eleme
 
       // Generate visual report
       const html = generateVisualReport({
-        reports: results.map(r => ({
-          repo: r.repo,
-          report: r.report!,
-          error: r.error
-        })),
+        reports: results
+          .filter(r => r.report || r.error)
+          .map(r => ({
+            repo: r.repo,
+            report: r.report ?? { repoPath: r.repo, generatedAt: new Date().toISOString(), isMonorepo: false, apps: [], pillars: [], levels: [], achievedLevel: 0, criteria: [], extras: [] },
+            error: r.error
+          })),
         title: "Batch AI Readiness Report",
         generatedAt: new Date().toISOString()
       });
@@ -202,7 +208,10 @@ export function BatchReadinessTui({ token, outputPath }: Props): React.JSX.Eleme
           setMessage("Please select at least one organization");
           return;
         }
-        loadRepos();
+        loadRepos().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Failed to load repos");
+        });
       } else if (input.toLowerCase() === "a") {
         setSelectedOrgIndices(new Set(orgs.map((_, i) => i)));
       }
@@ -235,7 +244,10 @@ export function BatchReadinessTui({ token, outputPath }: Props): React.JSX.Eleme
 
     if (status === "confirm") {
       if (input.toLowerCase() === "y") {
-        processRepos();
+        processRepos().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Processing failed");
+        });
       } else if (input.toLowerCase() === "n") {
         setStatus("select-repos");
         setMessage(`Select repositories (${repos.length} available)`);

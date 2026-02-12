@@ -147,7 +147,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       const apps = analysis.apps ?? [];
       setRepoApps(apps);
       setIsMonorepo(analysis.isMonorepo ?? false);
-    }).catch(() => {});
+    }).catch((err) => {
+      addLog(`Repo analysis failed: ${err instanceof Error ? err.message : "unknown"}`, "error");
+    });
   }, [repoPath]);
 
   const indexForModel = (model: string): number => {
@@ -262,6 +264,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     }
   };
 
+  // NOTE: The useInput handler below is intentionally kept as a single callback
+  // to avoid prop-drilling ~20 state setters. If this grows further, consider
+  // extracting each status into a sub-component with its own useInput hook.
   useInput((input: string, key: Key) => {
     void (async () => {
       try {

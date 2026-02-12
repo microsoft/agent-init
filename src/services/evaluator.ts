@@ -11,6 +11,17 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_SYSTEM_MESSAGE =
   "You are answering questions about this repository. Use tools to inspect the repo and cite its files. Avoid generic Copilot CLI details unless the prompt explicitly asks for them.";
 
+interface CopilotSession {
+  on(handler: (event: { type: string; data?: Record<string, unknown> }) => void): void;
+  sendAndWait(params: { prompt: string }, timeoutMs?: number): Promise<unknown>;
+  destroy(): Promise<void>;
+}
+
+interface CopilotClient {
+  createSession(config?: Record<string, unknown>): Promise<CopilotSession>;
+  stop(): Promise<unknown>;
+}
+
 type EvalRunOptions = {
   configPath: string;
   repoPath: string;
@@ -192,7 +203,7 @@ type AskResult = {
 };
 
 async function askOnce(
-  client: { createSession: (config?: Record<string, unknown>) => Promise<any> },
+  client: CopilotClient,
   options: AskOptions
 ): Promise<AskResult> {
   const session = await client.createSession({
@@ -244,7 +255,7 @@ type JudgeResult = {
 };
 
 async function judge(
-  client: { createSession: (config?: Record<string, unknown>) => Promise<any> },
+  client: CopilotClient,
   options: JudgeOptions
 ): Promise<{ result: JudgeResult; metrics: AskMetrics; trajectory: TrajectoryEvent[] }> {
   const session = await client.createSession({

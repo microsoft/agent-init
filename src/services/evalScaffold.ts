@@ -22,8 +22,7 @@ type EvalScaffoldOptions = {
   repoPath: string;
   count: number;
   model?: string;
-  // eslint-disable-next-line no-unused-vars
-  onProgress?: (message: string) => void;
+  onProgress?: (_message: string) => void;
 };
 
 export async function generateEvalScaffold(options: EvalScaffoldOptions): Promise<EvalConfig> {
@@ -72,7 +71,7 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
       });
 
       const prompt = [
-        `Analyze the repository at ${repoPath} and generate ${count} eval cases.`,
+        `Analyze this repository and generate ${count} eval cases.`,
         "",
         "IMPORTANT: Generate HARD eval cases that require deep, cross-cutting understanding of the codebase.",
         "Each case should require synthesizing information from MULTIPLE files or tracing logic across several layers.",
@@ -93,6 +92,7 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
         "- Any question answerable by reading one file or searching for one keyword",
         "",
         "Use tools extensively to inspect the codebase — read multiple files, trace imports, follow call chains.",
+        "If this is a monorepo (npm/pnpm/yarn workspaces, Cargo workspace, Go workspace, .NET solution, Gradle/Maven multi-module), generate cases that involve cross-app dependencies, shared libraries, and how changes in one app affect others.",
         "Ensure cases cover cross-cutting concerns: data flow, error propagation, configuration impact, implicit coupling, architectural invariants.",
         "Include a systemMessage that keeps answers scoped to this repository (avoid generic Copilot CLI details unless asked).",
         "Return JSON ONLY (no markdown, no commentary) in this schema:",

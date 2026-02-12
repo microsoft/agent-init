@@ -23,7 +23,7 @@ export function runCli(argv: string[]): void {
     .argument("[path]", "Path to a local repository")
     .option("--github", "Use a GitHub repository")
     .option("--provider <provider>", "Repo provider (github|azure)")
-    .option("--yes", "Accept defaults and skip prompts")
+    .option("--yes", "Accept defaults (generates instructions, MCP, and VS Code configs)")
     .option("--force", "Overwrite existing files")
     .action(initCommand);
 

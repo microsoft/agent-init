@@ -38,7 +38,7 @@ export function validateCachePath(cacheRoot: string, ...segments: string[]): str
   return resolved;
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
+export async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
     return true;
@@ -47,7 +47,24 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-export function buildTimestampedName(baseName: string): string {
+export async function safeReadDir(dirPath: string): Promise<string[]> {
+  try {
+    return await fs.readdir(dirPath);
+  } catch {
+    return [];
+  }
+}
+
+export async function readJson(filePath: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+export function buildTimestampedName(baseName: string, extension = ".json"): string {
   const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
-  return `${baseName}-${stamp}.json`;
+  return `${baseName}-${stamp}${extension}`;
 }

@@ -98,7 +98,7 @@ export function getAzureDevOpsToken(): string | null {
 
 export async function listOrganizations(token: string): Promise<AzureDevOpsOrg[]> {
   const profile = await adoRequest<AzureDevOpsProfileResponse>(PROFILE_URL, token);
-  const accountsUrl = `https://app.vssps.visualstudio.com/_apis/accounts?memberId=${profile.id}&api-version=7.1-preview.1`;
+  const accountsUrl = `https://app.vssps.visualstudio.com/_apis/accounts?memberId=${encodeURIComponent(profile.id)}&api-version=7.1-preview.1`;
   const accounts = await adoRequest<AzureDevOpsListResponse<AzureDevOpsAccountResponse>>(accountsUrl, token);
 
   return accounts.value.map((account) => ({

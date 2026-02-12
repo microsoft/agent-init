@@ -58,18 +58,20 @@ export async function generateCopilotInstructions(options: GenerateInstructionsO
       });
 
       // Simple prompt - let the agent use tools to explore
-      const prompt = `Analyze this codebase at ${repoPath} and generate a .github/copilot-instructions.md file.
+      const prompt = `Analyze this codebase and generate a .github/copilot-instructions.md file.
 
 Use tools to explore:
 1. Check for existing instruction files: glob for **/{.github/copilot-instructions.md,AGENT.md,CLAUDE.md,.cursorrules,README.md}
-2. Identify the tech stack: look at package.json, tsconfig.json, pyproject.toml, Cargo.toml, etc.
+2. Identify the tech stack: look at package.json, tsconfig.json, pyproject.toml, Cargo.toml, go.mod, *.csproj, *.sln, build.gradle, pom.xml, etc.
 3. Understand the structure: list key directories
+4. Detect monorepo structures: check for workspace configs (npm/pnpm/yarn workspaces, Cargo.toml [workspace], go.work, .sln solution files, settings.gradle include directives, pom.xml modules)
 
 Generate concise instructions (~20-50 lines) covering:
 - Tech stack and architecture
-- Build/test commands  
+- Build/test commands
 - Project-specific conventions
 - Key files/directories
+- Monorepo structure and per-app layout (if this is a monorepo, describe the workspace organization, how apps relate to each other, and any shared libraries)
 
 Output ONLY the markdown content for the instructions file.`;
 

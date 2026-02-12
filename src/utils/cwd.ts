@@ -1,6 +1,13 @@
 /**
  * Serialized access to process.chdir(). Only one withCwd block
  * runs at a time, preventing concurrent directory corruption.
+ *
+ * WARNING: process.chdir() is a process-global side effect. This lock
+ * only serializes concurrent `withCwd` callers. Any other code that
+ * resolves relative paths during execution will observe the changed
+ * working directory. Use only for Copilot SDK calls that require
+ * process.cwd() to be set. Prefer passing `cwd` options to libraries
+ * or child processes when available.
  */
 let lock: Promise<void> = Promise.resolve();
 

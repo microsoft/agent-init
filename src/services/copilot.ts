@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 let cachedCliPath: string | null = null;
+let cachedCliPathTimestamp = 0;
+const CLI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function assertCopilotCliReady(): Promise<string> {
   const cliPath = await findCopilotCliPath();
@@ -26,7 +28,9 @@ export async function listCopilotModels(): Promise<string[]> {
 }
 
 async function findCopilotCliPath(): Promise<string> {
-  if (cachedCliPath) return cachedCliPath;
+  if (cachedCliPath && (Date.now() - cachedCliPathTimestamp) < CLI_CACHE_TTL_MS) {
+    return cachedCliPath;
+  }
 
   // Try PATH lookup first (works on all platforms)
   const whichCmd = process.platform === "win32" ? "where" : "which";
@@ -35,6 +39,7 @@ async function findCopilotCliPath(): Promise<string> {
     const found = stdout.trim().split(/\r?\n/)[0];
     if (found) {
       cachedCliPath = found;
+      cachedCliPathTimestamp = Date.now();
       return found;
     }
   } catch {
@@ -68,21 +73,25 @@ async function findCopilotCliPath(): Promise<string> {
     try {
       await fs.access(location);
       cachedCliPath = location;
+      cachedCliPathTimestamp = Date.now();
       return location;
     } catch {
       // Try next location
     }
   }
 
+  const ext = process.platform === "win32" ? ".exe" : "";
+  const normalizedHome = home.replace(/\\/g, "/");
   const globPatterns = [
-    `${home}/.vscode-insiders/extensions/github.copilot-chat-*/copilotCli/copilot`,
-    `${home}/.vscode/extensions/github.copilot-chat-*/copilotCli/copilot`
+    `${normalizedHome}/.vscode-insiders/extensions/github.copilot-chat-*/copilotCli/copilot${ext}`,
+    `${normalizedHome}/.vscode/extensions/github.copilot-chat-*/copilotCli/copilot${ext}`
   ];
 
   for (const pattern of globPatterns) {
     const matches = await fg(pattern, { onlyFiles: true });
     if (matches.length > 0) {
       cachedCliPath = matches[0];
+      cachedCliPathTimestamp = Date.now();
       return matches[0];
     }
   }

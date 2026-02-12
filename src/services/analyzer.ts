@@ -2,10 +2,13 @@ import fs from "fs/promises";
 import path from "path";
 import fg from "fast-glob";
 import { isGitRepo } from "./git";
+import { fileExists, safeReadDir, readJson } from "../utils/fs";
 
 export type RepoApp = {
   name: string;
   path: string;
+  ecosystem?: "node" | "rust" | "go" | "dotnet" | "java" | "python" | "ruby" | "php";
+  manifestPath?: string;
   packageJsonPath: string;
   scripts: Record<string, string>;
   hasTsConfig: boolean;
@@ -18,7 +21,7 @@ export type RepoAnalysis = {
   frameworks: string[];
   packageManager?: string;
   isMonorepo?: boolean;
-  workspaceType?: "npm" | "pnpm" | "yarn";
+  workspaceType?: "npm" | "pnpm" | "yarn" | "cargo" | "go" | "dotnet" | "gradle" | "maven";
   workspacePatterns?: string[];
   apps?: RepoApp[];
 };
@@ -80,7 +83,18 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
     analysis.workspacePatterns = workspace.patterns;
   }
 
-  const apps = await resolveWorkspaceApps(repoPath, workspace?.patterns ?? [], rootPackageJson);
+  let apps = await resolveWorkspaceApps(repoPath, workspace?.patterns ?? [], rootPackageJson);
+
+  // If JS workspace didn't find multiple apps, try non-JS monorepo detection
+  if (apps.length <= 1) {
+    const nonJs = await detectNonJsMonorepo(repoPath, files);
+    if (nonJs.apps.length > 1) {
+      apps = nonJs.apps;
+      if (nonJs.type) analysis.workspaceType = nonJs.type;
+      if (nonJs.patterns) analysis.workspacePatterns = nonJs.patterns;
+    }
+  }
+
   analysis.apps = apps;
   analysis.isMonorepo = apps.length > 1;
 
@@ -120,18 +134,9 @@ function detectFrameworks(deps: string[], files: string[]): string[] {
   return frameworks;
 }
 
-async function safeReadDir(dirPath: string): Promise<string[]> {
+async function safeReadFile(filePath: string): Promise<string | undefined> {
   try {
-    return await fs.readdir(dirPath);
-  } catch {
-    return [];
-  }
-}
-
-async function readJson(filePath: string): Promise<Record<string, unknown> | undefined> {
-  try {
-    const raw = await fs.readFile(filePath, "utf8");
-    return JSON.parse(raw) as Record<string, unknown>;
+    return await fs.readFile(filePath, "utf8");
   } catch {
     return undefined;
   }
@@ -246,19 +251,201 @@ async function buildRepoApp(
   return {
     name,
     path: appPath,
+    ecosystem: "node",
+    manifestPath: packageJsonPath,
     packageJsonPath,
     scripts,
     hasTsConfig
   };
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
+function buildNonJsApp(
+  name: string,
+  appPath: string,
+  ecosystem: NonNullable<RepoApp["ecosystem"]>,
+  manifestPath: string
+): RepoApp {
+  return {
+    name,
+    path: appPath,
+    ecosystem,
+    manifestPath,
+    packageJsonPath: "",
+    scripts: {},
+    hasTsConfig: false
+  };
+}
+
+// ─── Non-JS monorepo detection ───
+
+type NonJsMonorepoResult = {
+  type?: "cargo" | "go" | "dotnet" | "gradle" | "maven";
+  patterns?: string[];
+  apps: RepoApp[];
+};
+
+async function detectNonJsMonorepo(repoPath: string, files: string[]): Promise<NonJsMonorepoResult> {
+  const cargoApps = await detectCargoWorkspace(repoPath);
+  if (cargoApps.length > 1) return { type: "cargo", apps: cargoApps };
+
+  const goApps = await detectGoWorkspace(repoPath);
+  if (goApps.length > 1) return { type: "go", apps: goApps };
+
+  const dotnetApps = await detectDotnetSolution(repoPath, files);
+  if (dotnetApps.length > 1) return { type: "dotnet", apps: dotnetApps };
+
+  const gradleApps = await detectGradleMultiProject(repoPath, files);
+  if (gradleApps.length > 1) return { type: "gradle", apps: gradleApps };
+
+  const mavenApps = await detectMavenMultiModule(repoPath);
+  if (mavenApps.length > 1) return { type: "maven", apps: mavenApps };
+
+  return { apps: [] };
+}
+
+async function detectCargoWorkspace(repoPath: string): Promise<RepoApp[]> {
+  const content = await safeReadFile(path.join(repoPath, "Cargo.toml"));
+  if (!content) return [];
+
+  // Extract [workspace] section up to the next section header
+  const workspaceSection = content.match(/\[workspace\]([\s\S]*?)(?:\n\[|$)/u);
+  if (!workspaceSection) return [];
+
+  const membersMatch = workspaceSection[1].match(/members\s*=\s*\[([\s\S]*?)\]/u);
+  if (!membersMatch) return [];
+
+  const patterns = [...membersMatch[1].matchAll(/"([^"]+)"/gu)].map(m => m[1]);
+  if (!patterns.length) return [];
+
+  const tomlPaths = await fg(
+    patterns.map(p => path.posix.join(p, "Cargo.toml")),
+    { cwd: repoPath, absolute: true, onlyFiles: true }
+  );
+
+  return Promise.all(tomlPaths.map(async (tomlPath) => {
+    const dir = path.dirname(tomlPath);
+    const toml = await safeReadFile(tomlPath);
+    const nameMatch = toml?.match(/^\s*name\s*=\s*"([^"]+)"/mu);
+    return buildNonJsApp(
+      nameMatch?.[1] ?? path.basename(dir),
+      dir,
+      "rust",
+      tomlPath
+    );
+  }));
+}
+
+async function detectGoWorkspace(repoPath: string): Promise<RepoApp[]> {
+  const content = await safeReadFile(path.join(repoPath, "go.work"));
+  if (!content) return [];
+
+  const modules: string[] = [];
+
+  // Block form: use ( ./cmd/server \n ./pkg/lib )
+  const blockMatch = content.match(/use\s*\(([\s\S]*?)\)/u);
+  if (blockMatch) {
+    for (const line of blockMatch[1].split(/\r?\n/u)) {
+      const trimmed = line.replace(/\/\/.*$/u, "").trim();
+      if (trimmed) modules.push(trimmed);
+    }
   }
+
+  // Single-line form: use ./cmd/server
+  for (const match of content.matchAll(/^use\s+(\S+)\s*$/gmu)) {
+    modules.push(match[1]);
+  }
+
+  const apps: RepoApp[] = [];
+  for (const mod of modules) {
+    const modPath = path.resolve(repoPath, mod);
+    const goModPath = path.join(modPath, "go.mod");
+    if (!await fileExists(goModPath)) continue;
+
+    const goMod = await safeReadFile(goModPath);
+    const nameMatch = goMod?.match(/^module\s+(\S+)/mu);
+    const shortName = nameMatch?.[1]?.split("/").pop() ?? path.basename(modPath);
+    apps.push(buildNonJsApp(shortName, modPath, "go", goModPath));
+  }
+
+  return apps;
+}
+
+async function detectDotnetSolution(repoPath: string, files: string[]): Promise<RepoApp[]> {
+  const slnFile = files.find(f => f.endsWith(".sln"));
+  if (!slnFile) return [];
+
+  const content = await safeReadFile(path.join(repoPath, slnFile));
+  if (!content) return [];
+
+  // Match: Project("{guid}") = "Name", "path\to\Project.csproj", "{guid}"
+  const projectRegex = /Project\("[^"]*"\)\s*=\s*"([^"]+)",\s*"([^"]+\.(?:cs|fs|vb)proj)"/giu;
+  const apps: RepoApp[] = [];
+
+  for (const match of content.matchAll(projectRegex)) {
+    const name = match[1];
+    const projRelPath = match[2].replace(/\\/gu, "/");
+    const projPath = path.resolve(repoPath, projRelPath);
+    const appDir = path.dirname(projPath);
+
+    if (await fileExists(projPath)) {
+      apps.push(buildNonJsApp(name, appDir, "dotnet", projPath));
+    }
+  }
+
+  return apps;
+}
+
+async function detectGradleMultiProject(repoPath: string, files: string[]): Promise<RepoApp[]> {
+  const settingsFile = files.includes("settings.gradle.kts") ? "settings.gradle.kts"
+    : files.includes("settings.gradle") ? "settings.gradle"
+    : null;
+  if (!settingsFile) return [];
+
+  const content = await safeReadFile(path.join(repoPath, settingsFile));
+  if (!content) return [];
+
+  // Extract all Gradle project references (':app', ':lib:core') from the file
+  const projectNames: string[] = [];
+  for (const match of content.matchAll(/['"](:(?:[\w.-]+:)*[\w.-]+)['"]/gu)) {
+    projectNames.push(match[1].replace(/^:/u, "").replace(/:/gu, "/"));
+  }
+
+  const uniqueProjects = [...new Set(projectNames)];
+  const apps: RepoApp[] = [];
+
+  for (const project of uniqueProjects) {
+    const projectDir = path.resolve(repoPath, project);
+    const ktsPath = path.join(projectDir, "build.gradle.kts");
+    const groovyPath = path.join(projectDir, "build.gradle");
+
+    const buildFile = await fileExists(ktsPath) ? ktsPath
+      : await fileExists(groovyPath) ? groovyPath
+      : null;
+
+    if (buildFile) {
+      apps.push(buildNonJsApp(path.basename(project), projectDir, "java", buildFile));
+    }
+  }
+
+  return apps;
+}
+
+async function detectMavenMultiModule(repoPath: string): Promise<RepoApp[]> {
+  const content = await safeReadFile(path.join(repoPath, "pom.xml"));
+  if (!content) return [];
+
+  const apps: RepoApp[] = [];
+  for (const match of content.matchAll(/<module>([^<]+)<\/module>/gu)) {
+    const modName = match[1].trim();
+    const modDir = path.resolve(repoPath, modName);
+    const pomPath = path.join(modDir, "pom.xml");
+
+    if (await fileExists(pomPath)) {
+      apps.push(buildNonJsApp(path.basename(modName), modDir, "java", pomPath));
+    }
+  }
+
+  return apps;
 }
 
 function unique<T>(items: T[]): T[] {

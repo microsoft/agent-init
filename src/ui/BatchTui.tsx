@@ -11,6 +11,7 @@ import {
   listAccessibleRepos,
   checkReposForInstructions
 } from "../services/github";
+import simpleGit from "simple-git";
 import { buildAuthedUrl, cloneRepo, checkoutBranch, commitAll, pushBranch, isGitRepo, CloneOptions } from "../services/git";
 import { generateCopilotInstructions } from "../services/instructions";
 import { ensureDir, validateCachePath } from "../utils/fs";
@@ -170,6 +171,9 @@ export function BatchTui({ token, outputPath }: Props): React.JSX.Element {
               setProcessingMessage(`[${i + 1}/${selectedRepos.length}] ${repo.fullName}: Cloning (${stage} ${progress}%)...`);
             }
           });
+          // Strip credentials from persisted remote URL
+          const git = simpleGit(repoPath);
+          await git.remote(["set-url", "origin", repo.cloneUrl]);
         }
 
         // Branch
@@ -189,11 +193,15 @@ export function BatchTui({ token, outputPath }: Props): React.JSX.Element {
           }
         });
         
+        let timer: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<string>((_, reject) => {
-          setTimeout(() => reject(new Error("Generation timed out after 2 minutes")), timeoutMs);
+          timer = setTimeout(() => reject(new Error("Generation timed out after 2 minutes")), timeoutMs);
         });
         
-        const instructions = await Promise.race([instructionsPromise, timeoutPromise]);
+        const instructions = await Promise.race([instructionsPromise, timeoutPromise])
+          .finally(() => clearTimeout(timer));
+        // Prevent unhandled rejection if the losing promise rejects later
+        instructionsPromise.catch(() => {});
 
         if (!instructions.trim()) {
           throw new Error("Generated instructions were empty");
@@ -265,7 +273,10 @@ export function BatchTui({ token, outputPath }: Props): React.JSX.Element {
           return next;
         });
       } else if (key.return && selectedOrgIndices.size > 0) {
-        loadRepos();
+        loadRepos().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Failed to load repos");
+        });
       }
     }
 
@@ -300,7 +311,10 @@ export function BatchTui({ token, outputPath }: Props): React.JSX.Element {
 
     if (status === "confirm") {
       if (input.toLowerCase() === "y") {
-        processRepos();
+        processRepos().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Processing failed");
+        });
       } else if (input.toLowerCase() === "n") {
         setStatus("select-repos");
         setMessage("Select repos (space to toggle, enter to confirm)");

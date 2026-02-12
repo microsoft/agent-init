@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { analyzeRepo, RepoApp, RepoAnalysis } from "./analyzer";
+import { fileExists, safeReadDir, readJson } from "../utils/fs";
 
 export type ReadinessPillar =
   | "style-validation"
@@ -210,11 +211,14 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "low",
-      check: async (context) => ({
-        status: (await hasLintConfig(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing ESLint/Biome/Prettier configuration.",
-        evidence: ["eslint.config.js", ".eslintrc", "biome.json", ".prettierrc"]
-      })
+      check: async (context) => {
+        const found = await hasLintConfig(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing ESLint/Biome/Prettier configuration.",
+          evidence: ["eslint.config.js", ".eslintrc", "biome.json", ".prettierrc"]
+        };
+      }
     },
     {
       id: "typecheck-config",
@@ -224,11 +228,14 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
-      check: async (context) => ({
-        status: (await hasTypecheckConfig(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing type checking config (tsconfig or equivalent).",
-        evidence: ["tsconfig.json", "pyproject.toml", "mypy.ini"]
-      })
+      check: async (context) => {
+        const found = await hasTypecheckConfig(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing type checking config (tsconfig or equivalent).",
+          evidence: ["tsconfig.json", "pyproject.toml", "mypy.ini"]
+        };
+      }
     },
     {
       id: "build-script",
@@ -238,10 +245,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "app",
       impact: "high",
       effort: "low",
-      check: async (_context, app) => ({
-        status: app?.scripts?.build ? "pass" : "fail",
-        reason: "Missing build script in package.json."
-      })
+      check: async (_context, app) => {
+        const found = Boolean(app?.scripts?.build);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing build script in package.json."
+        };
+      }
     },
     {
       id: "ci-config",
@@ -251,11 +261,14 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "medium",
-      check: async (context) => ({
-        status: (await hasGithubWorkflows(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing .github/workflows CI configuration.",
-        evidence: [".github/workflows"]
-      })
+      check: async (context) => {
+        const found = await hasGithubWorkflows(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing .github/workflows CI configuration.",
+          evidence: [".github/workflows"]
+        };
+      }
     },
     {
       id: "test-script",
@@ -265,10 +278,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "app",
       impact: "high",
       effort: "low",
-      check: async (_context, app) => ({
-        status: app?.scripts?.test ? "pass" : "fail",
-        reason: "Missing test script in package.json."
-      })
+      check: async (_context, app) => {
+        const found = Boolean(app?.scripts?.test);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing test script in package.json."
+        };
+      }
     },
     {
       id: "readme",
@@ -278,11 +294,14 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "low",
-      check: async (context) => ({
-        status: (await hasReadme(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing README documentation.",
-        evidence: ["README.md"]
-      })
+      check: async (context) => {
+        const found = await hasReadme(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing README documentation.",
+          evidence: ["README.md"]
+        };
+      }
     },
     {
       id: "contributing",
@@ -292,10 +311,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
-      check: async (context) => ({
-        status: (await fileExists(path.join(context.repoPath, "CONTRIBUTING.md"))) ? "pass" : "fail",
-        reason: "Missing CONTRIBUTING.md for contributor workflows."
-      })
+      check: async (context) => {
+        const found = await fileExists(path.join(context.repoPath, "CONTRIBUTING.md"));
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing CONTRIBUTING.md for contributor workflows."
+        };
+      }
     },
     {
       id: "lockfile",
@@ -305,10 +327,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "low",
-      check: async (context) => ({
-        status: hasAnyFile(context.rootFiles, ["pnpm-lock.yaml", "yarn.lock", "package-lock.json", "bun.lockb"]) ? "pass" : "fail",
-        reason: "Missing package manager lockfile."
-      })
+      check: async (context) => {
+        const found = hasAnyFile(context.rootFiles, ["pnpm-lock.yaml", "yarn.lock", "package-lock.json", "bun.lockb"]);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing package manager lockfile."
+        };
+      }
     },
     {
       id: "env-example",
@@ -318,10 +343,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
-      check: async (context) => ({
-        status: hasAnyFile(context.rootFiles, [".env.example", ".env.sample"]) ? "pass" : "fail",
-        reason: "Missing .env.example or .env.sample for setup guidance."
-      })
+      check: async (context) => {
+        const found = hasAnyFile(context.rootFiles, [".env.example", ".env.sample"]);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing .env.example or .env.sample for setup guidance."
+        };
+      }
     },
     {
       id: "format-config",
@@ -331,10 +359,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
-      check: async (context) => ({
-        status: (await hasFormatterConfig(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing Prettier/Biome formatting config."
-      })
+      check: async (context) => {
+        const found = await hasFormatterConfig(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing Prettier/Biome formatting config."
+        };
+      }
     },
     {
       id: "codeowners",
@@ -344,10 +375,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
-      check: async (context) => ({
-        status: (await hasCodeowners(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing CODEOWNERS file."
-      })
+      check: async (context) => {
+        const found = await hasCodeowners(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing CODEOWNERS file."
+        };
+      }
     },
     {
       id: "license",
@@ -357,10 +391,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
-      check: async (context) => ({
-        status: (await hasLicense(context.repoPath)) ? "pass" : "fail",
-        reason: "Missing LICENSE file."
-      })
+      check: async (context) => {
+        const found = await hasLicense(context.repoPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing LICENSE file."
+        };
+      }
     },
     {
       id: "security-policy",
@@ -370,10 +407,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "low",
-      check: async (context) => ({
-        status: (await fileExists(path.join(context.repoPath, "SECURITY.md"))) ? "pass" : "fail",
-        reason: "Missing SECURITY.md policy."
-      })
+      check: async (context) => {
+        const found = await fileExists(path.join(context.repoPath, "SECURITY.md"));
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing SECURITY.md policy."
+        };
+      }
     },
     {
       id: "dependabot",
@@ -383,10 +423,13 @@ function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "medium",
-      check: async (context) => ({
-        status: (await fileExists(path.join(context.repoPath, ".github", "dependabot.yml"))) ? "pass" : "fail",
-        reason: "Missing .github/dependabot.yml configuration."
-      })
+      check: async (context) => {
+        const found = await fileExists(path.join(context.repoPath, ".github", "dependabot.yml"));
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing .github/dependabot.yml configuration."
+        };
+      }
     },
     {
       id: "observability",
@@ -587,7 +630,7 @@ function summarizeLevels(criteria: ReadinessCriterionResult[]): ReadinessLevelSu
 
   for (const summary of summaries) {
     const allPrior = summaries.filter((candidate) => candidate.level <= summary.level);
-    const achieved = allPrior.every((candidate) => candidate.total === 0 || candidate.passRate >= 0.8);
+    const achieved = allPrior.every((candidate) => candidate.total > 0 && candidate.passRate >= 0.8);
     summary.achieved = achieved;
   }
 
@@ -598,32 +641,6 @@ function countStatus(items: ReadinessCriterionResult[]): { passed: number; total
   const relevant = items.filter((item) => item.status !== "skip");
   const passed = relevant.filter((item) => item.status === "pass").length;
   return { passed, total: relevant.length };
-}
-
-async function safeReadDir(dirPath: string): Promise<string[]> {
-  try {
-    return await fs.readdir(dirPath);
-  } catch {
-    return [];
-  }
-}
-
-async function readJson(filePath: string): Promise<Record<string, unknown> | undefined> {
-  try {
-    const raw = await fs.readFile(filePath, "utf8");
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
-}
-
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function hasAnyFile(files: string[], candidates: string[]): boolean {
@@ -806,6 +823,7 @@ async function readAllDependencies(context: ReadinessContext): Promise<string[]>
   const dependencies: string[] = [];
   const apps = context.apps.length ? context.apps : [];
   for (const app of apps) {
+    if (!app.packageJsonPath) continue;
     const pkg = await readJson(app.packageJsonPath);
     const deps = (pkg?.dependencies ?? {}) as Record<string, unknown>;
     const devDeps = (pkg?.devDependencies ?? {}) as Record<string, unknown>;

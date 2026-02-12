@@ -120,7 +120,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
   });
 
   await commitAll(repoPath, "chore: add AI configurations via Primer");
-  await pushBranch(repoPath, branch);
+  await pushBranch(repoPath, branch, token, "github");
 
   const prUrl = await createPullRequest({
     token,

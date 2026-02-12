@@ -12,6 +12,7 @@ import {
   checkReposForInstructions,
   createPullRequest
 } from "../services/azureDevops";
+import simpleGit from "simple-git";
 import {
   buildAuthedUrl,
   checkoutBranch,
@@ -190,6 +191,9 @@ export function BatchTuiAzure({ token, outputPath }: Props): React.JSX.Element {
               );
             }
           });
+          // Strip credentials from persisted remote URL
+          const git = simpleGit(repoPath);
+          await git.remote(["set-url", "origin", repo.cloneUrl]);
         }
 
         setProcessingMessage(`[${i + 1}/${selectedRepos.length}] ${repo.organization}/${repo.project}/${repo.name}: Creating branch...`);
@@ -282,7 +286,10 @@ export function BatchTuiAzure({ token, outputPath }: Props): React.JSX.Element {
           return next;
         });
       } else if (key.return && selectedOrgIndices.size > 0) {
-        loadProjects();
+        loadProjects().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Failed to load projects");
+        });
       }
     }
 
@@ -302,7 +309,10 @@ export function BatchTuiAzure({ token, outputPath }: Props): React.JSX.Element {
           return next;
         });
       } else if (key.return && selectedProjectIndices.size > 0) {
-        loadRepos();
+        loadRepos().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Failed to load repos");
+        });
       }
     }
 
@@ -335,7 +345,10 @@ export function BatchTuiAzure({ token, outputPath }: Props): React.JSX.Element {
 
     if (status === "confirm") {
       if (input.toLowerCase() === "y") {
-        processRepos();
+        processRepos().catch(err => {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Processing failed");
+        });
       } else if (input.toLowerCase() === "n") {
         setStatus("select-repos");
         setMessage("Select repos (space to toggle, enter to confirm)");
