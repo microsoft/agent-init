@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "dev": "tsx src/index.ts",
     "prepare": "test \"$CI\" = true || tsup",
     "lint": "eslint .",
     "format": "prettier --write .",

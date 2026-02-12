@@ -1,22 +1,55 @@
 ---
-description: Suggest improvements to the Prompt LSP project across features, bug fixes, security, performance, and engineering quality.
+description: Suggest improvements to the Primer CLI project across features, bug fixes, security, performance, and engineering quality.
 ---
 
-You are a senior software engineer reviewing the **Prompt LSP** project — a VS Code extension with a Language Server Protocol backend that analyzes, validates, and improves AI prompt files (`.prompt.md`, `.agent.md`, `.system.md`, `.instructions.md`).
+You are a senior software engineer reviewing the **Primer** project — a TypeScript CLI tool that primes repositories for AI-assisted development by analyzing codebases, generating Copilot instructions and VS Code configs, running evaluations, and producing AI readiness reports.
 
 ## Architecture Context
 
-The project has two main components:
+- **Tech Stack:** TypeScript (ESM, strict), Node.js, React (Ink for TUI), Commander for CLI
+- **Entrypoint:** `src/index.ts` → `runCli` in `src/cli.ts`
+- **Dependencies:** `@github/copilot-sdk`, `@octokit/rest`, `simple-git`, `ink`, `commander`, `fast-glob`, `@inquirer/prompts`
 
-- **Language Server** (`src/server.ts`) — LSP server that parses prompt documents, runs analysis, and sends diagnostics.
-- **VS Code Client** (`client/src/extension.ts`) — Extension that connects to the server, provides UI integration, and proxies LLM requests via `vscode.lm`.
+### Key Directories
 
-Analysis is split into two layers:
+- `src/commands/` — CLI subcommands (`init`, `generate`, `pr`, `eval`, `tui`, `instructions`, `readiness`, `batch`, `batch-readiness`)
+- `src/services/` — Core logic:
+  - `analyzer.ts` — Scans repo files to detect languages, frameworks, package manager, monorepo workspaces
+  - `instructions.ts` — Generates `.github/copilot-instructions.md` using Copilot SDK agent sessions
+  - `generator.ts` — Writes `.vscode/settings.json` and `.vscode/mcp.json` configs
+  - `evaluator.ts` — Runs eval cases comparing agent responses with/without instructions, builds trajectory viewer HTML
+  - `readiness.ts` — Multi-pillar AI readiness assessment (style, build, testing, docs, dev-env, code-quality, observability, security, ai-tooling)
+  - `visualReport.ts` — Generates beautiful HTML readiness reports with summary cards, pillar charts, level distribution
+  - `git.ts` — Clone/branch operations via `simple-git`
+  - `github.ts` / `azureDevops.ts` — GitHub (Octokit) and Azure DevOps API integrations
+  - `copilot.ts` — Locates and validates the Copilot CLI binary
+  - `evalScaffold.ts` — Scaffolds starter eval config files
+- `src/ui/` — Ink/React-based TUI components (`tui.tsx`, `BatchTui.tsx`, `BatchReadinessTui.tsx`, `BatchTuiAzure.tsx`, `AnimatedBanner.tsx`)
+- `src/utils/` — Shared utilities (`fs.ts` for safe file writes, `logger.ts`, `pr.ts`)
 
-1. **Static Analysis** (`src/analyzers/static.ts`) — Fast, free, runs on every keystroke. Handles variable validation, injection detection, instruction strength, ambiguity, tokenization, frontmatter validation, and composition link checking.
-2. **LLM Analysis** (`src/analyzers/llm.ts`) — Semantic analysis via GitHub Copilot's `vscode.lm` API. Handles contradiction detection, persona consistency, safety guardrail analysis, cognitive load, output shape prediction, and semantic coverage. Runs on save with debouncing.
+### CLI Commands
 
-Results are cached by content hash in `src/cache.ts` with TTL-based expiry. LSP features like CodeLens, hover, go-to-definition, and code actions are in `src/lspFeatures.ts`.
+| Command | Description |
+|---------|-------------|
+| `primer init` | Interactive setup wizard (instructions + configs) |
+| `primer generate <type>` | Generate `instructions`, `agents`, `mcp`, or `vscode` configs |
+| `primer instructions` | Generate copilot-instructions.md via Copilot SDK |
+| `primer eval` | Run evaluation cases comparing with/without instructions |
+| `primer readiness` | AI readiness assessment with optional visual HTML report |
+| `primer batch` | Batch process multiple repos across GitHub/Azure orgs |
+| `primer batch-readiness` | Batch readiness reports across multiple repos |
+| `primer pr` | Automate branch/PR creation for generated configs |
+| `primer tui` | Interactive Ink-based terminal UI |
+
+### Key Patterns
+
+- ESM everywhere (`"type": "module"` in `package.json`)
+- Strict TypeScript (ES2022 target, ESNext modules)
+- Safe file writes: only overwrites with `--force` flag (`safeWriteFile` in `src/utils/fs.ts`)
+- Copilot SDK integration via `@github/copilot-sdk` with session-based agent conversations
+- GitHub token resolution: `GITHUB_TOKEN` → `GH_TOKEN` → `gh auth token` fallback chain
+- Readiness uses a leveled criteria system (levels 1-5) across 9 pillars with pass/fail/skip status
+- Build with `tsup`, test with `vitest`, lint with `eslint`, format with `prettier`
 
 ## Your Task
 
@@ -31,45 +64,53 @@ Analyze the full codebase and generate a prioritized list of **concrete, actiona
 ## Areas to Evaluate
 
 ### Features & Functionality
-- What analyzers from the SPEC (`docs/SPEC.md`) are specified but not yet implemented?
-- Are there LSP capabilities (completions, rename, folding ranges, inlay hints, semantic tokens) that would add value?
-- Are there missing quick-fix code actions for existing diagnostics?
-- Could the extension provide better onboarding or discoverability?
+- Are there CLI commands or flags referenced in README/help text that aren't fully implemented?
+- Could `analyzeRepo` detect more languages, frameworks, or package managers (e.g., Gradle, Maven, .NET, Ruby)?
+- Does `primer init --yes` skip useful defaults (currently only selects instructions, not MCP/VS Code configs)?
+- Could `primer readiness` support more output formats (e.g., CSV, PDF) or comparison over time?
+- Are there opportunities to improve the batch processing UX (progress, retries, parallel execution)?
+- Could `primer eval` scaffold richer default eval cases or support custom grading rubrics?
 
 ### Bug Fixes & Correctness
-- Are there edge cases in parsing (frontmatter, variables, composition links, sections) that would produce incorrect results?
-- Do the LLM response parsers handle malformed JSON gracefully in every path?
-- Are there race conditions in the debounce/caching/versioning logic?
-- Does the `detectFileType` function correctly classify all supported file patterns?
+- Does `analyzeRepo` correctly handle edge cases like empty repos, non-git directories, or deeply nested monorepos?
+- Does `readPnpmWorkspace` handle all valid YAML edge cases or is the line-by-line parser fragile?
+- Does the Copilot SDK session handling (`instructions.ts`) properly clean up on errors (session.destroy, client.stop)?
+- Are there race conditions in batch processing when cloning/analyzing multiple repos concurrently?
+- Does `process.chdir()` in `generateCopilotInstructions` create issues if called concurrently?
 
 ### Security
-- Are composition link paths validated against path traversal attacks?
-- Is user-controlled text from prompt documents safely handled when embedded in LLM analysis prompts (prompt injection risk)?
-- Are there any risks from `fs.accessSync` / `fs.readFileSync` on user-supplied paths?
-- Is the cache susceptible to poisoning or collision?
+- Is the GitHub token (`getGitHubToken`) handled securely — never logged, never leaked in error messages?
+- Are user-supplied repo paths validated against path traversal (e.g., `../../etc/passwd` as a repo path)?
+- Does `execFileAsync` usage properly sanitize arguments to prevent command injection?
+- Are Azure DevOps PAT tokens handled securely throughout the `azureDevops.ts` service?
+- Is the `safeWriteFile` function safe against symlink attacks (writing through a symlink to an unintended location)?
 
 ### Performance
-- Are there unnecessary re-analyses or redundant file reads?
-- Could any analyses be lazily computed or incrementally updated?
-- Is tiktoken encoding being efficiently managed (encoder caching, disposal)?
-- Are there opportunities for parallelization or early termination?
+- Could `analyzeRepo` avoid redundant `readdir`/`readFile` calls when the same repo is analyzed multiple times?
+- Is `fast-glob` usage in workspace detection efficient for large monorepos with many packages?
+- Could the Copilot CLI path lookup (`findCopilotCliPath` in `copilot.ts`) be cached across invocations?
+- Are batch operations (batch, batch-readiness) parallelized effectively, or do they process repos sequentially?
+- Does the eval trajectory viewer HTML (`evaluator.ts`) generate excessively large output for many eval cases?
 
 ### Engineering Quality
-- Are there TypeScript strict-mode violations or `any` types that should be eliminated?
-- Is error handling consistent and informative?
-- Are there dead code paths or unused exports?
-- Could modules be better separated for testability?
+- Are there TypeScript strict-mode violations, `any` types, or `as` casts that should be eliminated?
+- Is error handling consistent across services — do all commands give clear, actionable error messages?
+- Are there dead code paths or unused exports in the services or commands?
+- Could the `process.chdir()` pattern in `instructions.ts` be replaced with a safer approach (e.g., passing cwd to child processes)?
+- Are service interfaces well-separated for testability, or are there tight couplings (e.g., direct `process.env` reads)?
 
 ### Testing
-- What is the current test coverage and where are the gaps?
-- Are the LLM analyzer paths tested (even with mocked proxy)?
-- Are edge cases in frontmatter parsing, composition links, and variable detection covered?
-- Are there integration-level tests for the full diagnostic pipeline?
+- What is the current test coverage? Only `analyzer.test.ts`, `fs.test.ts`, `readiness.test.ts`, and `visualReport.test.ts` exist — many services and commands are untested.
+- Are there tests for the Copilot SDK integration paths (even with mocked SDK)?
+- Are edge cases in `readPnpmWorkspace`, `detectWorkspace`, and `resolveWorkspaceApps` covered?
+- Are there integration tests for the full `primer init` or `primer generate` flows?
+- Is the GitHub/Azure DevOps API integration tested with mocked HTTP responses?
 
 ### Developer Experience
-- Is the build/watch/debug workflow smooth?
-- Are there missing npm scripts, lint configs, or CI integrations?
-- Is the extension easy to install, configure, and try out?
+- Is the `npx tsx` workflow sufficient, or should there be a `dev` script for faster iteration?
+- Are error messages clear when prerequisites are missing (Copilot CLI, GitHub token, `gh` CLI)?
+- Is the TUI (`src/ui/tui.tsx`) tested or difficult to test due to Ink rendering?
+- Are there missing npm scripts for common workflows (e.g., `npm run dev`, `npm run test:unit`)?
 
 ## Output Format
 

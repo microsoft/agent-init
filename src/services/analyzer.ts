@@ -45,12 +45,21 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
   const hasRequirements = files.includes("requirements.txt");
   const hasGoMod = files.includes("go.mod");
   const hasCargo = files.includes("Cargo.toml");
+  const hasCsproj = files.some(f => f.endsWith(".csproj") || f.endsWith(".sln"));
+  const hasPomXml = files.includes("pom.xml");
+  const hasBuildGradle = files.includes("build.gradle") || files.includes("build.gradle.kts");
+  const hasGemfile = files.includes("Gemfile");
+  const hasComposerJson = files.includes("composer.json");
 
   if (hasPackageJson) analysis.languages.push("JavaScript");
   if (hasTsConfig) analysis.languages.push("TypeScript");
   if (hasPyProject || hasRequirements) analysis.languages.push("Python");
   if (hasGoMod) analysis.languages.push("Go");
   if (hasCargo) analysis.languages.push("Rust");
+  if (hasCsproj) analysis.languages.push("C#");
+  if (hasPomXml || hasBuildGradle) analysis.languages.push("Java");
+  if (hasGemfile) analysis.languages.push("Ruby");
+  if (hasComposerJson) analysis.languages.push("PHP");
 
   analysis.packageManager = await detectPackageManager(repoPath, files);
 
@@ -88,6 +97,10 @@ async function detectPackageManager(repoPath: string, files: string[]): Promise<
 
   if (files.includes("package.json")) return "npm";
   if (files.includes("pyproject.toml")) return "pip";
+  if (files.includes("pom.xml")) return "maven";
+  if (files.includes("build.gradle") || files.includes("build.gradle.kts")) return "gradle";
+  if (files.includes("Gemfile")) return "bundler";
+  if (files.includes("composer.json")) return "composer";
   return undefined;
 }
 
@@ -161,17 +174,30 @@ async function readPnpmWorkspace(filePath: string): Promise<string[]> {
     const patterns: string[] = [];
     let inPackages = false;
     for (const line of lines) {
+      // Skip comment-only lines
+      if (/^\s*#/u.test(line)) continue;
       if (!inPackages && /^\s*packages\s*:/u.test(line)) {
+        // Handle inline array: packages: ["apps/*", "libs/*"]
+        const inline = line.match(/packages\s*:\s*\[([^\]]+)\]/u);
+        if (inline) {
+          const items = inline[1].split(",").map(s =>
+            s.trim().replace(/^['"]|['"]$/gu, "")
+          );
+          return items.filter(Boolean);
+        }
         inPackages = true;
         continue;
       }
       if (inPackages) {
         const match = line.match(/^\s*-\s*(.+)$/u);
         if (match?.[1]) {
-          patterns.push(match[1].trim().replace(/^['"]|['"]$/gu, ""));
+          // Strip trailing comments and quotes
+          const value = match[1].split("#")[0].trim().replace(/^['"]|['"]$/gu, "");
+          if (value) patterns.push(value);
           continue;
         }
-        if (/^\S/u.test(line)) break;
+        // Non-indented, non-empty line means a new top-level key
+        if (/^\S/u.test(line) && line.trim()) break;
       }
     }
     return patterns;

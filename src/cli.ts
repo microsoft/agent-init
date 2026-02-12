@@ -8,6 +8,7 @@ import { instructionsCommand } from "./commands/instructions";
 import { batchCommand } from "./commands/batch";
 import { readinessCommand } from "./commands/readiness";
 import { batchReadinessCommand } from "./commands/batchReadiness";
+import { DEFAULT_MODEL, DEFAULT_JUDGE_MODEL } from "./config";
 
 export function runCli(argv: string[]): void {
   const program = new Command();
@@ -46,8 +47,8 @@ export function runCli(argv: string[]): void {
     .command("eval")
     .argument("[path]", "Path to eval config JSON")
     .option("--repo <path>", "Repository path", process.cwd())
-    .option("--model <name>", "Model for responses", "claude-sonnet-4.5")
-    .option("--judge-model <name>", "Model for judging", "claude-sonnet-4.5")
+    .option("--model <name>", "Model for responses", DEFAULT_MODEL)
+    .option("--judge-model <name>", "Model for judging", DEFAULT_JUDGE_MODEL)
     .option("--list-models", "List Copilot CLI models and exit")
     .option("--output <path>", "Write results JSON to file")
     .option("--init", "Create a starter primer.eval.json file")
@@ -64,7 +65,7 @@ export function runCli(argv: string[]): void {
     .command("instructions")
     .option("--repo <path>", "Repository path", process.cwd())
     .option("--output <path>", "Output path for copilot instructions")
-    .option("--model <name>", "Model for instructions generation", "claude-sonnet-4.5")
+    .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
     .action(instructionsCommand);
 
   program

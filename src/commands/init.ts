@@ -15,7 +15,7 @@ import {
 } from "../services/azureDevops";
 import { buildAuthedUrl, cloneRepo, isGitRepo } from "../services/git";
 import { generateCopilotInstructions } from "../services/instructions";
-import { ensureDir } from "../utils/fs";
+import { ensureDir, validateCachePath } from "../utils/fs";
 import { prettyPrintSummary } from "../utils/logger";
 
 type InitOptions = {
@@ -59,7 +59,7 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
     });
 
     const cacheRoot = path.join(process.cwd(), ".primer-cache");
-    repoPath = path.join(cacheRoot, selection.owner, selection.name);
+    repoPath = validateCachePath(cacheRoot, selection.owner, selection.name);
     await ensureDir(repoPath);
 
     const hasGit = await isGitRepo(repoPath);
@@ -122,7 +122,7 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
     });
 
     const cacheRoot = path.join(process.cwd(), ".primer-cache");
-    repoPath = path.join(cacheRoot, orgSelection.name, projectSelection.name, repoSelection.name);
+    repoPath = validateCachePath(cacheRoot, orgSelection.name, projectSelection.name, repoSelection.name);
     await ensureDir(repoPath);
 
     const hasGit = await isGitRepo(repoPath);
@@ -135,7 +135,7 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
   prettyPrintSummary(analysis);
 
   const selections = options.yes
-    ? ["instructions"]
+    ? ["instructions", "mcp", "vscode"]
     : await checkbox({
         message: "What would you like to generate?",
         choices: [

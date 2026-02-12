@@ -107,6 +107,12 @@ export async function pushBranch(
       await git.remote(["set-url", "origin", authedUrl]);
       try {
         await git.push(["-u", "origin", branch]);
+      } catch (err) {
+        // Strip embedded credentials from error messages to avoid leaking tokens
+        const sanitized = err instanceof Error
+          ? new Error(err.message.replace(/https:\/\/[^@]+@/g, "https://***@"))
+          : err;
+        throw sanitized;
       } finally {
         // Restore original URL to avoid leaking token
         await git.remote(["set-url", "origin", normalizedUrl]);

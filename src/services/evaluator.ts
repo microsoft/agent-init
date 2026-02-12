@@ -2,21 +2,11 @@ import fs from "fs/promises";
 import path from "path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { assertCopilotCliReady } from "./copilot";
+import { buildTimestampedName } from "../utils/fs";
+import type { EvalCase, EvalConfig } from "./evalScaffold";
 
 const execFileAsync = promisify(execFile);
-
-type EvalCase = {
-  prompt: string;
-  expectation: string;
-  id?: string;
-};
-
-type EvalConfig = {
-  instructionFile?: string;
-  cases: EvalCase[];
-  systemMessage?: string;
-  outputPath?: string;
-};
 
 const DEFAULT_SYSTEM_MESSAGE =
   "You are answering questions about this repository. Use tools to inspect the repo and cite its files. Avoid generic Copilot CLI details unless the prompt explicitly asks for them.";
@@ -94,7 +84,7 @@ export async function runEval(options: EvalRunOptions): Promise<{ summary: strin
   const runStartedAt = Date.now();
 
   progress("Starting Copilot SDK...");
-  const cliPath = await findCopilotCliPath();
+  const cliPath = await assertCopilotCliReady();
   const sdk = await import("@github/copilot-sdk");
   const client = new sdk.CopilotClient({ cliPath });
 
@@ -328,37 +318,11 @@ function parseJudge(content: string): JudgeResult {
 
 async function loadConfig(configPath: string): Promise<EvalConfig> {
   const raw = await fs.readFile(configPath, "utf8");
-  return JSON.parse(raw) as EvalConfig;
-}
-
-async function findCopilotCliPath(): Promise<string> {
-  // Try standard PATH first
-  try {
-    const { stdout } = await execFileAsync("which", ["copilot"], { timeout: 5000 });
-    return stdout.trim();
-  } catch {
-    // Ignore - will try VS Code location
+  const parsed = JSON.parse(raw) as EvalConfig;
+  if (!parsed || !Array.isArray(parsed.cases)) {
+    throw new Error("Eval config must have a 'cases' array.");
   }
-
-  // VS Code Copilot Chat extension location
-  const home = process.env.HOME ?? "";
-  const vscodeLocations = [
-    `${home}/Library/Application Support/Code - Insiders/User/globalStorage/github.copilot-chat/copilotCli/copilot`,
-    `${home}/Library/Application Support/Code/User/globalStorage/github.copilot-chat/copilotCli/copilot`,
-    `${home}/.vscode-insiders/extensions/github.copilot-chat-*/copilotCli/copilot`,
-    `${home}/.vscode/extensions/github.copilot-chat-*/copilotCli/copilot`,
-  ];
-
-  for (const location of vscodeLocations) {
-    try {
-      await fs.access(location);
-      return location;
-    } catch {
-      // Try next location
-    }
-  }
-
-  throw new Error("Copilot CLI not found. Install GitHub Copilot Chat extension in VS Code.");
+  return parsed;
 }
 
 async function readOptionalFile(filePath: string): Promise<string> {
@@ -563,6 +527,8 @@ function getNumber(value: unknown): number | null {
   return null;
 }
 
+// The SDK reports cumulative token counts per session, so we keep the peak (max) value
+// rather than summing incremental deltas.
 function mergeTokenUsage(existing: TokenUsage, next: TokenUsage): TokenUsage {
   return {
     promptTokens: Math.max(existing.promptTokens ?? 0, next.promptTokens ?? 0) || undefined,
@@ -620,11 +586,6 @@ function resolveOutputPath(repoPath: string, override?: string, configValue?: st
   const chosen = override ?? configValue;
   if (!chosen) return undefined;
   return path.isAbsolute(chosen) ? chosen : path.resolve(repoPath, chosen);
-}
-
-function buildTimestampedName(baseName: string): string {
-  const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
-  return `${baseName}-${stamp}.json`;
 }
 
 function buildViewerPath(outputPath: string): string {
@@ -766,7 +727,7 @@ function buildTrajectoryViewerHtml(data: Record<string, unknown>): string {
 <script>
 const data = ${serialized};
 const results = data.results || [];
-const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
 function toggleTheme() {
   const html = document.documentElement;

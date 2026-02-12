@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import { runEval } from "../services/evaluator";
 import { listCopilotModels } from "../services/copilot";
 import { generateEvalScaffold } from "../services/evalScaffold";
+import { DEFAULT_MODEL, DEFAULT_JUDGE_MODEL } from "../config";
 
 type EvalOptions = {
   repo?: string;
@@ -55,8 +56,8 @@ export async function evalCommand(configPathArg: string | undefined, options: Ev
   const { summary, viewerPath } = await runEval({
     configPath,
     repoPath,
-    model: options.model ?? "gpt-5",
-    judgeModel: options.judgeModel ?? "gpt-5",
+    model: options.model ?? DEFAULT_MODEL,
+    judgeModel: options.judgeModel ?? DEFAULT_JUDGE_MODEL,
     outputPath: options.output
   });
 

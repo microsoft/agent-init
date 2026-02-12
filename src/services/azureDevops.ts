@@ -60,6 +60,15 @@ export type AzureDevOpsRepo = {
 
 const PROFILE_URL = "https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1-preview.1";
 
+const ADO_SLUG_RE = /^[\w][\w.-]*$/u;
+
+function validateAdoSlug(value: string, label: string): string {
+  if (!ADO_SLUG_RE.test(value)) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
+  return encodeURIComponent(value);
+}
+
 function getAuthHeader(token: string): string {
   const encoded = Buffer.from(`:${token}`).toString("base64");
   return `Basic ${encoded}`;
@@ -100,7 +109,8 @@ export async function listOrganizations(token: string): Promise<AzureDevOpsOrg[]
 }
 
 export async function listProjects(token: string, organization: string): Promise<AzureDevOpsProject[]> {
-  const url = `https://dev.azure.com/${organization}/_apis/projects?stateFilter=wellFormed&api-version=7.1-preview.1`;
+  const org = validateAdoSlug(organization, "organization");
+  const url = `https://dev.azure.com/${org}/_apis/projects?stateFilter=wellFormed&api-version=7.1-preview.1`;
   const response = await adoRequest<AzureDevOpsListResponse<AzureDevOpsProjectResponse>>(url, token);
 
   return response.value.map((project) => ({
@@ -112,7 +122,9 @@ export async function listProjects(token: string, organization: string): Promise
 }
 
 export async function listRepos(token: string, organization: string, project: string): Promise<AzureDevOpsRepo[]> {
-  const url = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories?api-version=7.1-preview.1`;
+  const org = validateAdoSlug(organization, "organization");
+  const proj = validateAdoSlug(project, "project");
+  const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories?api-version=7.1-preview.1`;
   const response = await adoRequest<AzureDevOpsListResponse<AzureDevOpsRepoResponse>>(url, token);
 
   return response.value.map((repo) => ({
@@ -134,7 +146,10 @@ export async function getRepo(
   project: string,
   repo: string
 ): Promise<AzureDevOpsRepo> {
-  const url = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repo}?api-version=7.1-preview.1`;
+  const org = validateAdoSlug(organization, "organization");
+  const proj = validateAdoSlug(project, "project");
+  const r = validateAdoSlug(repo, "repo");
+  const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories/${r}?api-version=7.1-preview.1`;
   const response = await adoRequest<AzureDevOpsRepoResponse>(url, token);
 
   return {
@@ -166,7 +181,9 @@ export async function createPullRequest(params: {
   sourceBranch: string;
   targetBranch: string;
 }): Promise<string> {
-  const url = `https://dev.azure.com/${params.organization}/${params.project}/_apis/git/repositories/${params.repoId}/pullrequests?api-version=7.1-preview.1`;
+  const org = validateAdoSlug(params.organization, "organization");
+  const proj = validateAdoSlug(params.project, "project");
+  const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories/${encodeURIComponent(params.repoId)}/pullrequests?api-version=7.1-preview.1`;
   const payload = {
     title: params.title,
     description: params.body,
@@ -179,7 +196,7 @@ export async function createPullRequest(params: {
     body: JSON.stringify(payload)
   });
 
-  return `https://dev.azure.com/${params.organization}/${params.project}/_git/${encodeURIComponent(
+  return `https://dev.azure.com/${org}/${proj}/_git/${encodeURIComponent(
     params.repoName
   )}/pullrequest/${response.pullRequestId}`;
 }
@@ -190,7 +207,9 @@ export async function checkRepoHasInstructions(
   project: string,
   repoId: string
 ): Promise<boolean> {
-  const url = `https://dev.azure.com/${organization}/${project}/_apis/git/repositories/${repoId}/items?path=/.github/copilot-instructions.md&includeContentMetadata=true&api-version=7.1-preview.1`;
+  const org = validateAdoSlug(organization, "organization");
+  const proj = validateAdoSlug(project, "project");
+  const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories/${encodeURIComponent(repoId)}/items?path=/.github/copilot-instructions.md&includeContentMetadata=true&api-version=7.1-preview.1`;
   const response = await fetch(url, {
     headers: {
       Authorization: getAuthHeader(token)
@@ -201,7 +220,11 @@ export async function checkRepoHasInstructions(
     return false;
   }
 
-  return response.ok;
+  if (!response.ok) {
+    throw new Error(`Azure DevOps request failed (${response.status})`);
+  }
+
+  return true;
 }
 
 export async function checkReposForInstructions(

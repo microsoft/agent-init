@@ -41,6 +41,7 @@ export async function readinessCommand(repoPathArg: string | undefined, options:
     const outputPath = path.resolve(options.output);
     await fs.writeFile(outputPath, JSON.stringify(report, null, 2), "utf8");
     console.log(chalk.green(`✓ JSON report saved: ${outputPath}`));
+    return;
   }
 
   if (options.json) {

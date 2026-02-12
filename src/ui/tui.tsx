@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Box, Key, Text, useApp, useInput } from "ink";
 import fs from "fs/promises";
 import path from "path";
@@ -11,7 +11,7 @@ import { BatchTui } from "./BatchTui";
 import { BatchTuiAzure } from "./BatchTuiAzure";
 import { getGitHubToken } from "../services/github";
 import { getAzureDevOpsToken } from "../services/azureDevops";
-import { safeWriteFile } from "../utils/fs";
+import { safeWriteFile, buildTimestampedName } from "../utils/fs";
 import { analyzeRepo, RepoApp } from "../services/analyzer";
 
 type Props = {
@@ -45,17 +45,7 @@ type LogEntry = {
   time: string;
 };
 
-type EvalUiConfig = {
-  modelPicker?: "visible" | "hidden";
-};
-
-type EvalConfig = {
-  instructionFile?: string;
-  cases: Array<{ id: string; prompt: string; expectation: string }>;
-  systemMessage?: string;
-  outputPath?: string;
-  ui?: EvalUiConfig;
-};
+import type { EvalConfig } from "../services/evalScaffold";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -272,7 +262,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     }
   };
 
-  useInput(async (input: string, key: Key) => {
+  useInput((input: string, key: Key) => {
+    void (async () => {
+      try {
       if (status === "intro") {
         setStatus("idle");
         return;
@@ -675,6 +667,11 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         setModelCursor(idx >= 0 ? idx : 0);
         return;
       }
+      } catch (err) {
+        setStatus("error");
+        setMessage(err instanceof Error ? err.message : "Unexpected error");
+      }
+    })();
   });
 
   const statusIcon = status === "error" ? "✗" : status === "done" ? "✓" : isLoading ? spinner : "●";
@@ -917,9 +914,4 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       </Box>
     </Box>
   );
-}
-
-function buildTimestampedName(baseName: string): string {
-  const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
-  return `${baseName}-${stamp}.json`;
 }
