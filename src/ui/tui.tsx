@@ -25,6 +25,7 @@ type Status =
   | "generating"
   | "bootstrapping"
   | "evaluating"
+  | "modelPicker"
   | "preview"
   | "done"
   | "error"
@@ -42,6 +43,18 @@ type LogEntry = {
   text: string;
   type: "info" | "success" | "error" | "progress";
   time: string;
+};
+
+type EvalUiConfig = {
+  modelPicker?: "visible" | "hidden";
+};
+
+type EvalConfig = {
+  instructionFile?: string;
+  cases: Array<{ id: string; prompt: string; expectation: string }>;
+  systemMessage?: string;
+  outputPath?: string;
+  ui?: EvalUiConfig;
 };
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -113,6 +126,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [evalModel, setEvalModel] = useState<string>("claude-sonnet-4.5");
   const [judgeModel, setJudgeModel] = useState<string>("claude-sonnet-4.5");
+  const [hideModelPicker, setHideModelPicker] = useState<boolean>(false);
   const [modelPickTarget, setModelPickTarget] = useState<"eval" | "judge">("eval");
   const [modelCursor, setModelCursor] = useState(0);
   const [hasEvalConfig, setHasEvalConfig] = useState<boolean | null>(null);
@@ -145,6 +159,22 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       setIsMonorepo(analysis.isMonorepo ?? false);
     }).catch(() => {});
   }, [repoPath]);
+
+  const indexForModel = (model: string): number => {
+    const index = availableModels.indexOf(model);
+    return index === -1 ? 0 : index;
+  };
+
+  const openModelPicker = (target: "eval" | "judge"): void => {
+    if (!availableModels.length) {
+      setMessage("No Copilot CLI models detected; using defaults.");
+      return;
+    }
+    setModelPickTarget(target);
+    setModelCursor(indexForModel(target === "eval" ? evalModel : judgeModel));
+    setStatus("modelPicker");
+    setMessage(`Select ${target} model.`);
+  };
 
   useEffect(() => {
     let active = true;
@@ -194,6 +224,25 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    const configPath = path.join(repoPath, "primer.eval.json");
+    fs.readFile(configPath, "utf8")
+      .then((raw) => {
+        if (!active) return;
+        const parsed = JSON.parse(raw) as EvalConfig;
+        const setting = parsed.ui?.modelPicker;
+        setHideModelPicker(setting === "hidden");
+      })
+      .catch(() => {
+        if (!active) return;
+        setHideModelPicker(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [repoPath]);
+
   const bootstrapEvalConfig = async (count: number, force: boolean): Promise<void> => {
     const configPath = path.join(repoPath, "primer.eval.json");
     try {
@@ -217,12 +266,55 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       const msg = error instanceof Error ? error.message : "Failed to generate eval config.";
       setMessage(msg);
       addLog(msg, "error");
+    } finally {
+      setEvalCaseCountInput("");
+      setEvalBootstrapCount(null);
     }
   };
 
   useInput(async (input: string, key: Key) => {
       if (status === "intro") {
         setStatus("idle");
+        return;
+      }
+
+      if (status === "modelPicker") {
+        if (key.escape) {
+          setStatus("idle");
+          setMessage("Model picker cancelled.");
+          return;
+        }
+
+        if (key.upArrow) {
+          setModelCursor((prev: number) => {
+            if (!availableModels.length) return 0;
+            return (prev - 1 + availableModels.length) % availableModels.length;
+          });
+          return;
+        }
+
+        if (key.downArrow) {
+          setModelCursor((prev: number) => {
+            if (!availableModels.length) return 0;
+            return (prev + 1) % availableModels.length;
+          });
+          return;
+        }
+
+        if (key.return) {
+          const selected = availableModels[modelCursor];
+          if (!selected) return;
+          if (modelPickTarget === "eval") {
+            setEvalModel(selected);
+            setModelPickTarget("judge");
+            setModelCursor(indexForModel(judgeModel));
+            setMessage(`Eval model set: ${selected}. Select judge model.`);
+            return;
+          }
+          setJudgeModel(selected);
+          setStatus("idle");
+          setMessage(`Models set: eval ${evalModel} • judge ${selected}.`);
+        }
         return;
       }
 
@@ -559,22 +651,21 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       }
 
       if (input.toLowerCase() === "m") {
-        if (!availableModels.length) {
-          setMessage("No Copilot CLI models detected; using defaults.");
+        if (hideModelPicker) {
+          setMessage("Model picker hidden. Set ui.modelPicker to \"visible\" in primer.eval.json.");
           return;
         }
         setModelPickTarget("eval");
         setStatus("model-pick");
         setMessage("Pick eval model.");
-        // Set cursor to current model
         const idx = availableModels.indexOf(evalModel);
         setModelCursor(idx >= 0 ? idx : 0);
         return;
       }
 
       if (input.toLowerCase() === "j") {
-        if (!availableModels.length) {
-          setMessage("No Copilot CLI models detected; using defaults.");
+        if (hideModelPicker) {
+          setMessage("Model picker hidden. Set ui.modelPicker to \"visible\" in primer.eval.json.");
           return;
         }
         setModelPickTarget("judge");
