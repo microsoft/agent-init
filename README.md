@@ -51,7 +51,7 @@ primer --help
 # Interactive setup for current directory
 primer init
 
-# Accept defaults and generate everything
+# Acceptp defaults and generate everything
 primer init --yes
 ```
 

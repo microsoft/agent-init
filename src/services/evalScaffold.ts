@@ -2,6 +2,9 @@ import { assertCopilotCliReady } from "./copilot";
 import { DEFAULT_MODEL } from "../config";
 import { withCwd } from "../utils/cwd";
 
+const EVAL_SCAFFOLD_TIMEOUT_MS = 600000;
+const EVAL_SCAFFOLD_RECOVERY_TIMEOUT_MS = 90000;
+
 export type EvalCase = {
   id?: string;
   prompt: string;
@@ -100,16 +103,62 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
       ].join("\n");
 
       progress("Analyzing codebase...");
-      await session.sendAndWait({ prompt }, 180000);
-      await session.destroy();
+      let timedOutWaitingForIdle = false;
+      try {
+        await session.sendAndWait({ prompt }, EVAL_SCAFFOLD_TIMEOUT_MS);
+      } catch (error) {
+        if (!isSessionIdleTimeoutError(error)) {
+          throw error;
+        }
 
-      const parsed = parseEvalConfig(content);
+        timedOutWaitingForIdle = true;
+        progress("Generation took longer than expected; requesting final JSON output...");
+
+        try {
+          await session.sendAndWait(
+            {
+              prompt:
+                "Stop analysis and return only the final JSON scaffold now. Do not include markdown or commentary."
+            },
+            EVAL_SCAFFOLD_RECOVERY_TIMEOUT_MS
+          );
+        } catch (recoveryError) {
+          if (!isSessionIdleTimeoutError(recoveryError)) {
+            throw recoveryError;
+          }
+          progress("Still waiting on idle; attempting to parse partial output...");
+        }
+      } finally {
+        await session.destroy();
+      }
+
+      let parsed: EvalConfig;
+      try {
+        parsed = parseEvalConfig(content);
+      } catch (error) {
+        if (timedOutWaitingForIdle) {
+          throw new Error(
+            "Timed out waiting for scaffold generation to become idle before a complete JSON payload was returned. Try again or lower `--count`."
+          );
+        }
+        throw error;
+      }
+
       const normalized = normalizeEvalConfig(parsed, count);
       return normalized;
     } finally {
       await client.stop();
     }
   });
+}
+
+function isSessionIdleTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return message.includes("timeout") && message.includes("session.idle");
 }
 
 function parseEvalConfig(raw: string): EvalConfig {
