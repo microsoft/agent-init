@@ -9,7 +9,7 @@ import simpleGit from "simple-git";
 import { buildAuthedUrl, cloneRepo } from "../services/git";
 import type {
   GitHubOrg,
-  GitHubRepo} from "../services/github";
+  GitHubRepo } from "../services/github";
 import {
   listUserOrgs,
   listOrgRepos,

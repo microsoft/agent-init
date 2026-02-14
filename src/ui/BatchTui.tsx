@@ -9,7 +9,7 @@ import { DEFAULT_MODEL } from "../config";
 import { buildAuthedUrl, cloneRepo, checkoutBranch, commitAll, pushBranch, isGitRepo } from "../services/git";
 import type {
   GitHubOrg,
-  GitHubRepo} from "../services/github";
+  GitHubRepo } from "../services/github";
 import {
   listUserOrgs,
   listOrgRepos,

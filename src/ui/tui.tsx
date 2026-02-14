@@ -1,10 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
 
-import type { Key} from "ink";
+import type { Key } from "ink";
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useEffect, useMemo, useState } from "react";
-
 
 import type { RepoApp } from "../services/analyzer";
 import { analyzeRepo } from "../services/analyzer";
@@ -20,7 +19,6 @@ import { safeWriteFile, buildTimestampedName } from "../utils/fs";
 import { AnimatedBanner, StaticBanner } from "./AnimatedBanner";
 import { BatchTui } from "./BatchTui";
 import { BatchTuiAzure } from "./BatchTuiAzure";
-
 
 type Props = {
   repoPath: string;
@@ -161,17 +159,6 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const indexForModel = (model: string): number => {
     const index = availableModels.indexOf(model);
     return index === -1 ? 0 : index;
-  };
-
-  const _openModelPicker = (target: "eval" | "judge"): void => {
-    if (!availableModels.length) {
-      setMessage("No Copilot CLI models detected; using defaults.");
-      return;
-    }
-    setModelPickTarget(target);
-    setModelCursor(indexForModel(target === "eval" ? evalModel : judgeModel));
-    setStatus("modelPicker");
-    setMessage(`Select ${target} model.`);
   };
 
   useEffect(() => {

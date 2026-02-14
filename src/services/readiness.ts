@@ -6,7 +6,6 @@ import { fileExists, safeReadDir, readJson } from "../utils/fs";
 import type { RepoApp, RepoAnalysis } from "./analyzer";
 import { analyzeRepo } from "./analyzer";
 
-
 export type ReadinessPillar =
   | "style-validation"
   | "build-system"

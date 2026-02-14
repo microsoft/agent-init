@@ -7,7 +7,7 @@ import { analyzeRepo } from "../services/analyzer";
 import type {
   AzureDevOpsOrg,
   AzureDevOpsProject,
-  AzureDevOpsRepo} from "../services/azureDevops";
+  AzureDevOpsRepo } from "../services/azureDevops";
 import {
   getAzureDevOpsToken,
   listOrganizations,
