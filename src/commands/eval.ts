@@ -6,7 +6,7 @@ import { listCopilotModels } from "../services/copilot";
 import { generateEvalScaffold } from "../services/evalScaffold";
 import { runEval } from "../services/evaluator";
 import type { CommandResult } from "../utils/output";
-import { outputResult, outputError, shouldLog } from "../utils/output";
+import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
 
 type EvalOptions = {
   repo?: string;
@@ -73,10 +73,12 @@ export async function evalCommand(
       // File doesn't exist, create it
     }
     try {
+      const progress = createProgressReporter(!shouldLog(options));
       const scaffold = await generateEvalScaffold({
         repoPath,
         count: desiredCount,
-        model: options.model
+        model: options.model,
+        onProgress: (msg) => progress.update(msg)
       });
       await fs.writeFile(outputPath, JSON.stringify(scaffold, null, 2), "utf8");
 
