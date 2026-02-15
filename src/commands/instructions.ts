@@ -1,7 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { generateCopilotInstructions, generateAreaInstructions, writeAreaInstruction } from "../services/instructions";
+import {
+  generateCopilotInstructions,
+  generateAreaInstructions,
+  writeAreaInstruction
+} from "../services/instructions";
 import { analyzeRepo } from "../services/analyzer";
 import { ensureDir } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
@@ -109,7 +113,9 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
       for (const area of targetAreas) {
         try {
           if (shouldLog(options)) {
-            progress.update(`Generating for "${area.name}" (${Array.isArray(area.applyTo) ? area.applyTo.join(", ") : area.applyTo})...`);
+            progress.update(
+              `Generating for "${area.name}" (${Array.isArray(area.applyTo) ? area.applyTo.join(", ") : area.applyTo})...`
+            );
           }
           const body = await generateAreaInstructions({
             repoPath,
@@ -137,7 +143,9 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
           }
         } catch (error) {
           if (shouldLog(options)) {
-            progress.update(`Failed for "${area.name}": ${error instanceof Error ? error.message : String(error)}`);
+            progress.update(
+              `Failed for "${area.name}": ${error instanceof Error ? error.message : String(error)}`
+            );
           }
         }
       }

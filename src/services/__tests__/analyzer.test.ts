@@ -385,9 +385,7 @@ describe("analyzeRepo", () => {
     expect(frontendArea?.applyTo).toBe("src/frontend/**");
     expect(frontendArea?.description).toBe("UI layer");
     // Should not have duplicate "frontend" (auto) + "Frontend" (config)
-    const frontendAreas = (result.areas ?? []).filter(
-      (a) => a.name.toLowerCase() === "frontend"
-    );
+    const frontendAreas = (result.areas ?? []).filter((a) => a.name.toLowerCase() === "frontend");
     expect(frontendAreas.length).toBe(1);
   });
 
@@ -616,13 +614,23 @@ describe("buildAreaFrontmatter", () => {
   });
 
   it("includes description when provided", () => {
-    const area: Area = { name: "ui", applyTo: "ui/**", description: "React components", source: "config" };
+    const area: Area = {
+      name: "ui",
+      applyTo: "ui/**",
+      description: "React components",
+      source: "config"
+    };
     const fm = buildAreaFrontmatter(area);
     expect(fm).toContain("Use when working on ui. React components");
   });
 
   it("escapes quotes in description", () => {
-    const area: Area = { name: "api", applyTo: "api/**", description: 'uses "REST" style', source: "config" };
+    const area: Area = {
+      name: "api",
+      applyTo: "api/**",
+      description: 'uses "REST" style',
+      source: "config"
+    };
     const fm = buildAreaFrontmatter(area);
     expect(fm).toContain('uses \\"REST\\" style');
     expect(fm).not.toMatch(/[^\\]"REST"/u);
@@ -635,20 +643,35 @@ describe("buildAreaFrontmatter", () => {
   });
 
   it("escapes backslashes in description", () => {
-    const area: Area = { name: "api", applyTo: "api/**", description: "path is C:\\Users", source: "config" };
+    const area: Area = {
+      name: "api",
+      applyTo: "api/**",
+      description: "path is C:\\Users",
+      source: "config"
+    };
     const fm = buildAreaFrontmatter(area);
     expect(fm).toContain("C:\\\\Users");
   });
 
   it("escapes newlines and tabs in description", () => {
-    const area: Area = { name: "api", applyTo: "api/**", description: "line1\nline2\ttab", source: "config" };
+    const area: Area = {
+      name: "api",
+      applyTo: "api/**",
+      description: "line1\nline2\ttab",
+      source: "config"
+    };
     const fm = buildAreaFrontmatter(area);
     expect(fm).toContain("line1\\nline2\\ttab");
     expect(fm).not.toContain("\n" + "line2");
   });
 
   it("strips null bytes from description", () => {
-    const area: Area = { name: "api", applyTo: "api/**", description: "clean\0value", source: "config" };
+    const area: Area = {
+      name: "api",
+      applyTo: "api/**",
+      description: "clean\0value",
+      source: "config"
+    };
     const fm = buildAreaFrontmatter(area);
     expect(fm).toContain("cleanvalue");
     expect(fm).not.toContain("\0");

@@ -874,7 +874,9 @@ function buildAreaReportsHtml(areaReports?: AreaReadinessReport[]): string {
             const total = relevant.length;
             const pct = total ? Math.round((passed / total) * 100) : 0;
             const sourceLabel = ar.area.source === "config" ? "config" : "auto";
-            const applyTo = Array.isArray(ar.area.applyTo) ? ar.area.applyTo.join(", ") : ar.area.applyTo;
+            const applyTo = Array.isArray(ar.area.applyTo)
+              ? ar.area.applyTo.join(", ")
+              : ar.area.applyTo;
 
             return `
           <div style="background: var(--color-canvas-default); border: 1px solid var(--color-border-muted); border-radius: 6px; overflow: hidden;">

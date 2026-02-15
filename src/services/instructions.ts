@@ -149,10 +149,7 @@ export async function generateAreaInstructions(
           progress(`${area.name}: using tool ${toolName ?? "..."}`);
         } else if (e.type === "session.error") {
           const errorMsg = (e.data?.message as string) ?? "Unknown error";
-          if (
-            errorMsg.toLowerCase().includes("auth") ||
-            errorMsg.toLowerCase().includes("login")
-          ) {
+          if (errorMsg.toLowerCase().includes("auth") || errorMsg.toLowerCase().includes("login")) {
             throw new Error(
               "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
             );
@@ -225,7 +222,12 @@ export function buildAreaInstructionContent(area: Area, body: string): string {
 }
 
 export function areaInstructionPath(repoPath: string, area: Area): string {
-  return path.join(repoPath, ".github", "instructions", `${sanitizeAreaName(area.name)}.instructions.md`);
+  return path.join(
+    repoPath,
+    ".github",
+    "instructions",
+    `${sanitizeAreaName(area.name)}.instructions.md`
+  );
 }
 
 export type WriteAreaResult = { status: "written" | "skipped" | "empty"; filePath: string };
@@ -238,7 +240,7 @@ export async function writeAreaInstruction(
 ): Promise<WriteAreaResult> {
   const filePath = areaInstructionPath(repoPath, area);
   if (!body.trim()) return { status: "empty", filePath };
-  if (!force && await fileExists(filePath)) return { status: "skipped", filePath };
+  if (!force && (await fileExists(filePath))) return { status: "skipped", filePath };
   await ensureDir(path.dirname(filePath));
   await fs.writeFile(filePath, buildAreaInstructionContent(area, body), "utf8");
   return { status: "written", filePath };

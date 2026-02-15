@@ -271,7 +271,12 @@ describe("generateVisualReport", () => {
           pillars: []
         },
         {
-          area: { name: "backend", applyTo: "backend/**", source: "config", description: "API layer" },
+          area: {
+            name: "backend",
+            applyTo: "backend/**",
+            source: "config",
+            description: "API layer"
+          },
           criteria: [
             {
               id: "area-readme",

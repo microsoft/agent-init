@@ -257,16 +257,17 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
     // Update aggregate area criteria in main results
     for (const criterion of criteriaResults) {
       if (criterion.scope !== "area") continue;
-      const perAreaResults = areaReports.map((ar) =>
-        ar.criteria.find((c) => c.id === criterion.id)
-      ).filter(Boolean) as ReadinessCriterionResult[];
+      const perAreaResults = areaReports
+        .map((ar) => ar.criteria.find((c) => c.id === criterion.id))
+        .filter(Boolean) as ReadinessCriterionResult[];
       if (!perAreaResults.length) continue;
 
       const passed = perAreaResults.filter((r) => r.status === "pass").length;
       const total = perAreaResults.length;
       const passRate = total ? passed / total : 0;
       criterion.status = passRate >= 0.8 ? "pass" : "fail";
-      criterion.reason = criterion.status === "pass" ? undefined : `Only ${passed}/${total} areas pass this check.`;
+      criterion.reason =
+        criterion.status === "pass" ? undefined : `Only ${passed}/${total} areas pass this check.`;
       criterion.passRate = passRate;
       criterion.areaSummary = { passed, total };
       criterion.areaFailures = areaReports
@@ -587,10 +588,7 @@ function buildCriteria(): ReadinessCriterion[] {
             return {
               status: "pass",
               reason: `Root instructions found, but no file-based instructions for ${areas.length} detected areas. Run \`primer instructions --areas\` to generate.`,
-              evidence: [
-                ...rootFound,
-                ...areas.map((a) => `${a.name}: missing .instructions.md`)
-              ]
+              evidence: [...rootFound, ...areas.map((a) => `${a.name}: missing .instructions.md`)]
             };
           }
           return {
@@ -773,7 +771,10 @@ function buildCriteria(): ReadinessCriterion[] {
         }
         const sanitized = sanitizeAreaName(area.name);
         const instructionPath = path.join(
-          context.repoPath, ".github", "instructions", `${sanitized}.instructions.md`
+          context.repoPath,
+          ".github",
+          "instructions",
+          `${sanitized}.instructions.md`
         );
         const found = await fileExists(instructionPath);
         return {

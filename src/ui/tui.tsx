@@ -163,7 +163,10 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const repoLabel = useMemo(() => path.basename(repoPath), [repoPath]);
   const repoFull = useMemo(() => repoPath, [repoPath]);
   const isLoading =
-    status === "generating" || status === "bootstrapping" || status === "evaluating" || status === "generating-areas";
+    status === "generating" ||
+    status === "bootstrapping" ||
+    status === "evaluating" ||
+    status === "generating-areas";
   const isMenu =
     status === "model-pick" ||
     status === "eval-pick" ||
@@ -559,7 +562,10 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           if (input.toLowerCase() === "a") {
             // All areas
             setStatus("generating-areas");
-            addLog(`Generating file-based instructions for ${repoAreas.length} areas...`, "progress");
+            addLog(
+              `Generating file-based instructions for ${repoAreas.length} areas...`,
+              "progress"
+            );
             let written = 0;
             for (const [i, area] of repoAreas.entries()) {
               setMessage(`Generating for "${area.name}" (${i + 1}/${repoAreas.length})...`);
@@ -582,7 +588,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
               }
             }
             setStatus("done");
-            setMessage(`Generated file-based instructions for ${written}/${repoAreas.length} areas.`);
+            setMessage(
+              `Generated file-based instructions for ${written}/${repoAreas.length} areas.`
+            );
             return;
           }
           if (key.upArrow) {
@@ -1044,7 +1052,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
                   {i === areaCursor ? "▶" : " "}
                 </Text>
                 <Text color="gray"> </Text>
-                <Text color={i === areaCursor ? "white" : "gray"} bold={i === areaCursor}>{area.name}</Text>
+                <Text color={i === areaCursor ? "white" : "gray"} bold={i === areaCursor}>
+                  {area.name}
+                </Text>
                 <Text color="gray" dimColor>
                   {" "}
                   {Array.isArray(area.applyTo) ? area.applyTo.join(", ") : area.applyTo}

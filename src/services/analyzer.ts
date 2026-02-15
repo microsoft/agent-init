@@ -634,9 +634,10 @@ async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Ar
     // Derive path: extract leading directory from first applyTo pattern, ignoring glob-only patterns
     const patterns = Array.isArray(ca.applyTo) ? ca.applyTo : [ca.applyTo];
     const firstSegment = patterns[0].split("/")[0];
-    const basePath = firstSegment.includes("*") || firstSegment.includes("?")
-      ? repoPath
-      : path.join(repoPath, firstSegment);
+    const basePath =
+      firstSegment.includes("*") || firstSegment.includes("?")
+        ? repoPath
+        : path.join(repoPath, firstSegment);
 
     // Prevent path traversal — config areas must stay inside the repo
     const resolved = path.resolve(basePath);
@@ -711,7 +712,7 @@ export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig |
           typeof entry === "object" &&
           entry !== null &&
           typeof (entry as Record<string, unknown>).name === "string" &&
-          ((entry as Record<string, unknown>).applyTo !== undefined)
+          (entry as Record<string, unknown>).applyTo !== undefined
         ) {
           const e = entry as Record<string, unknown>;
           if (!(e.name as string).trim()) continue;
@@ -720,15 +721,16 @@ export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig |
           let applyTo: string | string[];
           if (typeof rawApplyTo === "string") {
             applyTo = rawApplyTo;
-          } else if (
-            Array.isArray(rawApplyTo) &&
-            rawApplyTo.every((v) => typeof v === "string")
-          ) {
+          } else if (Array.isArray(rawApplyTo) && rawApplyTo.every((v) => typeof v === "string")) {
             applyTo = rawApplyTo as string[];
           } else {
             continue;
           }
-          if ((typeof applyTo === "string" && !applyTo.trim()) || (Array.isArray(applyTo) && applyTo.length === 0)) continue;
+          if (
+            (typeof applyTo === "string" && !applyTo.trim()) ||
+            (Array.isArray(applyTo) && applyTo.length === 0)
+          )
+            continue;
           // Reject patterns with path traversal segments
           const allPatterns = Array.isArray(applyTo) ? applyTo : [applyTo];
           if (allPatterns.some((p) => p.split("/").includes(".."))) continue;

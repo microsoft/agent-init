@@ -3,7 +3,11 @@ import path from "path";
 
 import chalk from "chalk";
 
-import type { ReadinessReport, ReadinessCriterionResult, AreaReadinessReport } from "../services/readiness";
+import type {
+  ReadinessReport,
+  ReadinessCriterionResult,
+  AreaReadinessReport
+} from "../services/readiness";
 import { runReadinessReport } from "../services/readiness";
 import { generateVisualReport } from "../services/visualReport";
 import type { CommandResult } from "../utils/output";

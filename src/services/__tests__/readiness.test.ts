@@ -253,7 +253,10 @@ describe("runReadinessReport", () => {
       // Create a heuristic area directory
       await writeFile("frontend/index.ts", "export {};");
       // Create a file-based instruction
-      await writeFile(".github/instructions/frontend.instructions.md", "---\napplyTo: frontend/**\n---\n# Frontend");
+      await writeFile(
+        ".github/instructions/frontend.instructions.md",
+        "---\napplyTo: frontend/**\n---\n# Frontend"
+      );
 
       const report = await runReadinessReport({ repoPath });
       const criterion = report.criteria.find((c) => c.id === "custom-instructions");
@@ -398,7 +401,10 @@ describe("runReadinessReport", () => {
       await writePackageJson({ name: "test-repo" });
       // Create two heuristic areas with meaningful content
       await writeFile("frontend/index.ts", "export {};");
-      await writeFile("backend/package.json", JSON.stringify({ name: "backend", scripts: { build: "tsc", test: "vitest" } }));
+      await writeFile(
+        "backend/package.json",
+        JSON.stringify({ name: "backend", scripts: { build: "tsc", test: "vitest" } })
+      );
 
       const report = await runReadinessReport({ repoPath, perArea: true });
 
@@ -451,7 +457,10 @@ describe("runReadinessReport", () => {
 
     it("passes area-build-script when area has build script", async () => {
       await writePackageJson({ name: "test-repo" });
-      await writeFile("backend/package.json", JSON.stringify({ name: "backend", scripts: { build: "tsc" } }));
+      await writeFile(
+        "backend/package.json",
+        JSON.stringify({ name: "backend", scripts: { build: "tsc" } })
+      );
 
       const report = await runReadinessReport({ repoPath, perArea: true });
 
@@ -473,7 +482,10 @@ describe("runReadinessReport", () => {
 
     it("passes area-test-script when area has test script", async () => {
       await writePackageJson({ name: "test-repo" });
-      await writeFile("backend/package.json", JSON.stringify({ name: "backend", scripts: { test: "vitest" } }));
+      await writeFile(
+        "backend/package.json",
+        JSON.stringify({ name: "backend", scripts: { test: "vitest" } })
+      );
 
       const report = await runReadinessReport({ repoPath, perArea: true });
 
@@ -485,7 +497,10 @@ describe("runReadinessReport", () => {
     it("passes area-instructions when matching instruction file exists", async () => {
       await writePackageJson({ name: "test-repo" });
       await writeFile("frontend/index.ts", "export {};");
-      await writeFile(".github/instructions/frontend.instructions.md", "---\napplyTo: frontend/**\n---\n# Frontend");
+      await writeFile(
+        ".github/instructions/frontend.instructions.md",
+        "---\napplyTo: frontend/**\n---\n# Frontend"
+      );
 
       const report = await runReadinessReport({ repoPath, perArea: true });
 
