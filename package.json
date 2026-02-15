@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",
-    "prepare": "test \"$CI\" = true || tsup",
+    "prepare": "test \"$CI\" = true || husky",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -36,6 +36,9 @@
     "react": "^19.2.4",
     "simple-git": "^3.30.0"
   },
+  "lint-staged": {
+    "*.{ts,tsx,js,json,md}": "prettier --write"
+  },
   "devDependencies": {
     "@types/node": "^25.1.0",
     "@types/react": "^19.2.10",
@@ -48,6 +51,8 @@
     "eslint-plugin-n": "^17.10.2",
     "eslint-plugin-promise": "^7.1.0",
     "globals": "^17.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.3.3",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
