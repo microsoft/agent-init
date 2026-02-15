@@ -231,6 +231,40 @@ describe("runReadinessReport", () => {
       expect(criterion?.status).toBe("pass");
     });
 
+    it("mentions missing file-based instructions when areas detected", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile(".github/copilot-instructions.md", "# Instructions");
+      // Create a heuristic area directory
+      await writeFile("frontend/index.ts", "export {};");
+
+      const report = await runReadinessReport({ repoPath });
+      const criterion = report.criteria.find((c) => c.id === "custom-instructions");
+
+      expect(criterion?.status).toBe("pass");
+      expect(criterion?.reason).toContain("no file-based instructions");
+      expect(criterion?.evidence).toEqual(
+        expect.arrayContaining([expect.stringContaining("missing .instructions.md")])
+      );
+    });
+
+    it("reports file-based instructions count when present with areas", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile(".github/copilot-instructions.md", "# Instructions");
+      // Create a heuristic area directory
+      await writeFile("frontend/index.ts", "export {};");
+      // Create a file-based instruction
+      await writeFile(".github/instructions/frontend.instructions.md", "---\napplyTo: frontend/**\n---\n# Frontend");
+
+      const report = await runReadinessReport({ repoPath });
+      const criterion = report.criteria.find((c) => c.id === "custom-instructions");
+
+      expect(criterion?.status).toBe("pass");
+      expect(criterion?.reason).toContain("file-based instruction");
+      expect(criterion?.evidence).toEqual(
+        expect.arrayContaining([expect.stringContaining("frontend.instructions.md")])
+      );
+    });
+
     it("fails custom-instructions when none exist", async () => {
       await writePackageJson({ name: "test-repo" });
 
@@ -356,6 +390,209 @@ describe("runReadinessReport", () => {
       const report = await runReadinessReport({ repoPath, includeExtras: false });
 
       expect(report.extras).toHaveLength(0);
+    });
+  });
+
+  describe("per-area readiness", () => {
+    it("returns areaReports when perArea is true and areas exist", async () => {
+      await writePackageJson({ name: "test-repo" });
+      // Create two heuristic areas with meaningful content
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile("backend/package.json", JSON.stringify({ name: "backend", scripts: { build: "tsc", test: "vitest" } }));
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      expect(report.areaReports).toBeDefined();
+      expect(report.areaReports!.length).toBe(2);
+      const areaNames = report.areaReports!.map((ar) => ar.area.name).sort();
+      expect(areaNames).toContain("frontend");
+      expect(areaNames).toContain("backend");
+    });
+
+    it("does not return areaReports when perArea is false", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+
+      const report = await runReadinessReport({ repoPath, perArea: false });
+
+      expect(report.areaReports).toBeUndefined();
+    });
+
+    it("does not return areaReports when no areas exist", async () => {
+      await writePackageJson({ name: "test-repo" });
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      expect(report.areaReports).toBeUndefined();
+    });
+
+    it("passes area-readme when area has README.md", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile("frontend/README.md", "# Frontend");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const frontendReport = report.areaReports!.find((ar) => ar.area.name === "frontend");
+      const readmeCriterion = frontendReport!.criteria.find((c) => c.id === "area-readme");
+      expect(readmeCriterion?.status).toBe("pass");
+    });
+
+    it("fails area-readme when area has no README", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const frontendReport = report.areaReports!.find((ar) => ar.area.name === "frontend");
+      const readmeCriterion = frontendReport!.criteria.find((c) => c.id === "area-readme");
+      expect(readmeCriterion?.status).toBe("fail");
+    });
+
+    it("passes area-build-script when area has build script", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("backend/package.json", JSON.stringify({ name: "backend", scripts: { build: "tsc" } }));
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const backendReport = report.areaReports!.find((ar) => ar.area.name === "backend");
+      const buildCriterion = backendReport!.criteria.find((c) => c.id === "area-build-script");
+      expect(buildCriterion?.status).toBe("pass");
+    });
+
+    it("fails area-build-script when area has no build script", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const frontendReport = report.areaReports!.find((ar) => ar.area.name === "frontend");
+      const buildCriterion = frontendReport!.criteria.find((c) => c.id === "area-build-script");
+      expect(buildCriterion?.status).toBe("fail");
+    });
+
+    it("passes area-test-script when area has test script", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("backend/package.json", JSON.stringify({ name: "backend", scripts: { test: "vitest" } }));
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const backendReport = report.areaReports!.find((ar) => ar.area.name === "backend");
+      const testCriterion = backendReport!.criteria.find((c) => c.id === "area-test-script");
+      expect(testCriterion?.status).toBe("pass");
+    });
+
+    it("passes area-instructions when matching instruction file exists", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile(".github/instructions/frontend.instructions.md", "---\napplyTo: frontend/**\n---\n# Frontend");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const frontendReport = report.areaReports!.find((ar) => ar.area.name === "frontend");
+      const instrCriterion = frontendReport!.criteria.find((c) => c.id === "area-instructions");
+      expect(instrCriterion?.status).toBe("pass");
+    });
+
+    it("fails area-instructions when no matching instruction file", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const frontendReport = report.areaReports!.find((ar) => ar.area.name === "frontend");
+      const instrCriterion = frontendReport!.criteria.find((c) => c.id === "area-instructions");
+      expect(instrCriterion?.status).toBe("fail");
+    });
+
+    it("includes aggregate area criteria in main criteria list", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile("frontend/README.md", "# Frontend");
+      await writeFile("backend/package.json", JSON.stringify({ name: "backend" }));
+      await writeFile("backend/README.md", "# Backend");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const areaReadme = report.criteria.find((c) => c.id === "area-readme");
+      expect(areaReadme).toBeDefined();
+      expect(areaReadme!.scope).toBe("area");
+      expect(areaReadme!.areaSummary).toBeDefined();
+      expect(areaReadme!.areaSummary!.passed).toBe(2);
+      expect(areaReadme!.areaSummary!.total).toBe(2);
+      expect(areaReadme!.status).toBe("pass");
+    });
+
+    it("area criteria excluded when perArea is false", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+
+      const report = await runReadinessReport({ repoPath });
+
+      const areaReadme = report.criteria.find((c) => c.id === "area-readme");
+      expect(areaReadme).toBeUndefined();
+    });
+
+    it("aggregate passes at exactly 80% threshold", async () => {
+      await writePackageJson({ name: "test-repo" });
+      // 5 areas: 4 with README (80%) and 1 without
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile("frontend/README.md", "# Frontend");
+      await writeFile("backend/package.json", JSON.stringify({ name: "backend" }));
+      await writeFile("backend/README.md", "# Backend");
+      await writeFile("api/package.json", JSON.stringify({ name: "api" }));
+      await writeFile("api/README.md", "# API");
+      await writeFile("server/package.json", JSON.stringify({ name: "server" }));
+      await writeFile("server/README.md", "# Server");
+      await writeFile("client/index.ts", "export {};");
+      // client has no README
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const areaReadme = report.criteria.find((c) => c.id === "area-readme");
+      expect(areaReadme!.areaSummary!.passed).toBe(4);
+      expect(areaReadme!.areaSummary!.total).toBe(5);
+      expect(areaReadme!.status).toBe("pass"); // 4/5 = 80% >= 0.8
+    });
+
+    it("aggregate fails below 80% threshold", async () => {
+      await writePackageJson({ name: "test-repo" });
+      // 5 areas: 3 with README (60%) and 2 without
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile("frontend/README.md", "# Frontend");
+      await writeFile("backend/package.json", JSON.stringify({ name: "backend" }));
+      await writeFile("backend/README.md", "# Backend");
+      await writeFile("api/package.json", JSON.stringify({ name: "api" }));
+      await writeFile("api/README.md", "# API");
+      await writeFile("server/package.json", JSON.stringify({ name: "server" }));
+      // server has no README
+      await writeFile("client/index.ts", "export {};");
+      // client has no README
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      const areaReadme = report.criteria.find((c) => c.id === "area-readme");
+      expect(areaReadme!.areaSummary!.passed).toBe(3);
+      expect(areaReadme!.areaSummary!.total).toBe(5);
+      expect(areaReadme!.status).toBe("fail"); // 3/5 = 60% < 0.8
+      expect(areaReadme!.areaFailures).toContain("server");
+      expect(areaReadme!.areaFailures).toContain("client");
+    });
+
+    it("pillars reflect area aggregate results with --per-area", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("frontend/index.ts", "export {};");
+      await writeFile("frontend/README.md", "# Frontend");
+
+      const report = await runReadinessReport({ repoPath, perArea: true });
+
+      // area-readme passes (1/1 = 100%), so documentation pillar should count it
+      const docPillar = report.pillars.find((p) => p.id === "documentation");
+      expect(docPillar).toBeDefined();
+      const areaReadme = report.criteria.find((c) => c.id === "area-readme");
+      expect(areaReadme!.status).toBe("pass");
+      // Pillar should include this pass in its count
+      expect(docPillar!.passed).toBeGreaterThanOrEqual(1);
     });
   });
 });

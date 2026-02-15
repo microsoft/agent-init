@@ -1,4 +1,4 @@
-import type { ReadinessReport } from "./readiness";
+import type { ReadinessReport, AreaReadinessReport } from "./readiness";
 
 type VisualReportOptions = {
   reports: Array<{ repo: string; report: ReadinessReport; error?: string }>;
@@ -531,6 +531,7 @@ export function generateVisualReport(options: VisualReportOptions): string {
                   .join("")}
               </div>
               ${getTopFixesHtml(report)}
+              ${buildAreaReportsHtml(report.areaReports)}
             </div>
           `;
           })
@@ -857,4 +858,53 @@ function escapeHtml(text: string): string {
     "'": "&#039;"
   };
   return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function buildAreaReportsHtml(areaReports?: AreaReadinessReport[]): string {
+  if (!areaReports?.length) return "";
+
+  return `
+    <div style="margin-top: 16px; border-top: 1px solid var(--color-border-muted); padding-top: 12px;">
+      <div style="font-size: 12px; font-weight: 600; color: var(--color-fg-muted); margin-bottom: 8px;">Per-Area Breakdown</div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px;">
+        ${areaReports
+          .map((ar) => {
+            const relevant = ar.criteria.filter((c) => c.status !== "skip");
+            const passed = relevant.filter((c) => c.status === "pass").length;
+            const total = relevant.length;
+            const pct = total ? Math.round((passed / total) * 100) : 0;
+            const sourceLabel = ar.area.source === "config" ? "config" : "auto";
+            const applyTo = Array.isArray(ar.area.applyTo) ? ar.area.applyTo.join(", ") : ar.area.applyTo;
+
+            return `
+          <div style="background: var(--color-canvas-default); border: 1px solid var(--color-border-muted); border-radius: 6px; overflow: hidden;">
+            <details>
+              <summary style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; cursor: pointer; list-style: none; user-select: none;">
+                <span style="font-weight: 600; font-size: 13px; color: var(--color-fg-default);">${escapeHtml(ar.area.name)}</span>
+                <span style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 10px; padding: 1px 6px; border-radius: 2em; background: rgba(139,148,158,0.08); color: var(--color-fg-subtle); border: 1px solid var(--color-border-muted);">${sourceLabel}</span>
+                  <span style="font-weight: 600; font-size: 12px; color: ${pct >= 80 ? "var(--color-success-fg)" : pct >= 50 ? "var(--color-attention-fg)" : "var(--color-danger-fg)"};">${passed}/${total} (${pct}%)</span>
+                </span>
+              </summary>
+              <div style="padding: 4px 12px 8px; border-top: 1px solid var(--color-border-muted);">
+                <div style="font-size: 11px; color: var(--color-fg-subtle); margin-bottom: 6px;">${escapeHtml(applyTo)}</div>
+                ${ar.criteria
+                  .map(
+                    (c) => `
+                  <div class="criterion-row">
+                    <span>${escapeHtml(c.title)}</span>
+                    <span class="criterion-status ${c.status}">${c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail" : "Skip"}</span>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            </details>
+          </div>
+        `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
 }

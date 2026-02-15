@@ -3,7 +3,7 @@ import path from "path";
 
 import chalk from "chalk";
 
-import type { ReadinessReport, ReadinessCriterionResult } from "../services/readiness";
+import type { ReadinessReport, ReadinessCriterionResult, AreaReadinessReport } from "../services/readiness";
 import { runReadinessReport } from "../services/readiness";
 import { generateVisualReport } from "../services/visualReport";
 import type { CommandResult } from "../utils/output";
@@ -14,6 +14,7 @@ type ReadinessOptions = {
   quiet?: boolean;
   output?: string;
   visual?: boolean;
+  perArea?: boolean;
 };
 
 export async function readinessCommand(
@@ -25,7 +26,7 @@ export async function readinessCommand(
 
   let report: ReadinessReport;
   try {
-    report = await runReadinessReport({ repoPath });
+    report = await runReadinessReport({ repoPath, perArea: options.perArea });
   } catch (error) {
     outputError(
       `Failed to generate readiness report: ${error instanceof Error ? error.message : String(error)}`,
@@ -123,6 +124,10 @@ function printReadinessChecklist(report: ReadinessReport): void {
       log(`${icon} ${extra.title}`);
     }
   }
+
+  if (report.areaReports?.length) {
+    printAreaBreakdown(report.areaReports);
+  }
 }
 
 function rankFixes(criteria: ReadinessCriterionResult[]): ReadinessCriterionResult[] {
@@ -169,4 +174,22 @@ function levelName(level: number): string {
   if (level === 4) return "Optimized";
   if (level === 5) return "Autonomous";
   return "Functional";
+}
+
+function printAreaBreakdown(areaReports: AreaReadinessReport[]): void {
+  console.log(chalk.bold("\nPer-area breakdown"));
+  for (const ar of areaReports) {
+    // Sum across all pillar summaries for this area
+    const passed = ar.pillars.reduce((sum, p) => sum + p.passed, 0);
+    const total = ar.pillars.reduce((sum, p) => sum + p.total, 0);
+    const pct = total ? Math.round((passed / total) * 100) : 0;
+    const icon = total > 0 && passed / total >= 0.8 ? chalk.green("●") : chalk.yellow("●");
+    const source = ar.area.source === "config" ? chalk.dim(" (config)") : "";
+    console.log(`${icon} ${ar.area.name}${source}: ${passed}/${total} (${pct}%)`);
+
+    const failures = ar.criteria.filter((c) => c.status === "fail");
+    for (const f of failures) {
+      console.log(`  ${chalk.red("✖")} ${f.title}${f.reason ? ` — ${chalk.dim(f.reason)}` : ""}`);
+    }
+  }
 }

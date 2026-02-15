@@ -1,5 +1,7 @@
 # Copilot Instructions for This Repository
 
+## Development Checklist
+
 - Use ESM syntax everywhere (see "type": "module" in package.json).
 - TypeScript is strict; target ES2022, module ESNext (see tsconfig.json).
 - Use Commander for CLI, Ink/React for TUI, and simple-git/Octokit for GitHub automation.
@@ -7,6 +9,7 @@
 - All Copilot/VS Code settings reference this file and enable MCP.
 - Place new CLI commands in src/commands/, core logic in src/services/, and TUI in src/ui/.
 - Do not add new build/lint/test tools unless necessary; use existing npm scripts.
+- Ensure Windows/macOS/Linux compatibility
 
 ## Overview
 

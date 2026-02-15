@@ -17,6 +17,17 @@ export type RepoApp = {
   hasTsConfig: boolean;
 };
 
+export type Area = {
+  name: string;
+  description?: string;
+  applyTo: string | string[];
+  path?: string;
+  ecosystem?: RepoApp["ecosystem"];
+  source: "auto" | "config";
+  scripts?: Record<string, string>;
+  hasTsConfig?: boolean;
+};
+
 export type RepoAnalysis = {
   path: string;
   isGitRepo: boolean;
@@ -27,6 +38,7 @@ export type RepoAnalysis = {
   workspaceType?: "npm" | "pnpm" | "yarn" | "cargo" | "go" | "dotnet" | "gradle" | "maven";
   workspacePatterns?: string[];
   apps?: RepoApp[];
+  areas?: Area[];
 };
 
 const PACKAGE_MANAGERS: Array<{ file: string; name: string }> = [
@@ -103,6 +115,9 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
 
   analysis.languages = unique(analysis.languages);
   analysis.frameworks = unique(analysis.frameworks);
+
+  // Detect areas from apps and folder heuristics
+  analysis.areas = await detectAreas(repoPath, analysis);
 
   return analysis;
 }
@@ -468,4 +483,274 @@ async function detectMavenMultiModule(repoPath: string): Promise<RepoApp[]> {
 
 function unique<T>(items: T[]): T[] {
   return Array.from(new Set(items));
+}
+
+// ─── Area detection ───
+
+const AREA_HEURISTIC_DIRS = [
+  "frontend",
+  "backend",
+  "api",
+  "web",
+  "mobile",
+  "app",
+  "server",
+  "client",
+  "infra",
+  "infrastructure",
+  "shared",
+  "common",
+  "lib",
+  "libs",
+  "packages",
+  "services",
+  "docs",
+  "scripts",
+  "tools",
+  "cli",
+  "sdk",
+  "core",
+  "admin",
+  "portal",
+  "dashboard",
+  "worker",
+  "functions"
+];
+
+const MANIFEST_FILES = [
+  "package.json",
+  "pyproject.toml",
+  "requirements.txt",
+  "go.mod",
+  "Cargo.toml",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "Gemfile",
+  "composer.json",
+  "setup.py",
+  "setup.cfg"
+];
+
+function areasFromApps(repoPath: string, apps: RepoApp[]): Area[] {
+  return apps.map((app) => {
+    const rel = path.relative(repoPath, app.path).replace(/\\/gu, "/");
+    return {
+      name: app.name,
+      applyTo: `${rel}/**`,
+      path: app.path,
+      ecosystem: app.ecosystem,
+      source: "auto" as const,
+      scripts: Object.keys(app.scripts).length > 0 ? app.scripts : undefined,
+      hasTsConfig: app.hasTsConfig || undefined
+    };
+  });
+}
+
+async function areasFromHeuristics(repoPath: string): Promise<Area[]> {
+  const entries = await safeReadDir(repoPath);
+  const areas: Area[] = [];
+
+  for (const entry of entries) {
+    const lower = entry.toLowerCase();
+    if (!AREA_HEURISTIC_DIRS.includes(lower)) continue;
+
+    const fullPath = path.join(repoPath, entry);
+    try {
+      const stat = await fs.stat(fullPath);
+      if (!stat.isDirectory()) continue;
+    } catch {
+      continue;
+    }
+
+    // Check if the directory has meaningful content (manifest or code files)
+    const children = await safeReadDir(fullPath);
+    const hasManifest = children.some((c) => MANIFEST_FILES.includes(c));
+    const hasCode = children.some(
+      (c) =>
+        c.endsWith(".ts") ||
+        c.endsWith(".js") ||
+        c.endsWith(".py") ||
+        c.endsWith(".go") ||
+        c.endsWith(".rs") ||
+        c.endsWith(".java") ||
+        c.endsWith(".cs") ||
+        c.endsWith(".rb") ||
+        c.endsWith(".php")
+    );
+    const hasSrcDir = children.includes("src");
+
+    if (!hasManifest && !hasCode && !hasSrcDir) continue;
+
+    // Read scripts from manifest if present
+    let scripts: Record<string, string> | undefined;
+    let hasTsConfig: boolean | undefined;
+    if (children.includes("package.json")) {
+      const pkg = await readJson(path.join(fullPath, "package.json"));
+      const pkgScripts = (pkg?.scripts ?? {}) as Record<string, string>;
+      if (Object.keys(pkgScripts).length > 0) scripts = pkgScripts;
+    }
+    if (children.includes("tsconfig.json")) {
+      hasTsConfig = true;
+    }
+
+    areas.push({
+      name: entry,
+      applyTo: `${entry}/**`,
+      path: fullPath,
+      source: "auto",
+      scripts,
+      hasTsConfig
+    });
+  }
+
+  return areas;
+}
+
+async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Area[]> {
+  let autoAreas: Area[];
+
+  if (analysis.isMonorepo && analysis.apps && analysis.apps.length > 1) {
+    const appAreas = areasFromApps(repoPath, analysis.apps);
+    // Also run heuristics to catch non-app directories (docs, infra, etc.)
+    const heuristicAreas = await areasFromHeuristics(repoPath);
+    // Merge: app areas take precedence by name
+    const byName = new Map(heuristicAreas.map((a) => [a.name.toLowerCase(), a]));
+    for (const a of appAreas) {
+      byName.set(a.name.toLowerCase(), a);
+    }
+    autoAreas = Array.from(byName.values());
+  } else {
+    autoAreas = await areasFromHeuristics(repoPath);
+  }
+
+  // Merge with config areas
+  const config = await loadPrimerConfig(repoPath);
+  if (!config?.areas?.length) return autoAreas;
+
+  const resolvedRoot = path.resolve(repoPath);
+  const configAreas: Area[] = [];
+  for (const ca of config.areas) {
+    // Derive path: extract leading directory from first applyTo pattern, ignoring glob-only patterns
+    const patterns = Array.isArray(ca.applyTo) ? ca.applyTo : [ca.applyTo];
+    const firstSegment = patterns[0].split("/")[0];
+    const basePath = firstSegment.includes("*") || firstSegment.includes("?")
+      ? repoPath
+      : path.join(repoPath, firstSegment);
+
+    // Prevent path traversal — config areas must stay inside the repo
+    const resolved = path.resolve(basePath);
+    if (resolved !== resolvedRoot && !resolved.startsWith(resolvedRoot + path.sep)) continue;
+
+    // Enrich config areas with scripts/hasTsConfig
+    let scripts: Record<string, string> | undefined;
+    let hasTsConfig: boolean | undefined;
+    try {
+      const children = await safeReadDir(basePath);
+      if (children.includes("package.json")) {
+        const pkg = await readJson(path.join(basePath, "package.json"));
+        const pkgScripts = (pkg?.scripts ?? {}) as Record<string, string>;
+        if (Object.keys(pkgScripts).length > 0) scripts = pkgScripts;
+      }
+      if (children.includes("tsconfig.json")) hasTsConfig = true;
+    } catch {
+      // Directory may not exist yet for config areas
+    }
+
+    configAreas.push({
+      name: ca.name,
+      description: ca.description,
+      applyTo: ca.applyTo,
+      path: basePath,
+      source: "config" as const,
+      scripts,
+      hasTsConfig
+    });
+  }
+
+  // Config areas override auto-detected by name (case-insensitive)
+  const autoByName = new Map(autoAreas.map((a) => [a.name.toLowerCase(), a]));
+  for (const ca of configAreas) {
+    autoByName.set(ca.name.toLowerCase(), ca);
+  }
+
+  return Array.from(autoByName.values());
+}
+
+// ─── Primer config ───
+
+export type PrimerConfigArea = {
+  name: string;
+  applyTo: string | string[];
+  description?: string;
+};
+
+export type PrimerConfig = {
+  areas?: PrimerConfigArea[];
+};
+
+export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig | undefined> {
+  // Try repo root first, then .github/
+  const candidates = [
+    path.join(repoPath, "primer.config.json"),
+    path.join(repoPath, ".github", "primer.config.json")
+  ];
+
+  for (const candidate of candidates) {
+    const json = await readJson(candidate);
+    if (!json) continue;
+
+    // Validate shape
+    if (json.areas !== undefined && !Array.isArray(json.areas)) {
+      return undefined;
+    }
+    const areas: PrimerConfigArea[] = [];
+    if (Array.isArray(json.areas)) {
+      for (const entry of json.areas) {
+        if (
+          typeof entry === "object" &&
+          entry !== null &&
+          typeof (entry as Record<string, unknown>).name === "string" &&
+          ((entry as Record<string, unknown>).applyTo !== undefined)
+        ) {
+          const e = entry as Record<string, unknown>;
+          if (!(e.name as string).trim()) continue;
+          const rawApplyTo = e.applyTo;
+          // Validate applyTo is a string or array of strings
+          let applyTo: string | string[];
+          if (typeof rawApplyTo === "string") {
+            applyTo = rawApplyTo;
+          } else if (
+            Array.isArray(rawApplyTo) &&
+            rawApplyTo.every((v) => typeof v === "string")
+          ) {
+            applyTo = rawApplyTo as string[];
+          } else {
+            continue;
+          }
+          if ((typeof applyTo === "string" && !applyTo.trim()) || (Array.isArray(applyTo) && applyTo.length === 0)) continue;
+          // Reject patterns with path traversal segments
+          const allPatterns = Array.isArray(applyTo) ? applyTo : [applyTo];
+          if (allPatterns.some((p) => p.split("/").includes(".."))) continue;
+          areas.push({
+            name: e.name as string,
+            applyTo,
+            description: typeof e.description === "string" ? e.description : undefined
+          });
+        }
+      }
+    }
+    return { areas };
+  }
+
+  return undefined;
+}
+
+export function sanitizeAreaName(name: string): string {
+  const sanitized = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/gu, "-")
+    .replace(/-+/gu, "-")
+    .replace(/^-|-$/gu, "");
+  return sanitized || "unnamed";
 }

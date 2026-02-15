@@ -1,6 +1,12 @@
+import fs from "fs/promises";
+import path from "path";
+
 import { DEFAULT_MODEL } from "../config";
 import { withCwd } from "../utils/cwd";
+import { ensureDir, fileExists } from "../utils/fs";
 
+import type { Area } from "./analyzer";
+import { sanitizeAreaName } from "./analyzer";
 import { assertCopilotCliReady } from "./copilot";
 
 type GenerateInstructionsOptions = {
@@ -91,3 +97,152 @@ Output ONLY the markdown content for the instructions file.`;
     }
   });
 }
+
+type GenerateAreaInstructionsOptions = {
+  repoPath: string;
+  area: Area;
+  model?: string;
+  onProgress?: (message: string) => void;
+};
+
+export async function generateAreaInstructions(
+  options: GenerateAreaInstructionsOptions
+): Promise<string> {
+  const { repoPath, area } = options;
+  const progress = options.onProgress ?? (() => {});
+
+  return withCwd(repoPath, async () => {
+    progress(`Checking Copilot CLI for area "${area.name}"...`);
+    const cliPath = await assertCopilotCliReady();
+
+    progress(`Starting Copilot SDK for area "${area.name}"...`);
+    const sdk = await import("@github/copilot-sdk");
+    const client = new sdk.CopilotClient({ cliPath });
+
+    try {
+      const applyToPatterns = Array.isArray(area.applyTo) ? area.applyTo : [area.applyTo];
+      const applyToStr = applyToPatterns.join(", ");
+
+      progress(`Creating session for area "${area.name}"...`);
+      const preferredModel = options.model ?? DEFAULT_MODEL;
+      const session = await client.createSession({
+        model: preferredModel,
+        streaming: true,
+        systemMessage: {
+          content: `You are an expert codebase analyst. Your task is to generate a concise .instructions.md file for a specific area of a codebase. This file will be used as a file-based custom instruction in VS Code Copilot, automatically applied when working on files matching certain patterns. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content (no frontmatter, no explanations).`
+        },
+        infiniteSessions: { enabled: false }
+      });
+
+      let content = "";
+
+      session.on((event) => {
+        const e = event as { type: string; data?: Record<string, unknown> };
+        if (e.type === "assistant.message_delta") {
+          const delta = e.data?.deltaContent as string | undefined;
+          if (delta) {
+            content += delta;
+            progress(`Generating instructions for "${area.name}"...`);
+          }
+        } else if (e.type === "tool.execution_start") {
+          const toolName = e.data?.toolName as string | undefined;
+          progress(`${area.name}: using tool ${toolName ?? "..."}`);
+        } else if (e.type === "session.error") {
+          const errorMsg = (e.data?.message as string) ?? "Unknown error";
+          if (
+            errorMsg.toLowerCase().includes("auth") ||
+            errorMsg.toLowerCase().includes("login")
+          ) {
+            throw new Error(
+              "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
+            );
+          }
+        }
+      });
+
+      const prompt = `Analyze the "${area.name}" area of this codebase and generate a file-based instruction file.
+
+This area covers files matching: ${applyToStr}
+${area.description ? `Description: ${area.description}` : ""}
+
+Use tools to explore ONLY the files and directories within this area:
+1. List the key files: glob for ${applyToPatterns.map((p) => `"${p}"`).join(", ")}
+2. Identify the tech stack, dependencies, and frameworks used in this area
+3. Look at key source files to understand patterns and conventions specific to this area
+
+Generate concise instructions (~10-30 lines) covering:
+- What this area does and its role in the overall project
+- Area-specific tech stack, dependencies, and frameworks
+- Coding conventions and patterns specific to this area
+- Build/test commands relevant to this area (if different from root)
+- Key files and directory structure within this area
+
+IMPORTANT:
+- Focus ONLY on this specific area, not the whole repo
+- Do NOT repeat repo-wide information (that goes in the root copilot-instructions.md)
+- Keep it complementary to root instructions
+- Output ONLY the markdown content, no YAML frontmatter, no code fences`;
+
+      progress(`Analyzing area "${area.name}"...`);
+      await session.sendAndWait({ prompt }, 180000);
+      await session.destroy();
+
+      return content.trim() || "";
+    } finally {
+      await client.stop();
+    }
+  });
+}
+
+function escapeYamlString(value: string): string {
+  return value
+    .replace(/\0/gu, "")
+    .replace(/\\/gu, "\\\\")
+    .replace(/"/gu, '\\"')
+    .replace(/\n/gu, "\\n")
+    .replace(/\r/gu, "\\r")
+    .replace(/\t/gu, "\\t");
+}
+
+export function buildAreaFrontmatter(area: Area): string {
+  const applyTo = Array.isArray(area.applyTo) ? area.applyTo : [area.applyTo];
+  const applyToValue =
+    applyTo.length === 1
+      ? `"${escapeYamlString(applyTo[0])}"`
+      : `[${applyTo.map((p) => `"${escapeYamlString(p)}"`).join(", ")}]`;
+  const desc = area.description
+    ? `Use when working on ${area.name}. ${area.description}`
+    : `Use when working on ${area.name}`;
+
+  return `---
+description: "${escapeYamlString(desc)}"
+applyTo: ${applyToValue}
+---`;
+}
+
+export function buildAreaInstructionContent(area: Area, body: string): string {
+  return `${buildAreaFrontmatter(area)}\n\n${body}\n`;
+}
+
+export function areaInstructionPath(repoPath: string, area: Area): string {
+  return path.join(repoPath, ".github", "instructions", `${sanitizeAreaName(area.name)}.instructions.md`);
+}
+
+export type WriteAreaResult = { status: "written" | "skipped" | "empty"; filePath: string };
+
+export async function writeAreaInstruction(
+  repoPath: string,
+  area: Area,
+  body: string,
+  force?: boolean
+): Promise<WriteAreaResult> {
+  const filePath = areaInstructionPath(repoPath, area);
+  if (!body.trim()) return { status: "empty", filePath };
+  if (!force && await fileExists(filePath)) return { status: "skipped", filePath };
+  await ensureDir(path.dirname(filePath));
+  await fs.writeFile(filePath, buildAreaInstructionContent(area, body), "utf8");
+  return { status: "written", filePath };
+}
+
+// Re-export for backward compatibility
+export { sanitizeAreaName } from "./analyzer";

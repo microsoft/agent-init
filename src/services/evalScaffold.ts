@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL } from "../config";
 import { withCwd } from "../utils/cwd";
 
+import type { Area } from "./analyzer";
 import { assertCopilotCliReady } from "./copilot";
 
 const EVAL_SCAFFOLD_TIMEOUT_MS = 600000;
@@ -10,6 +11,7 @@ export type EvalCase = {
   id?: string;
   prompt: string;
   expectation: string;
+  area?: string;
 };
 
 export type EvalConfig = {
@@ -26,6 +28,7 @@ type EvalScaffoldOptions = {
   repoPath: string;
   count: number;
   model?: string;
+  areas?: Area[];
   onProgress?: (message: string) => void;
 };
 
@@ -76,6 +79,23 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
         }
       });
 
+      const areaContext = options.areas?.length
+        ? [
+            "",
+            "AREA CONTEXT:",
+            "This repo has the following areas:",
+            ...options.areas.map((a) => {
+              const patterns = Array.isArray(a.applyTo) ? a.applyTo.join(", ") : a.applyTo;
+              return `- ${a.name} (${patterns})`;
+            }),
+            "",
+            "Generate a mix of:",
+            "- Single-area cases that go deep into one area's internals",
+            "- Cross-area cases that test interactions between areas",
+            'Include an optional "area" field in each case to tag which area(s) it targets.'
+          ].join("\n")
+        : "";
+
       const prompt = [
         `Analyze this repository and generate ${count} eval cases.`,
         "",
@@ -102,7 +122,8 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
         "Ensure cases cover cross-cutting concerns: data flow, error propagation, configuration impact, implicit coupling, architectural invariants.",
         "Include a systemMessage that keeps answers scoped to this repository (avoid generic Copilot CLI details unless asked).",
         "Return JSON ONLY (no markdown, no commentary) in this schema:",
-        '{\n  "instructionFile": ".github/copilot-instructions.md",\n  "systemMessage": "...",\n  "cases": [\n    {"id": "case-1", "prompt": "...", "expectation": "..."}\n  ]\n}'
+        '{\n  "instructionFile": ".github/copilot-instructions.md",\n  "systemMessage": "...",\n  "cases": [\n    {"id": "case-1", "prompt": "...", "expectation": "...", "area": "optional-area-name"}\n  ]\n}',
+        areaContext
       ].join("\n");
 
       progress("Analyzing codebase...");
@@ -182,7 +203,8 @@ function normalizeEvalConfig(parsed: EvalConfig, count: number): EvalConfig {
     return {
       id,
       prompt: String(entry.prompt ?? "").trim(),
-      expectation: String(entry.expectation ?? "").trim()
+      expectation: String(entry.expectation ?? "").trim(),
+      area: typeof entry.area === "string" && entry.area.trim() ? entry.area.trim() : undefined
     };
   });
 

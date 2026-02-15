@@ -239,4 +239,95 @@ describe("generateVisualReport", () => {
     expect(html).not.toContain('<script>alert("xss")</script>');
     expect(html).toContain("&lt;script&gt;");
   });
+
+  it("renders per-area breakdown when areaReports provided", () => {
+    const report = makeReport({
+      areaReports: [
+        {
+          area: { name: "frontend", applyTo: "frontend/**", source: "auto" },
+          criteria: [
+            {
+              id: "area-readme",
+              title: "Area README present",
+              pillar: "documentation",
+              level: 1,
+              scope: "area",
+              impact: "medium",
+              effort: "low",
+              status: "pass"
+            },
+            {
+              id: "area-build-script",
+              title: "Area build script present",
+              pillar: "build-system",
+              level: 1,
+              scope: "area",
+              impact: "high",
+              effort: "low",
+              status: "fail",
+              reason: "Missing build script in area."
+            }
+          ],
+          pillars: []
+        },
+        {
+          area: { name: "backend", applyTo: "backend/**", source: "config", description: "API layer" },
+          criteria: [
+            {
+              id: "area-readme",
+              title: "Area README present",
+              pillar: "documentation",
+              level: 1,
+              scope: "area",
+              impact: "medium",
+              effort: "low",
+              status: "pass"
+            }
+          ],
+          pillars: []
+        }
+      ]
+    });
+
+    const html = generateVisualReport({
+      reports: [{ repo: "test-repo", report }]
+    });
+
+    expect(html).toContain("Per-Area Breakdown");
+    expect(html).toContain("frontend");
+    expect(html).toContain("backend");
+    expect(html).toContain("frontend/**");
+    expect(html).toContain("backend/**");
+    expect(html).toContain("auto");
+    expect(html).toContain("config");
+    expect(html).toContain("Pass");
+    expect(html).toContain("Fail");
+  });
+
+  it("does not render area section when no areaReports", () => {
+    const html = generateVisualReport({
+      reports: [{ repo: "test-repo", report: makeReport() }]
+    });
+
+    expect(html).not.toContain("Per-Area Breakdown");
+  });
+
+  it("escapes HTML in area names", () => {
+    const report = makeReport({
+      areaReports: [
+        {
+          area: { name: '<img onerror="alert(1)">', applyTo: "x/**", source: "auto" },
+          criteria: [],
+          pillars: []
+        }
+      ]
+    });
+
+    const html = generateVisualReport({
+      reports: [{ repo: "test-repo", report }]
+    });
+
+    expect(html).not.toContain('<img onerror="alert(1)">');
+    expect(html).toContain("&lt;img");
+  });
 });

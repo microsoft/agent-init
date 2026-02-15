@@ -5,7 +5,7 @@ import type { Key } from "ink";
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useEffect, useMemo, useState } from "react";
 
-import type { RepoApp } from "../services/analyzer";
+import type { RepoApp, Area } from "../services/analyzer";
 import { analyzeRepo } from "../services/analyzer";
 import { getAzureDevOpsToken } from "../services/azureDevops";
 import { listCopilotModels } from "../services/copilot";
@@ -13,7 +13,13 @@ import { generateEvalScaffold } from "../services/evalScaffold";
 import type { EvalConfig } from "../services/evalScaffold";
 import { runEval, type EvalResult } from "../services/evaluator";
 import { getGitHubToken } from "../services/github";
-import { generateCopilotInstructions } from "../services/instructions";
+import {
+  generateCopilotInstructions,
+  generateAreaInstructions,
+  buildAreaInstructionContent,
+  areaInstructionPath,
+  writeAreaInstruction
+} from "../services/instructions";
 import { safeWriteFile, buildTimestampedName } from "../utils/fs";
 
 import { AnimatedBanner, StaticBanner } from "./AnimatedBanner";
@@ -42,6 +48,8 @@ type Status =
   | "model-pick"
   | "generate-pick"
   | "generate-app-pick"
+  | "generate-area-pick"
+  | "generating-areas"
   | "bootstrapEvalCount"
   | "bootstrapEvalConfirm";
 
@@ -150,16 +158,19 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   const [generateSavePath, setGenerateSavePath] = useState<string>("");
   const [repoApps, setRepoApps] = useState<RepoApp[]>([]);
   const [isMonorepo, setIsMonorepo] = useState(false);
+  const [repoAreas, setRepoAreas] = useState<Area[]>([]);
+  const [areaCursor, setAreaCursor] = useState(0);
   const repoLabel = useMemo(() => path.basename(repoPath), [repoPath]);
   const repoFull = useMemo(() => repoPath, [repoPath]);
   const isLoading =
-    status === "generating" || status === "bootstrapping" || status === "evaluating";
+    status === "generating" || status === "bootstrapping" || status === "evaluating" || status === "generating-areas";
   const isMenu =
     status === "model-pick" ||
     status === "eval-pick" ||
     status === "batch-pick" ||
     status === "generate-pick" ||
-    status === "generate-app-pick";
+    status === "generate-app-pick" ||
+    status === "generate-area-pick";
   const spinner = useSpinner(isLoading);
 
   const addLog = (text: string, type: LogEntry["type"] = "info") => {
@@ -181,6 +192,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         const apps = analysis.apps ?? [];
         setRepoApps(apps);
         setIsMonorepo(analysis.isMonorepo ?? false);
+        setRepoAreas(analysis.areas ?? []);
       })
       .catch((err) => {
         addLog(`Repo analysis failed: ${err instanceof Error ? err.message : "unknown"}`, "error");
@@ -463,6 +475,16 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             }
             return;
           }
+          if (input.toLowerCase() === "f") {
+            if (repoAreas.length === 0) {
+              setMessage("No areas detected. Add primer.config.json to define areas.");
+              return;
+            }
+            setAreaCursor(0);
+            setStatus("generate-area-pick");
+            setMessage("Generate file-based instructions for areas.");
+            return;
+          }
           if (key.escape) {
             setStatus("idle");
             setMessage("");
@@ -523,6 +545,83 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
                 : path.join(app.path, "AGENTS.md");
             setGenerateSavePath(savePath);
             await doGenerate(app.path, savePath, generateTarget);
+            return;
+          }
+          if (key.escape) {
+            setStatus("generate-pick");
+            setMessage("Select what to generate.");
+            return;
+          }
+          return;
+        }
+
+        if (status === "generate-area-pick") {
+          if (input.toLowerCase() === "a") {
+            // All areas
+            setStatus("generating-areas");
+            addLog(`Generating file-based instructions for ${repoAreas.length} areas...`, "progress");
+            let written = 0;
+            for (const [i, area] of repoAreas.entries()) {
+              setMessage(`Generating for "${area.name}" (${i + 1}/${repoAreas.length})...`);
+              try {
+                const body = await generateAreaInstructions({
+                  repoPath,
+                  area,
+                  onProgress: (msg) => setMessage(`${area.name}: ${msg}`)
+                });
+                const result = await writeAreaInstruction(repoPath, area, body);
+                if (result.status === "written") {
+                  written++;
+                  addLog(`${area.name}: saved ${path.basename(result.filePath)}`, "success");
+                } else if (result.status === "skipped") {
+                  addLog(`${area.name}: skipped (file exists)`, "info");
+                }
+              } catch (error) {
+                const msg = error instanceof Error ? error.message : "Failed.";
+                addLog(`${area.name}: ${msg}`, "error");
+              }
+            }
+            setStatus("done");
+            setMessage(`Generated file-based instructions for ${written}/${repoAreas.length} areas.`);
+            return;
+          }
+          if (key.upArrow) {
+            setAreaCursor((prev) => Math.max(0, prev - 1));
+            return;
+          }
+          if (key.downArrow) {
+            setAreaCursor((prev) => Math.min(repoAreas.length - 1, prev + 1));
+            return;
+          }
+          if (key.return) {
+            const area = repoAreas[areaCursor];
+            if (!area) return;
+            setStatus("generating-areas");
+            setMessage(`Generating for "${area.name}"...`);
+            addLog(`Generating file-based instructions for "${area.name}"...`, "progress");
+            try {
+              const body = await generateAreaInstructions({
+                repoPath,
+                area,
+                onProgress: (msg) => setMessage(`${area.name}: ${msg}`)
+              });
+              if (body.trim()) {
+                const filePath = areaInstructionPath(repoPath, area);
+                setGeneratedContent(buildAreaInstructionContent(area, body));
+                setGenerateSavePath(filePath);
+                setStatus("preview");
+                setMessage("Review the generated area instructions.");
+                addLog(`"${area.name}" generated — review and save.`, "success");
+              } else {
+                setStatus("done");
+                setMessage(`No content generated for "${area.name}".`);
+              }
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : "Failed.";
+              setStatus("error");
+              setMessage(msg);
+              addLog(`${area.name}: ${msg}`, "error");
+            }
             return;
           }
           if (key.escape) {
@@ -802,6 +901,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             {repoLabel}
           </Text>
           {isMonorepo && <Text color="magentaBright"> monorepo · {repoApps.length} apps</Text>}
+          {repoAreas.length > 0 && <Text color="cyan"> · {repoAreas.length} areas</Text>}
           <Text color="gray" dimColor>
             {" "}
             {repoFull}
@@ -933,6 +1033,34 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
         </>
       )}
 
+      {/* Area picker for file-based instructions */}
+      {status === "generate-area-pick" && repoAreas.length > 0 && (
+        <>
+          <Divider label="File-based instructions" />
+          <Box flexDirection="column" paddingLeft={1}>
+            {repoAreas.map((area, i) => (
+              <Text key={area.name}>
+                <Text color={i === areaCursor ? "cyanBright" : "gray"}>
+                  {i === areaCursor ? "▶" : " "}
+                </Text>
+                <Text color="gray"> </Text>
+                <Text color={i === areaCursor ? "white" : "gray"} bold={i === areaCursor}>{area.name}</Text>
+                <Text color="gray" dimColor>
+                  {" "}
+                  {Array.isArray(area.applyTo) ? area.applyTo.join(", ") : area.applyTo}
+                </Text>
+                {area.source === "config" && (
+                  <Text color="magentaBright" dimColor>
+                    {" "}
+                    (config)
+                  </Text>
+                )}
+              </Text>
+            ))}
+          </Box>
+        </>
+      )}
+
       {/* Input: eval case count */}
       {status === "bootstrapEvalCount" && (
         <Box marginTop={1} paddingLeft={1}>
@@ -1021,6 +1149,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           <Box>
             <KeyHint k="C" label="Copilot instructions" />
             <KeyHint k="A" label="AGENTS.md" />
+            {repoAreas.length > 0 && <KeyHint k="F" label="File-based (areas)" />}
             <KeyHint k="Esc" label="Back" />
           </Box>
         ) : status === "generate-app-pick" ? (
@@ -1043,6 +1172,13 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             <Text color="gray" dimColor>
               {" "}
             </Text>
+            <KeyHint k="Esc" label="Back" />
+          </Box>
+        ) : status === "generate-area-pick" ? (
+          <Box>
+            <KeyHint k="A" label="All areas" />
+            <KeyHint k="↑↓" label="Navigate" />
+            <KeyHint k="↵" label="Select" />
             <KeyHint k="Esc" label="Back" />
           </Box>
         ) : status === "eval-pick" ? (

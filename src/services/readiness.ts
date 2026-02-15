@@ -3,8 +3,8 @@ import path from "path";
 
 import { fileExists, safeReadDir, readJson } from "../utils/fs";
 
-import type { RepoApp, RepoAnalysis } from "./analyzer";
-import { analyzeRepo } from "./analyzer";
+import type { RepoApp, RepoAnalysis, Area } from "./analyzer";
+import { analyzeRepo, sanitizeAreaName } from "./analyzer";
 
 export type ReadinessPillar =
   | "style-validation"
@@ -17,7 +17,7 @@ export type ReadinessPillar =
   | "security-governance"
   | "ai-tooling";
 
-export type ReadinessScope = "repo" | "app";
+export type ReadinessScope = "repo" | "app" | "area";
 
 export type ReadinessStatus = "pass" | "fail" | "skip";
 
@@ -35,6 +35,8 @@ export type ReadinessCriterionResult = {
   passRate?: number;
   appSummary?: { passed: number; total: number };
   appFailures?: string[];
+  areaSummary?: { passed: number; total: number };
+  areaFailures?: string[];
 };
 
 export type ReadinessExtraResult = {
@@ -61,6 +63,12 @@ export type ReadinessLevelSummary = {
   achieved: boolean;
 };
 
+export type AreaReadinessReport = {
+  area: Area;
+  criteria: ReadinessCriterionResult[];
+  pillars: ReadinessPillarSummary[];
+};
+
 export type ReadinessReport = {
   repoPath: string;
   generatedAt: string;
@@ -71,11 +79,13 @@ export type ReadinessReport = {
   achievedLevel: number;
   criteria: ReadinessCriterionResult[];
   extras: ReadinessExtraResult[];
+  areaReports?: AreaReadinessReport[];
 };
 
 type ReadinessOptions = {
   repoPath: string;
   includeExtras?: boolean;
+  perArea?: boolean;
 };
 
 type ReadinessContext = {
@@ -84,6 +94,8 @@ type ReadinessContext = {
   apps: RepoApp[];
   rootFiles: string[];
   rootPackageJson?: Record<string, unknown>;
+  areaPath?: string;
+  areaFiles?: string[];
 };
 
 type ReadinessCriterion = {
@@ -94,7 +106,7 @@ type ReadinessCriterion = {
   scope: ReadinessScope;
   impact: "high" | "medium" | "low";
   effort: "low" | "medium" | "high";
-  check: (context: ReadinessContext, app?: RepoApp) => Promise<CheckResult>;
+  check: (context: ReadinessContext, app?: RepoApp, area?: Area) => Promise<CheckResult>;
 };
 
 type CheckResult = {
@@ -135,6 +147,25 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
         status: result.status,
         reason: result.reason,
         evidence: result.evidence
+      });
+      continue;
+    }
+
+    if (criterion.scope === "area") {
+      if (!options.perArea) continue; // Exclude area criteria unless --per-area
+      // Area criteria get a placeholder — populated by per-area loop below
+      const areas = analysis.areas ?? [];
+      if (areas.length === 0) continue; // No areas, nothing to aggregate
+      criteriaResults.push({
+        id: criterion.id,
+        title: criterion.title,
+        pillar: criterion.pillar,
+        level: criterion.level,
+        scope: criterion.scope,
+        impact: criterion.impact,
+        effort: criterion.effort,
+        status: "skip",
+        reason: "Run with --per-area for area breakdown."
       });
       continue;
     }
@@ -185,6 +216,66 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
     });
   }
 
+  // Per-area breakdown
+  let areaReports: AreaReadinessReport[] | undefined;
+  const areas = analysis.areas ?? [];
+
+  if (options.perArea && areas.length > 0) {
+    const areaCriteria = criteria.filter((c) => c.scope === "area");
+    areaReports = [];
+
+    for (const area of areas) {
+      if (!area.path) continue;
+      const areaFiles = await safeReadDir(area.path);
+      const areaContext: ReadinessContext = {
+        ...context,
+        areaPath: area.path,
+        areaFiles
+      };
+
+      const areaResults: ReadinessCriterionResult[] = [];
+      for (const criterion of areaCriteria) {
+        const result = await criterion.check(areaContext, undefined, area);
+        areaResults.push({
+          id: criterion.id,
+          title: criterion.title,
+          pillar: criterion.pillar,
+          level: criterion.level,
+          scope: criterion.scope,
+          impact: criterion.impact,
+          effort: criterion.effort,
+          status: result.status,
+          reason: result.reason,
+          evidence: result.evidence
+        });
+      }
+
+      const areaPillars = summarizePillars(areaResults);
+      areaReports.push({ area, criteria: areaResults, pillars: areaPillars });
+    }
+
+    // Update aggregate area criteria in main results
+    for (const criterion of criteriaResults) {
+      if (criterion.scope !== "area") continue;
+      const perAreaResults = areaReports.map((ar) =>
+        ar.criteria.find((c) => c.id === criterion.id)
+      ).filter(Boolean) as ReadinessCriterionResult[];
+      if (!perAreaResults.length) continue;
+
+      const passed = perAreaResults.filter((r) => r.status === "pass").length;
+      const total = perAreaResults.length;
+      const passRate = total ? passed / total : 0;
+      criterion.status = passRate >= 0.8 ? "pass" : "fail";
+      criterion.reason = criterion.status === "pass" ? undefined : `Only ${passed}/${total} areas pass this check.`;
+      criterion.passRate = passRate;
+      criterion.areaSummary = { passed, total };
+      criterion.areaFailures = areaReports
+        .filter((ar) => ar.criteria.find((c) => c.id === criterion.id)?.status !== "pass")
+        .map((ar) => ar.area.name);
+    }
+  }
+
+  // Compute summaries after area aggregation so they reflect final statuses
   const pillars = summarizePillars(criteriaResults);
   const levels = summarizeLevels(criteriaResults);
   const achievedLevel = levels
@@ -202,7 +293,8 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
     levels,
     achievedLevel,
     criteria: criteriaResults,
-    extras
+    extras,
+    areaReports
   };
 }
 
@@ -485,7 +577,30 @@ function buildCriteria(): ReadinessCriterion[] {
           };
         }
 
-        // For monorepos, also check that each app has its own instructions
+        // Check for file-based instructions (.github/instructions/*.instructions.md)
+        const fileBasedInstructions = await hasFileBasedInstructions(context.repoPath);
+        const areas = context.analysis.areas ?? [];
+
+        // For monorepos or repos with detected areas, check coverage
+        if (areas.length > 0) {
+          if (fileBasedInstructions.length === 0) {
+            return {
+              status: "pass",
+              reason: `Root instructions found, but no file-based instructions for ${areas.length} detected areas. Run \`primer instructions --areas\` to generate.`,
+              evidence: [
+                ...rootFound,
+                ...areas.map((a) => `${a.name}: missing .instructions.md`)
+              ]
+            };
+          }
+          return {
+            status: "pass",
+            reason: `Root + ${fileBasedInstructions.length} file-based instruction(s) found.`,
+            evidence: [...rootFound, ...fileBasedInstructions]
+          };
+        }
+
+        // For monorepos without areas, check per-app instructions (legacy behavior)
         if (context.analysis.isMonorepo && context.apps.length > 1) {
           const appsMissing: string[] = [];
           for (const app of context.apps) {
@@ -567,6 +682,103 @@ function buildCriteria(): ReadinessCriterion[] {
           reason: "No Copilot or Claude skills found (e.g. .copilot/skills/, .github/skills/).",
           evidence:
             found.length > 0 ? found : [".copilot/skills/", ".github/skills/", ".claude/skills/"]
+        };
+      }
+    },
+    // ── Area-scoped criteria (only run when areaPath is set) ──
+    {
+      id: "area-readme",
+      title: "Area README present",
+      pillar: "documentation",
+      level: 1,
+      scope: "area",
+      impact: "medium",
+      effort: "low",
+      check: async (context) => {
+        if (!context.areaPath || !context.areaFiles) {
+          return { status: "skip", reason: "No area context." };
+        }
+        const found = context.areaFiles.some(
+          (f) => f.toLowerCase() === "readme.md" || f.toLowerCase() === "readme"
+        );
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing README in area directory."
+        };
+      }
+    },
+    {
+      id: "area-build-script",
+      title: "Area build script present",
+      pillar: "build-system",
+      level: 1,
+      scope: "area",
+      impact: "high",
+      effort: "low",
+      check: async (context, _app, area) => {
+        if (!context.areaPath || !context.areaFiles) {
+          return { status: "skip", reason: "No area context." };
+        }
+        // Check area.scripts from enriched Area type
+        if (area?.scripts?.build) {
+          return { status: "pass" };
+        }
+        // Fallback: check for package.json with build script in area
+        const pkgPath = path.join(context.areaPath, "package.json");
+        const pkg = await readJson(pkgPath);
+        const scripts = (pkg?.scripts ?? {}) as Record<string, string>;
+        const found = Boolean(scripts.build);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing build script in area."
+        };
+      }
+    },
+    {
+      id: "area-test-script",
+      title: "Area test script present",
+      pillar: "testing",
+      level: 1,
+      scope: "area",
+      impact: "high",
+      effort: "low",
+      check: async (context, _app, area) => {
+        if (!context.areaPath || !context.areaFiles) {
+          return { status: "skip", reason: "No area context." };
+        }
+        if (area?.scripts?.test) {
+          return { status: "pass" };
+        }
+        const pkgPath = path.join(context.areaPath, "package.json");
+        const pkg = await readJson(pkgPath);
+        const scripts = (pkg?.scripts ?? {}) as Record<string, string>;
+        const found = Boolean(scripts.test);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : "Missing test script in area."
+        };
+      }
+    },
+    {
+      id: "area-instructions",
+      title: "Area-specific instructions present",
+      pillar: "ai-tooling",
+      level: 2,
+      scope: "area",
+      impact: "high",
+      effort: "low",
+      check: async (context, _app, area) => {
+        if (!area) {
+          return { status: "skip", reason: "No area context." };
+        }
+        const sanitized = sanitizeAreaName(area.name);
+        const instructionPath = path.join(
+          context.repoPath, ".github", "instructions", `${sanitized}.instructions.md`
+        );
+        const found = await fileExists(instructionPath);
+        return {
+          status: found ? "pass" : "fail",
+          reason: found ? undefined : `Missing .github/instructions/${sanitized}.instructions.md`
         };
       }
     }
@@ -787,6 +999,18 @@ async function hasCustomInstructions(repoPath: string): Promise<string[]> {
     }
   }
   return found;
+}
+
+async function hasFileBasedInstructions(repoPath: string): Promise<string[]> {
+  const instructionsDir = path.join(repoPath, ".github", "instructions");
+  try {
+    const entries = await fs.readdir(instructionsDir);
+    return entries
+      .filter((e) => e.endsWith(".instructions.md"))
+      .map((e) => `.github/instructions/${e}`);
+  } catch {
+    return [];
+  }
 }
 
 async function hasMcpConfig(repoPath: string): Promise<string[]> {

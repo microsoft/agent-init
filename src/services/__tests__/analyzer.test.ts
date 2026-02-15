@@ -4,7 +4,13 @@ import path from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { analyzeRepo } from "../analyzer";
+import { analyzeRepo, loadPrimerConfig, sanitizeAreaName, type Area } from "../analyzer";
+import {
+  buildAreaFrontmatter,
+  buildAreaInstructionContent,
+  areaInstructionPath,
+  writeAreaInstruction
+} from "../instructions";
 
 describe("analyzeRepo", () => {
   const tmpDirs: string[] = [];
@@ -307,5 +313,432 @@ describe("analyzeRepo", () => {
     expect(result.isMonorepo).toBe(true);
     expect(result.apps?.[0].ecosystem).toBe("node");
     expect(result.apps?.[0].manifestPath).toBeTruthy();
+  });
+
+  it("detects areas from heuristic directories", async () => {
+    const repoPath = await makeTmpDir();
+
+    // Create heuristic dirs with meaningful content
+    await fs.mkdir(path.join(repoPath, "frontend"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "frontend", "index.ts"), "export {};");
+    await fs.mkdir(path.join(repoPath, "backend"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "backend", "package.json"), "{}");
+
+    // Empty dir should be skipped
+    await fs.mkdir(path.join(repoPath, "docs"), { recursive: true });
+
+    // Non-heuristic dir should be skipped
+    await fs.mkdir(path.join(repoPath, "random"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "random", "file.ts"), "export {};");
+
+    const result = await analyzeRepo(repoPath);
+    const areaNames = (result.areas ?? []).map((a) => a.name).sort();
+    expect(areaNames).toContain("frontend");
+    expect(areaNames).toContain("backend");
+    expect(areaNames).not.toContain("docs");
+    expect(areaNames).not.toContain("random");
+  });
+
+  it("detects areas from monorepo apps", async () => {
+    const repoPath = await makeTmpDir();
+    const packageJson = { name: "root", workspaces: ["packages/*"] };
+    await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify(packageJson));
+    await fs.mkdir(path.join(repoPath, "packages", "web"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "web", "package.json"),
+      JSON.stringify({ name: "web" })
+    );
+    await fs.mkdir(path.join(repoPath, "packages", "api"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "api", "package.json"),
+      JSON.stringify({ name: "api" })
+    );
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.areas?.length).toBe(2);
+    const areaNames = (result.areas ?? []).map((a) => a.name).sort();
+    expect(areaNames).toEqual(["api", "web"]);
+    expect(result.areas?.[0].source).toBe("auto");
+    expect(result.areas?.[0].applyTo).toMatch(/\*\*$/u);
+  });
+
+  it("config areas override auto-detected (case-insensitive)", async () => {
+    const repoPath = await makeTmpDir();
+
+    // Create a heuristic area
+    await fs.mkdir(path.join(repoPath, "frontend"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "frontend", "index.ts"), "export {};");
+
+    // Config overrides "frontend" with different applyTo
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({
+        areas: [{ name: "Frontend", applyTo: "src/frontend/**", description: "UI layer" }]
+      })
+    );
+
+    const result = await analyzeRepo(repoPath);
+    const frontendArea = result.areas?.find((a) => a.name === "Frontend");
+    expect(frontendArea).toBeDefined();
+    expect(frontendArea?.source).toBe("config");
+    expect(frontendArea?.applyTo).toBe("src/frontend/**");
+    expect(frontendArea?.description).toBe("UI layer");
+    // Should not have duplicate "frontend" (auto) + "Frontend" (config)
+    const frontendAreas = (result.areas ?? []).filter(
+      (a) => a.name.toLowerCase() === "frontend"
+    );
+    expect(frontendAreas.length).toBe(1);
+  });
+
+  it("returns empty areas for empty directory", async () => {
+    const repoPath = await makeTmpDir();
+    const result = await analyzeRepo(repoPath);
+    expect(result.areas).toEqual([]);
+  });
+
+  it("preserves scripts and hasTsConfig from app to area", async () => {
+    const repoPath = await makeTmpDir();
+    const packageJson = { name: "root", workspaces: ["packages/*"] };
+    await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify(packageJson));
+    await fs.mkdir(path.join(repoPath, "packages", "web"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "web", "package.json"),
+      JSON.stringify({ name: "web", scripts: { build: "next build", test: "jest" } })
+    );
+    await fs.writeFile(path.join(repoPath, "packages", "web", "tsconfig.json"), "{}");
+    // Need 2 apps for monorepo detection
+    await fs.mkdir(path.join(repoPath, "packages", "api"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "api", "package.json"),
+      JSON.stringify({ name: "api", scripts: { start: "node index.js" } })
+    );
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    const webArea = result.areas?.find((a) => a.name === "web");
+    expect(webArea).toBeDefined();
+    expect(webArea?.scripts?.build).toBe("next build");
+    expect(webArea?.scripts?.test).toBe("jest");
+    expect(webArea?.hasTsConfig).toBe(true);
+  });
+
+  it("reads scripts from heuristic area with package.json", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.mkdir(path.join(repoPath, "frontend"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "frontend", "package.json"),
+      JSON.stringify({ name: "frontend", scripts: { build: "vite build", test: "vitest" } })
+    );
+    await fs.writeFile(path.join(repoPath, "frontend", "tsconfig.json"), "{}");
+
+    const result = await analyzeRepo(repoPath);
+    const frontendArea = result.areas?.find((a) => a.name === "frontend");
+    expect(frontendArea).toBeDefined();
+    expect(frontendArea?.scripts?.build).toBe("vite build");
+    expect(frontendArea?.hasTsConfig).toBe(true);
+  });
+
+  it("heuristic area without package.json has undefined scripts", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.mkdir(path.join(repoPath, "frontend"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "frontend", "index.ts"), "export {};");
+
+    const result = await analyzeRepo(repoPath);
+    const frontendArea = result.areas?.find((a) => a.name === "frontend");
+    expect(frontendArea).toBeDefined();
+    expect(frontendArea?.scripts).toBeUndefined();
+    expect(frontendArea?.hasTsConfig).toBeUndefined();
+  });
+
+  it("rejects config areas with path traversal", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({
+        areas: [
+          { name: "escape", applyTo: "../../etc/**" },
+          { name: "safe", applyTo: "src/**" }
+        ]
+      })
+    );
+    const result = await analyzeRepo(repoPath);
+    const areaNames = (result.areas ?? []).map((a) => a.name);
+    expect(areaNames).not.toContain("escape");
+    expect(areaNames).toContain("safe");
+  });
+
+  it("enriches config areas with scripts and hasTsConfig", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.mkdir(path.join(repoPath, "api"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "api", "package.json"),
+      JSON.stringify({ name: "api", scripts: { build: "tsc", test: "jest" } })
+    );
+    await fs.writeFile(path.join(repoPath, "api", "tsconfig.json"), "{}");
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({ areas: [{ name: "API", applyTo: "api/**" }] })
+    );
+    const result = await analyzeRepo(repoPath);
+    const apiArea = result.areas?.find((a) => a.name === "API");
+    expect(apiArea).toBeDefined();
+    expect(apiArea?.source).toBe("config");
+    expect(apiArea?.scripts?.build).toBe("tsc");
+    expect(apiArea?.hasTsConfig).toBe(true);
+  });
+});
+
+describe("loadPrimerConfig", () => {
+  const tmpDirs: string[] = [];
+
+  async function makeTmpDir(): Promise<string> {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-config-"));
+    tmpDirs.push(dir);
+    return dir;
+  }
+
+  afterEach(async () => {
+    for (const dir of tmpDirs) {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+    tmpDirs.length = 0;
+  });
+
+  it("returns undefined when no config exists", async () => {
+    const repoPath = await makeTmpDir();
+    expect(await loadPrimerConfig(repoPath)).toBeUndefined();
+  });
+
+  it("loads config from repo root", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({ areas: [{ name: "api", applyTo: "src/api/**" }] })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.areas?.length).toBe(1);
+    expect(config?.areas?.[0].name).toBe("api");
+  });
+
+  it("loads config from .github/", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.mkdir(path.join(repoPath, ".github"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, ".github", "primer.config.json"),
+      JSON.stringify({ areas: [{ name: "web", applyTo: ["web/**"] }] })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.areas?.length).toBe(1);
+  });
+
+  it("ignores malformed areas (missing name or applyTo)", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({
+        areas: [
+          { name: "good", applyTo: "src/**" },
+          { description: "no name" },
+          { name: "no-apply" },
+          "not-an-object"
+        ]
+      })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.areas?.length).toBe(1);
+    expect(config?.areas?.[0].name).toBe("good");
+  });
+
+  it("rejects applyTo patterns with path traversal segments", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({
+        areas: [
+          { name: "escape", applyTo: "../../etc/**" },
+          { name: "good", applyTo: "src/**" }
+        ]
+      })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.areas?.length).toBe(1);
+    expect(config?.areas?.[0].name).toBe("good");
+  });
+
+  it("returns undefined for non-array areas", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({ areas: "oops" })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config).toBeUndefined();
+  });
+});
+
+describe("sanitizeAreaName", () => {
+  it("lowercases and replaces non-alphanumeric chars", () => {
+    expect(sanitizeAreaName("My App")).toBe("my-app");
+    expect(sanitizeAreaName("frontend/api")).toBe("frontend-api");
+  });
+
+  it("collapses multiple dashes", () => {
+    expect(sanitizeAreaName("my--app---name")).toBe("my-app-name");
+  });
+
+  it("strips leading and trailing dashes", () => {
+    expect(sanitizeAreaName("-hello-")).toBe("hello");
+    expect(sanitizeAreaName("@scope/pkg")).toBe("scope-pkg");
+  });
+
+  it("returns 'unnamed' for empty result", () => {
+    expect(sanitizeAreaName("@#$")).toBe("unnamed");
+    expect(sanitizeAreaName("")).toBe("unnamed");
+    expect(sanitizeAreaName("---")).toBe("unnamed");
+  });
+});
+
+describe("buildAreaFrontmatter", () => {
+  it("generates frontmatter with single applyTo", () => {
+    const area: Area = { name: "api", applyTo: "api/**", source: "auto" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain('applyTo: "api/**"');
+    expect(fm).toContain('description: "Use when working on api"');
+    expect(fm).toMatch(/^---\n/u);
+    expect(fm).toMatch(/\n---$/u);
+  });
+
+  it("generates frontmatter with array applyTo", () => {
+    const area: Area = { name: "web", applyTo: ["src/web/**", "public/**"], source: "auto" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain('applyTo: ["src/web/**", "public/**"]');
+  });
+
+  it("includes description when provided", () => {
+    const area: Area = { name: "ui", applyTo: "ui/**", description: "React components", source: "config" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain("Use when working on ui. React components");
+  });
+
+  it("escapes quotes in description", () => {
+    const area: Area = { name: "api", applyTo: "api/**", description: 'uses "REST" style', source: "config" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain('uses \\"REST\\" style');
+    expect(fm).not.toMatch(/[^\\]"REST"/u);
+  });
+
+  it("escapes quotes in applyTo patterns", () => {
+    const area: Area = { name: "test", applyTo: 'src/"spec"/**', source: "auto" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain('src/\\"spec\\"/**');
+  });
+
+  it("escapes backslashes in description", () => {
+    const area: Area = { name: "api", applyTo: "api/**", description: "path is C:\\Users", source: "config" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain("C:\\\\Users");
+  });
+
+  it("escapes newlines and tabs in description", () => {
+    const area: Area = { name: "api", applyTo: "api/**", description: "line1\nline2\ttab", source: "config" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain("line1\\nline2\\ttab");
+    expect(fm).not.toContain("\n" + "line2");
+  });
+
+  it("strips null bytes from description", () => {
+    const area: Area = { name: "api", applyTo: "api/**", description: "clean\0value", source: "config" };
+    const fm = buildAreaFrontmatter(area);
+    expect(fm).toContain("cleanvalue");
+    expect(fm).not.toContain("\0");
+  });
+});
+
+describe("buildAreaInstructionContent", () => {
+  it("wraps frontmatter and body", () => {
+    const area: Area = { name: "api", applyTo: "api/**", source: "auto" };
+    const content = buildAreaInstructionContent(area, "# API instructions\nUse REST.");
+    expect(content).toMatch(/^---\n/u);
+    expect(content).toContain("# API instructions");
+    expect(content).toContain("Use REST.");
+    expect(content).toMatch(/\n$/u);
+  });
+});
+
+describe("areaInstructionPath", () => {
+  it("returns path under .github/instructions/", () => {
+    const area: Area = { name: "My App", applyTo: "my-app/**", source: "auto" };
+    const p = areaInstructionPath("/repo", area);
+    expect(p).toContain(".github");
+    expect(p).toContain("instructions");
+    expect(p).toContain("my-app.instructions.md");
+  });
+
+  it("sanitizes area name for filename", () => {
+    const area: Area = { name: "@scope/pkg", applyTo: "pkg/**", source: "config" };
+    const p = areaInstructionPath("/repo", area);
+    expect(p).toContain("scope-pkg.instructions.md");
+  });
+});
+
+describe("writeAreaInstruction", () => {
+  const tmpDirs: string[] = [];
+
+  async function makeTmpDir(): Promise<string> {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-write-"));
+    tmpDirs.push(dir);
+    return dir;
+  }
+
+  afterEach(async () => {
+    for (const dir of tmpDirs) {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+    tmpDirs.length = 0;
+  });
+
+  it("returns empty status for blank body", async () => {
+    const repoPath = await makeTmpDir();
+    const area: Area = { name: "api", applyTo: "api/**", source: "auto" };
+    const result = await writeAreaInstruction(repoPath, area, "  \n  ");
+    expect(result.status).toBe("empty");
+    // File should not be created
+    await expect(fs.access(result.filePath)).rejects.toThrow();
+  });
+
+  it("writes file for new area", async () => {
+    const repoPath = await makeTmpDir();
+    const area: Area = { name: "api", applyTo: "api/**", source: "auto" };
+    const result = await writeAreaInstruction(repoPath, area, "# API guide");
+    expect(result.status).toBe("written");
+    const content = await fs.readFile(result.filePath, "utf8");
+    expect(content).toContain("# API guide");
+    expect(content).toContain("applyTo:");
+    expect(result.filePath).toContain("api.instructions.md");
+  });
+
+  it("skips when file exists and force is false", async () => {
+    const repoPath = await makeTmpDir();
+    const area: Area = { name: "api", applyTo: "api/**", source: "auto" };
+    // Write first time
+    await writeAreaInstruction(repoPath, area, "# Original");
+    // Try again without force
+    const result = await writeAreaInstruction(repoPath, area, "# Updated");
+    expect(result.status).toBe("skipped");
+    // Content should be unchanged
+    const content = await fs.readFile(result.filePath, "utf8");
+    expect(content).toContain("# Original");
+  });
+
+  it("overwrites when force is true", async () => {
+    const repoPath = await makeTmpDir();
+    const area: Area = { name: "api", applyTo: "api/**", source: "auto" };
+    await writeAreaInstruction(repoPath, area, "# Original");
+    const result = await writeAreaInstruction(repoPath, area, "# Updated", true);
+    expect(result.status).toBe("written");
+    const content = await fs.readFile(result.filePath, "utf8");
+    expect(content).toContain("# Updated");
+    expect(content).not.toContain("# Original");
   });
 });
