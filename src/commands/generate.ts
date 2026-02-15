@@ -7,7 +7,13 @@ import { generateConfigs } from "../services/generator";
 import { generateCopilotInstructions } from "../services/instructions";
 import { ensureDir } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
-import { outputResult, outputError, deriveFileStatus, shouldLog } from "../utils/output";
+import {
+  outputResult,
+  outputError,
+  deriveFileStatus,
+  createProgressReporter,
+  shouldLog
+} from "../utils/output";
 
 type GenerateOptions = {
   force?: boolean;
@@ -65,8 +71,10 @@ export async function generateCommand(
         process.stderr.write(`Generating ${type} for ${target.label}...\n`);
       }
       try {
+        const progress = createProgressReporter(!shouldLog(options));
         const content = await generateCopilotInstructions({
-          repoPath: target.repoPath
+          repoPath: target.repoPath,
+          onProgress: (msg) => progress.update(msg)
         });
         if (!content.trim()) {
           if (shouldLog(options)) {

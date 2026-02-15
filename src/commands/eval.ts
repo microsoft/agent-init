@@ -107,12 +107,14 @@ export async function evalCommand(
   const configPath = path.resolve(configPathArg ?? path.join(repoPath, "primer.eval.json"));
 
   try {
+    const progress = createProgressReporter(!shouldLog(options));
     const { summary, viewerPath } = await runEval({
       configPath,
       repoPath,
       model: options.model ?? DEFAULT_MODEL,
       judgeModel: options.judgeModel ?? DEFAULT_JUDGE_MODEL,
-      outputPath: options.output
+      outputPath: options.output,
+      onProgress: (msg) => progress.update(msg)
     });
 
     if (options.json) {
