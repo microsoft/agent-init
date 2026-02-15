@@ -13,9 +13,9 @@ npx github:pierceboggan/primer readiness --visual
 
 ## Features
 
-- **AI Readiness Reports** — Score repos across 9 pillars with a maturity model (Functional → Autonomous), including an AI tooling pillar that checks for MCP, custom agents, Copilot skills, and custom instructions
+- **AI Readiness Reports** — Score repos across 9 pillars with a maturity model (Functional → Autonomous), including an AI tooling pillar that checks for MCP, custom agents, Copilot skills, and custom instructions. Supports per-area breakdowns for monorepos and multi-domain projects
 - **Visual Reports** — GitHub-themed HTML reports with light/dark toggle, expandable pillar details, and maturity model descriptions
-- **Instruction Generation** — Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK, with per-app support for monorepos
+- **Instruction Generation** — Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK, with per-app support for monorepos. Generate file-based `.instructions.md` files for detected areas (frontend, backend, infra, etc.)
 - **Batch Processing** — Process multiple repos across GitHub or Azure DevOps organizations
 - **Evaluation Framework** — Measure how instructions improve AI responses with a judge model
 - **Interactive TUI** — Ink-based terminal UI with submenus, model picker, activity log, and animated banner
@@ -89,6 +89,7 @@ Score a repo's AI readiness across 9 pillars:
 primer readiness                        # terminal summary
 primer readiness --visual               # GitHub-themed HTML report
 primer readiness --json                 # machine-readable JSON
+primer readiness --per-area             # include per-area breakdown
 primer readiness /path/to/repo --output report.html
 ```
 
@@ -129,6 +130,17 @@ Standalone shortcut for instructions:
 
 ```bash
 primer instructions --repo /path/to/repo --model claude-sonnet-4.5
+```
+
+#### File-based area instructions
+
+Generate `.instructions.md` files scoped to detected areas (e.g., frontend, backend, infra). These use `applyTo` glob patterns so Copilot applies the right context per file:
+
+```bash
+primer instructions --areas              # root + all detected areas
+primer instructions --areas-only         # area files only (skip root)
+primer instructions --area frontend      # single area
+primer instructions --areas --force      # overwrite existing area files
 ```
 
 ### `primer eval`
@@ -225,7 +237,7 @@ src/
 ├── services/             # Core logic
 │   ├── analyzer.ts        # Repo scanning (languages, frameworks, monorepos)
 │   ├── batch.ts           # Shared batch processing (GitHub + Azure DevOps)
-│   ├── readiness.ts       # 9-pillar scoring engine
+│   ├── readiness.ts       # 9-pillar scoring engine (with per-area support)
 │   ├── visualReport.ts    # HTML report generator
 │   ├── instructions.ts    # Copilot SDK integration
 │   ├── evaluator.ts       # Eval runner + trajectory viewer
