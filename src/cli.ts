@@ -60,6 +60,7 @@ export function runCli(argv: string[]): void {
     .argument("[path]", "Path to a local repository")
     .option("--force", "Overwrite existing files")
     .option("--per-app", "Generate per-app in monorepos")
+    .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
     .action(withGlobalOpts(generateCommand));
 
   program
@@ -112,6 +113,8 @@ export function runCli(argv: string[]): void {
     .argument("[repos...]", "Repos in owner/name form (GitHub) or org/project/repo (Azure)")
     .option("--output <path>", "Write results JSON to file")
     .option("--provider <provider>", "Repo provider (github|azure)", "github")
+    .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
+    .option("--branch <name>", "Branch name for PRs")
     .action(withGlobalOpts(batchCommand));
 
   program

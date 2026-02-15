@@ -181,7 +181,8 @@ function levelName(level: number): string {
 }
 
 function printAreaBreakdown(areaReports: AreaReadinessReport[]): void {
-  console.log(chalk.bold("\nPer-area breakdown"));
+  const log = (msg: string) => process.stderr.write(msg + "\n");
+  log(chalk.bold("\nPer-area breakdown"));
   for (const ar of areaReports) {
     // Sum across all pillar summaries for this area
     const passed = ar.pillars.reduce((sum, p) => sum + p.passed, 0);
@@ -189,11 +190,11 @@ function printAreaBreakdown(areaReports: AreaReadinessReport[]): void {
     const pct = total ? Math.round((passed / total) * 100) : 0;
     const icon = total > 0 && passed / total >= 0.8 ? chalk.green("●") : chalk.yellow("●");
     const source = ar.area.source === "config" ? chalk.dim(" (config)") : "";
-    console.log(`${icon} ${ar.area.name}${source}: ${passed}/${total} (${pct}%)`);
+    log(`${icon} ${ar.area.name}${source}: ${passed}/${total} (${pct}%)`);
 
     const failures = ar.criteria.filter((c) => c.status === "fail");
     for (const f of failures) {
-      console.log(`  ${chalk.red("✖")} ${f.title}${f.reason ? ` — ${chalk.dim(f.reason)}` : ""}`);
+      log(`  ${chalk.red("✖")} ${f.title}${f.reason ? ` — ${chalk.dim(f.reason)}` : ""}`);
     }
   }
 }

@@ -8,6 +8,8 @@ import { PrimerTui } from "../ui/tui";
 type TuiOptions = {
   repo?: string;
   animation?: boolean;
+  json?: boolean;
+  quiet?: boolean;
 };
 
 export async function tuiCommand(options: TuiOptions): Promise<void> {

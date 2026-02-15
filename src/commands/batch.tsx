@@ -19,6 +19,8 @@ import { GITHUB_REPO_RE, AZURE_REPO_RE } from "../utils/repo";
 type BatchOptions = {
   output?: string;
   provider?: string;
+  model?: string;
+  branch?: string;
   json?: boolean;
   quiet?: boolean;
 };
@@ -127,7 +129,10 @@ async function runHeadless(
       }
     }
 
-    const results = await runBatchHeadlessAzure(repos, token, progress);
+    const results = await runBatchHeadlessAzure(repos, token, progress, {
+      model: options.model,
+      branch: options.branch
+    });
     await emitResults(results, options);
     return;
   }
@@ -163,7 +168,10 @@ async function runHeadless(
     }
   }
 
-  const results = await runBatchHeadlessGitHub(repos, token, progress);
+  const results = await runBatchHeadlessGitHub(repos, token, progress, {
+    model: options.model,
+    branch: options.branch
+  });
   await emitResults(results, options);
 }
 

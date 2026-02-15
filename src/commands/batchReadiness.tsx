@@ -7,6 +7,8 @@ import { BatchReadinessTui } from "../ui/BatchReadinessTui";
 
 type BatchReadinessOptions = {
   output?: string;
+  json?: boolean;
+  quiet?: boolean;
 };
 
 export async function batchReadinessCommand(options: BatchReadinessOptions): Promise<void> {
@@ -14,7 +16,7 @@ export async function batchReadinessCommand(options: BatchReadinessOptions): Pro
   if (!token) {
     outputError(
       "GitHub authentication required. Install and authenticate GitHub CLI (gh auth login) or set GITHUB_TOKEN.",
-      false
+      Boolean(options.json)
     );
     return;
   }

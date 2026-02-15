@@ -220,12 +220,19 @@ export async function processAzureRepo(options: ProcessAzureRepoOptions): Promis
 export async function runBatchHeadlessGitHub(
   repos: GitHubRepo[],
   token: string,
-  progress?: ProgressReporter
+  progress?: ProgressReporter,
+  options?: { model?: string; branch?: string }
 ): Promise<ProcessResult[]> {
   const results: ProcessResult[] = [];
   for (let i = 0; i < repos.length; i++) {
     progress?.update(`[${i + 1}/${repos.length}] Processing ${repos[i].fullName}...`);
-    const result = await processGitHubRepo({ repo: repos[i], token, progress });
+    const result = await processGitHubRepo({
+      repo: repos[i],
+      token,
+      progress,
+      model: options?.model,
+      branch: options?.branch
+    });
     results.push(result);
   }
   progress?.done();
@@ -235,13 +242,20 @@ export async function runBatchHeadlessGitHub(
 export async function runBatchHeadlessAzure(
   repos: AzureDevOpsRepo[],
   token: string,
-  progress?: ProgressReporter
+  progress?: ProgressReporter,
+  options?: { model?: string; branch?: string }
 ): Promise<ProcessResult[]> {
   const results: ProcessResult[] = [];
   for (let i = 0; i < repos.length; i++) {
     const label = `${repos[i].organization}/${repos[i].project}/${repos[i].name}`;
     progress?.update(`[${i + 1}/${repos.length}] Processing ${label}...`);
-    const result = await processAzureRepo({ repo: repos[i], token, progress });
+    const result = await processAzureRepo({
+      repo: repos[i],
+      token,
+      progress,
+      model: options?.model,
+      branch: options?.branch
+    });
     results.push(result);
   }
   progress?.done();

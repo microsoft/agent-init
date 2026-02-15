@@ -18,6 +18,7 @@ import {
 type GenerateOptions = {
   force?: boolean;
   perApp?: boolean;
+  model?: string;
   json?: boolean;
   quiet?: boolean;
 };
@@ -74,6 +75,7 @@ export async function generateCommand(
         const progress = createProgressReporter(!shouldLog(options));
         const content = await generateCopilotInstructions({
           repoPath: target.repoPath,
+          model: options.model,
           onProgress: (msg) => progress.update(msg)
         });
         if (!content.trim()) {
