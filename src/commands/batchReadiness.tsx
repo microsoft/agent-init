@@ -2,11 +2,13 @@ import { render } from "ink";
 import React from "react";
 
 import { getGitHubToken } from "../services/github";
+import { parsePolicySources } from "../services/policy";
 import { outputError } from "../utils/output";
 import { BatchReadinessTui } from "../ui/BatchReadinessTui";
 
 type BatchReadinessOptions = {
   output?: string;
+  policy?: string;
   json?: boolean;
   quiet?: boolean;
 };
@@ -22,8 +24,9 @@ export async function batchReadinessCommand(options: BatchReadinessOptions): Pro
   }
 
   try {
+    const policies = parsePolicySources(options.policy);
     const { waitUntilExit } = render(
-      <BatchReadinessTui token={token} outputPath={options.output} />
+      <BatchReadinessTui token={token} outputPath={options.output} policies={policies} />
     );
     await waitUntilExit();
   } catch (error) {

@@ -610,4 +610,71 @@ describe("runReadinessReport", () => {
       expect(docPillar!.passed).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe("policy integration", () => {
+    it("disables a criterion via JSON policy", async () => {
+      await writePackageJson({ name: "test-repo" });
+      // Write a JSON policy that disables lint-config
+      const policyPath = path.join(repoPath, "test-policy.json");
+      await fs.writeFile(
+        policyPath,
+        JSON.stringify({
+          name: "test-policy",
+          criteria: { disable: ["lint-config"] }
+        }),
+        "utf8"
+      );
+
+      const report = await runReadinessReport({ repoPath, policies: [policyPath] });
+
+      expect(report.criteria.find((c) => c.id === "lint-config")).toBeUndefined();
+      expect(report.policies).toBeDefined();
+      expect(report.policies!.chain).toEqual(["test-policy"]);
+      expect(report.policies!.criteriaCount).toBeGreaterThan(0);
+    });
+
+    it("overrides passRate threshold via policy", async () => {
+      await writePackageJson({ name: "test-repo" });
+      const policyPath = path.join(repoPath, "threshold-policy.json");
+      await fs.writeFile(
+        policyPath,
+        JSON.stringify({
+          name: "strict",
+          thresholds: { passRate: 1.0 }
+        }),
+        "utf8"
+      );
+
+      const report = await runReadinessReport({ repoPath, policies: [policyPath] });
+
+      expect(report.policies!.chain).toEqual(["strict"]);
+    });
+
+    it("falls back to primer.config.json policies", async () => {
+      await writePackageJson({ name: "test-repo" });
+      // Write a policy file using absolute path
+      const policyPath = path.join(repoPath, "config-policy.json");
+      await fs.writeFile(
+        policyPath,
+        JSON.stringify({ name: "from-config", criteria: { disable: ["readme"] } }),
+        "utf8"
+      );
+      // Reference it from primer.config.json with absolute path
+      await writeFile("primer.config.json", JSON.stringify({ policies: [policyPath] }));
+
+      const report = await runReadinessReport({ repoPath });
+
+      expect(report.policies!.chain).toEqual(["from-config"]);
+      expect(report.criteria.find((c) => c.id === "readme")).toBeUndefined();
+    });
+
+    it("rejects module policies from primer.config.json", async () => {
+      await writePackageJson({ name: "test-repo" });
+      await writeFile("primer.config.json", JSON.stringify({ policies: ["./my-policy.ts"] }));
+
+      await expect(runReadinessReport({ repoPath })).rejects.toThrow(
+        "only JSON policies are allowed from primer.config.json"
+      );
+    });
+  });
 });

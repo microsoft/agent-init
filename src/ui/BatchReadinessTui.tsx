@@ -19,6 +19,7 @@ import { StaticBanner } from "./AnimatedBanner";
 type Props = {
   token: string;
   outputPath?: string;
+  policies?: string[];
 };
 
 type Status =
@@ -37,7 +38,7 @@ type ProcessResult = {
   error?: string;
 };
 
-export function BatchReadinessTui({ token, outputPath }: Props): React.JSX.Element {
+export function BatchReadinessTui({ token, outputPath, policies }: Props): React.JSX.Element {
   const app = useApp();
   const [status, setStatus] = useState<Status>("loading-orgs");
   const [message, setMessage] = useState<string>("Fetching organizations...");
@@ -138,7 +139,7 @@ export function BatchReadinessTui({ token, outputPath }: Props): React.JSX.Eleme
 
           // Run readiness report
           setProcessingMessage(`Running readiness report for ${repo.fullName}...`);
-          const report = await runReadinessReport({ repoPath: repoDir });
+          const report = await runReadinessReport({ repoPath: repoDir, policies });
 
           results.push({
             repo: repo.fullName,

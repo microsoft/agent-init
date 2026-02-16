@@ -108,6 +108,7 @@ export function runCli(argv: string[]): void {
     .option("--output <path>", "Write report to file (.json or .html)")
     .option("--visual", "Generate visual HTML report")
     .option("--per-area", "Show per-area readiness breakdown")
+    .option("--policy <sources>", "Policy sources (comma-separated: paths, npm packages)")
     .action(withGlobalOpts(readinessCommand));
 
   program
@@ -124,6 +125,7 @@ export function runCli(argv: string[]): void {
     .command("batch-readiness")
     .description("Generate batch AI readiness report for multiple repos")
     .option("--output <path>", "Write HTML report to file")
+    .option("--policy <sources>", "Policy sources (comma-separated: paths, npm packages)")
     .action(withGlobalOpts(batchReadinessCommand));
 
   program.parse(argv);

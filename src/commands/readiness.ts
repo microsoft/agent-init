@@ -9,6 +9,7 @@ import type {
   AreaReadinessReport
 } from "../services/readiness";
 import { runReadinessReport } from "../services/readiness";
+import { parsePolicySources } from "../services/policy";
 import { generateVisualReport } from "../services/visualReport";
 import type { CommandResult } from "../utils/output";
 import { outputResult, outputError, shouldLog } from "../utils/output";
@@ -19,6 +20,7 @@ type ReadinessOptions = {
   output?: string;
   visual?: boolean;
   perArea?: boolean;
+  policy?: string;
 };
 
 export async function readinessCommand(
@@ -30,7 +32,8 @@ export async function readinessCommand(
 
   let report: ReadinessReport;
   try {
-    report = await runReadinessReport({ repoPath, perArea: options.perArea });
+    const policies = parsePolicySources(options.policy);
+    report = await runReadinessReport({ repoPath, perArea: options.perArea, policies });
   } catch (error) {
     outputError(
       `Failed to generate readiness report: ${error instanceof Error ? error.message : String(error)}`,
