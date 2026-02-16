@@ -688,6 +688,7 @@ export type PrimerConfigArea = {
 
 export type PrimerConfig = {
   areas?: PrimerConfigArea[];
+  policies?: string[];
 };
 
 export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig | undefined> {
@@ -742,7 +743,14 @@ export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig |
         }
       }
     }
-    return { areas };
+
+    // Parse policies array
+    let policies: string[] | undefined;
+    if (Array.isArray(json.policies)) {
+      policies = json.policies.filter((p): p is string => typeof p === "string" && p.trim() !== "");
+    }
+
+    return { areas, policies: policies?.length ? policies : undefined };
   }
 
   return undefined;

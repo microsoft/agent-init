@@ -90,6 +90,7 @@ primer readiness                        # terminal summary
 primer readiness --visual               # GitHub-themed HTML report
 primer readiness --json                 # machine-readable JSON
 primer readiness --per-area             # include per-area breakdown
+primer readiness --policy ./strict.json # apply a custom policy
 primer readiness /path/to/repo --output report.html
 ```
 
@@ -104,6 +105,49 @@ primer readiness /path/to/repo --output report.html
 | 5     | Autonomous   | Full AI-native development with minimal oversight   |
 
 **AI Tooling checks** include `copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, MCP configs, custom agents, and Copilot/Claude skills.
+
+#### Policies
+
+Policies let you customize which readiness criteria are evaluated, override their metadata, and tune pass-rate thresholds. Multiple policies chain together (last wins).
+
+```bash
+# Apply a local JSON policy
+primer readiness --policy ./my-policy.json
+
+# Chain multiple policies (comma-separated)
+primer readiness --policy ./base.json,./strict.json
+
+# Also works with batch-readiness
+primer batch-readiness --policy ./org-policy.json
+```
+
+A policy file looks like:
+
+```json
+{
+  "name": "my-org-policy",
+  "criteria": {
+    "disable": ["lint-config"],
+    "override": { "readme": { "impact": "high", "level": 2 } }
+  },
+  "extras": {
+    "disable": ["pre-commit"]
+  },
+  "thresholds": {
+    "passRate": 0.9
+  }
+}
+```
+
+Policies can also be set in `primer.config.json` so they apply automatically:
+
+```json
+{
+  "policies": ["./my-policy.json"]
+}
+```
+
+> **Security:** Config-sourced policies are restricted to JSON files only — JS/TS module and npm package policies must be passed via `--policy` to prevent untrusted code execution.
 
 ### `primer batch-readiness`
 

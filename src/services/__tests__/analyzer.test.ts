@@ -573,6 +573,42 @@ describe("loadPrimerConfig", () => {
     const config = await loadPrimerConfig(repoPath);
     expect(config).toBeUndefined();
   });
+
+  it("parses policies array from config", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({
+        areas: [{ name: "api", applyTo: "src/api/**" }],
+        policies: ["./custom-policy.json", "@org/policy-pkg"]
+      })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.policies).toEqual(["./custom-policy.json", "@org/policy-pkg"]);
+    expect(config?.areas).toHaveLength(1);
+  });
+
+  it("filters out non-string and empty policy entries", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({
+        policies: ["valid", 42, "", "  ", null, "also-valid"]
+      })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.policies).toEqual(["valid", "also-valid"]);
+  });
+
+  it("returns undefined policies when field is absent", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "primer.config.json"),
+      JSON.stringify({ areas: [{ name: "web", applyTo: "web/**" }] })
+    );
+    const config = await loadPrimerConfig(repoPath);
+    expect(config?.policies).toBeUndefined();
+  });
 });
 
 describe("sanitizeAreaName", () => {

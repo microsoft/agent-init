@@ -4,7 +4,9 @@ import path from "path";
 import { fileExists, safeReadDir, readJson } from "../utils/fs";
 
 import type { RepoApp, RepoAnalysis, Area } from "./analyzer";
-import { analyzeRepo, sanitizeAreaName } from "./analyzer";
+import { analyzeRepo, sanitizeAreaName, loadPrimerConfig } from "./analyzer";
+import type { ExtraDefinition, PolicyConfig } from "./policy";
+import { loadPolicy, resolveChain } from "./policy";
 
 export type ReadinessPillar =
   | "style-validation"
@@ -80,15 +82,17 @@ export type ReadinessReport = {
   criteria: ReadinessCriterionResult[];
   extras: ReadinessExtraResult[];
   areaReports?: AreaReadinessReport[];
+  policies?: { chain: string[]; criteriaCount: number };
 };
 
 type ReadinessOptions = {
   repoPath: string;
   includeExtras?: boolean;
   perArea?: boolean;
+  policies?: string[];
 };
 
-type ReadinessContext = {
+export type ReadinessContext = {
   repoPath: string;
   analysis: RepoAnalysis;
   apps: RepoApp[];
@@ -98,7 +102,7 @@ type ReadinessContext = {
   areaFiles?: string[];
 };
 
-type ReadinessCriterion = {
+export type ReadinessCriterion = {
   id: string;
   title: string;
   pillar: ReadinessPillar;
@@ -109,7 +113,7 @@ type ReadinessCriterion = {
   check: (context: ReadinessContext, app?: RepoApp, area?: Area) => Promise<CheckResult>;
 };
 
-type CheckResult = {
+export type CheckResult = {
   status: ReadinessStatus;
   reason?: string;
   evidence?: string[];
@@ -130,10 +134,43 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
     rootPackageJson
   };
 
-  const criteria = buildCriteria();
+  // ── Policy resolution ──
+  let policySources = options.policies;
+  if (!policySources?.length) {
+    // Check primer.config.json for policy config
+    const primerConfig = await loadPrimerConfig(repoPath);
+    if (primerConfig?.policies?.length) {
+      policySources = primerConfig.policies;
+    }
+  }
+
+  const baseCriteria = buildCriteria();
+  const baseExtras = buildExtras();
+  let resolvedCriteria: ReadinessCriterion[];
+  let resolvedExtras: ExtraDefinition[];
+  let passRateThreshold = 0.8;
+  let policyInfo: { chain: string[]; criteriaCount: number } | undefined;
+
+  if (policySources?.length) {
+    const policyConfigs: PolicyConfig[] = [];
+    // Config-sourced policies are restricted to JSON-only (no import())
+    const isConfigSourced = policySources !== options.policies;
+    for (const source of policySources) {
+      policyConfigs.push(await loadPolicy(source, { jsonOnly: isConfigSourced }));
+    }
+    const resolved = resolveChain(baseCriteria, baseExtras, policyConfigs);
+    resolvedCriteria = resolved.criteria;
+    resolvedExtras = resolved.extras;
+    passRateThreshold = resolved.thresholds.passRate;
+    policyInfo = { chain: resolved.chain, criteriaCount: resolved.criteria.length };
+  } else {
+    resolvedCriteria = baseCriteria;
+    resolvedExtras = baseExtras;
+  }
+
   const criteriaResults: ReadinessCriterionResult[] = [];
 
-  for (const criterion of criteria) {
+  for (const criterion of resolvedCriteria) {
     if (criterion.scope === "repo") {
       const result = await criterion.check(context);
       criteriaResults.push({
@@ -195,7 +232,7 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
     const passed = appResults.filter((entry) => entry.result.status === "pass").length;
     const total = appResults.length;
     const passRate = total ? passed / total : 0;
-    const status: ReadinessStatus = passRate >= 0.8 ? "pass" : "fail";
+    const status: ReadinessStatus = passRate >= passRateThreshold ? "pass" : "fail";
     const failures = appResults
       .filter((entry) => entry.result.status !== "pass")
       .map((entry) => entry.app.name);
@@ -221,7 +258,7 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
   const areas = analysis.areas ?? [];
 
   if (options.perArea && areas.length > 0) {
-    const areaCriteria = criteria.filter((c) => c.scope === "area");
+    const areaCriteria = resolvedCriteria.filter((c) => c.scope === "area");
     areaReports = [];
 
     for (const area of areas) {
@@ -265,7 +302,7 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
       const passed = perAreaResults.filter((r) => r.status === "pass").length;
       const total = perAreaResults.length;
       const passRate = total ? passed / total : 0;
-      criterion.status = passRate >= 0.8 ? "pass" : "fail";
+      criterion.status = passRate >= passRateThreshold ? "pass" : "fail";
       criterion.reason =
         criterion.status === "pass" ? undefined : `Only ${passed}/${total} areas pass this check.`;
       criterion.passRate = passRate;
@@ -278,12 +315,12 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
 
   // Compute summaries after area aggregation so they reflect final statuses
   const pillars = summarizePillars(criteriaResults);
-  const levels = summarizeLevels(criteriaResults);
+  const levels = summarizeLevels(criteriaResults, passRateThreshold);
   const achievedLevel = levels
     .filter((level) => level.achieved)
     .reduce((acc, level) => Math.max(acc, level.level), 0);
 
-  const extras = options.includeExtras === false ? [] : await runExtras(context);
+  const extras = options.includeExtras === false ? [] : await runExtras(context, resolvedExtras);
 
   return {
     repoPath,
@@ -295,11 +332,12 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
     achievedLevel,
     criteria: criteriaResults,
     extras,
-    areaReports
+    areaReports,
+    policies: policyInfo
   };
 }
 
-function buildCriteria(): ReadinessCriterion[] {
+export function buildCriteria(): ReadinessCriterion[] {
   return [
     {
       id: "lint-config",
@@ -786,37 +824,57 @@ function buildCriteria(): ReadinessCriterion[] {
   ];
 }
 
-async function runExtras(context: ReadinessContext): Promise<ReadinessExtraResult[]> {
+export function buildExtras(): ExtraDefinition[] {
+  return [
+    {
+      id: "agents-doc",
+      title: "AGENTS.md present",
+      check: async (context) => ({
+        status: (await fileExists(path.join(context.repoPath, "AGENTS.md"))) ? "pass" : "fail",
+        reason: "Missing AGENTS.md to guide coding agents."
+      })
+    },
+    {
+      id: "pr-template",
+      title: "Pull request template present",
+      check: async (context) => ({
+        status: (await hasPullRequestTemplate(context.repoPath)) ? "pass" : "fail",
+        reason: "Missing PR template for consistent reviews."
+      })
+    },
+    {
+      id: "pre-commit",
+      title: "Pre-commit hooks configured",
+      check: async (context) => ({
+        status: (await hasPrecommitConfig(context.repoPath)) ? "pass" : "fail",
+        reason: "Missing pre-commit or Husky configuration for fast feedback."
+      })
+    },
+    {
+      id: "architecture-doc",
+      title: "Architecture guide present",
+      check: async (context) => ({
+        status: (await hasArchitectureDoc(context.repoPath)) ? "pass" : "fail",
+        reason: "Missing architecture documentation."
+      })
+    }
+  ];
+}
+
+async function runExtras(
+  context: ReadinessContext,
+  extraDefs: ExtraDefinition[]
+): Promise<ReadinessExtraResult[]> {
   const results: ReadinessExtraResult[] = [];
-
-  results.push({
-    id: "agents-doc",
-    title: "AGENTS.md present",
-    status: (await fileExists(path.join(context.repoPath, "AGENTS.md"))) ? "pass" : "fail",
-    reason: "Missing AGENTS.md to guide coding agents."
-  });
-
-  results.push({
-    id: "pr-template",
-    title: "Pull request template present",
-    status: (await hasPullRequestTemplate(context.repoPath)) ? "pass" : "fail",
-    reason: "Missing PR template for consistent reviews."
-  });
-
-  results.push({
-    id: "pre-commit",
-    title: "Pre-commit hooks configured",
-    status: (await hasPrecommitConfig(context.repoPath)) ? "pass" : "fail",
-    reason: "Missing pre-commit or Husky configuration for fast feedback."
-  });
-
-  results.push({
-    id: "architecture-doc",
-    title: "Architecture guide present",
-    status: (await hasArchitectureDoc(context.repoPath)) ? "pass" : "fail",
-    reason: "Missing architecture documentation."
-  });
-
+  for (const def of extraDefs) {
+    const result = await def.check(context);
+    results.push({
+      id: def.id,
+      title: def.title,
+      status: result.status,
+      reason: result.reason
+    });
+  }
   return results;
 }
 
@@ -846,7 +904,10 @@ function summarizePillars(criteria: ReadinessCriterionResult[]): ReadinessPillar
   });
 }
 
-function summarizeLevels(criteria: ReadinessCriterionResult[]): ReadinessLevelSummary[] {
+function summarizeLevels(
+  criteria: ReadinessCriterionResult[],
+  passRateThreshold = 0.8
+): ReadinessLevelSummary[] {
   const levelNames: Record<number, string> = {
     1: "Functional",
     2: "Documented",
@@ -873,7 +934,7 @@ function summarizeLevels(criteria: ReadinessCriterionResult[]): ReadinessLevelSu
   for (const summary of summaries) {
     const allPrior = summaries.filter((candidate) => candidate.level <= summary.level);
     const achieved = allPrior.every(
-      (candidate) => candidate.total > 0 && candidate.passRate >= 0.8
+      (candidate) => candidate.total > 0 && candidate.passRate >= passRateThreshold
     );
     summary.achieved = achieved;
   }
