@@ -40,6 +40,24 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
 
+  typecheck-extension:
+    name: Typecheck Extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            vscode-extension/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: vscode-extension
+      - run: npx tsc --noEmit
+        working-directory: vscode-extension
+
   test:
     name: Test (Node ${{ matrix.node }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -73,14 +91,20 @@ jobs:
   build:
     name: Build & Verify
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, typecheck-extension, test]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            vscode-extension/package-lock.json
       - run: npm ci
       - run: npm run build
       - name: Verify CLI
         run: node dist/index.js --version
+      - name: Build extension
+        run: npm ci && node esbuild.mjs
+        working-directory: vscode-extension

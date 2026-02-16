@@ -11,7 +11,14 @@ const sourceGlobs = ["**/*.{ts,tsx,js,jsx}"];
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", "coverage/**", "eslint.config.js", "*.config.ts"]
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "coverage/**",
+      "vscode-extension/**",
+      "eslint.config.js",
+      "*.config.ts"
+    ]
   },
   js.configs.recommended,
   {

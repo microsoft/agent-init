@@ -2,7 +2,6 @@ import fs from "fs/promises";
 import path from "path";
 
 import { DEFAULT_MODEL } from "../config";
-import { withCwd } from "../utils/cwd";
 import { ensureDir, fileExists } from "../utils/fs";
 
 import type { Area } from "./analyzer";
@@ -22,53 +21,53 @@ export async function generateCopilotInstructions(
   const repoPath = options.repoPath;
   const progress = options.onProgress ?? (() => {});
 
-  return withCwd(repoPath, async () => {
-    progress("Checking Copilot CLI...");
-    const cliConfig = await assertCopilotCliReady();
+  progress("Checking Copilot CLI...");
+  const cliConfig = await assertCopilotCliReady();
 
-    progress("Starting Copilot SDK...");
-    const sdk = await import("@github/copilot-sdk");
-    const client = new sdk.CopilotClient(cliConfig);
+  progress("Starting Copilot SDK...");
+  const sdk = await import("@github/copilot-sdk");
+  const client = new sdk.CopilotClient(cliConfig);
 
-    try {
-      progress("Creating session...");
-      const preferredModel = options.model ?? DEFAULT_MODEL;
-      const session = await client.createSession({
-        model: preferredModel,
-        streaming: true,
-        systemMessage: {
-          content:
-            "You are an expert codebase analyst. Your task is to generate a concise .github/copilot-instructions.md file. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content, no explanations."
-        },
-        infiniteSessions: { enabled: false }
-      });
+  try {
+    progress("Creating session...");
+    const preferredModel = options.model ?? DEFAULT_MODEL;
+    const session = await client.createSession({
+      model: preferredModel,
+      streaming: true,
+      workingDirectory: repoPath,
+      systemMessage: {
+        content:
+          "You are an expert codebase analyst. Your task is to generate a concise .github/copilot-instructions.md file. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content, no explanations."
+      },
+      infiniteSessions: { enabled: false }
+    });
 
-      let content = "";
+    let content = "";
 
-      // Subscribe to events for progress and to capture content
-      session.on((event) => {
-        const e = event as { type: string; data?: Record<string, unknown> };
-        if (e.type === "assistant.message_delta") {
-          const delta = e.data?.deltaContent as string | undefined;
-          if (delta) {
-            content += delta;
-            progress("Generating instructions...");
-          }
-        } else if (e.type === "tool.execution_start") {
-          const toolName = e.data?.toolName as string | undefined;
-          progress(`Using tool: ${toolName ?? "..."}`);
-        } else if (e.type === "session.error") {
-          const errorMsg = (e.data?.message as string) ?? "Unknown error";
-          if (errorMsg.toLowerCase().includes("auth") || errorMsg.toLowerCase().includes("login")) {
-            throw new Error(
-              "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
-            );
-          }
+    // Subscribe to events for progress and to capture content
+    session.on((event) => {
+      const e = event as { type: string; data?: Record<string, unknown> };
+      if (e.type === "assistant.message_delta") {
+        const delta = e.data?.deltaContent as string | undefined;
+        if (delta) {
+          content += delta;
+          progress("Generating instructions...");
         }
-      });
+      } else if (e.type === "tool.execution_start") {
+        const toolName = e.data?.toolName as string | undefined;
+        progress(`Using tool: ${toolName ?? "..."}`);
+      } else if (e.type === "session.error") {
+        const errorMsg = (e.data?.message as string) ?? "Unknown error";
+        if (errorMsg.toLowerCase().includes("auth") || errorMsg.toLowerCase().includes("login")) {
+          throw new Error(
+            "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
+          );
+        }
+      }
+    });
 
-      // Simple prompt - let the agent use tools to explore
-      const prompt = `Analyze this codebase and generate a .github/copilot-instructions.md file.
+    // Simple prompt - let the agent use tools to explore
+    const prompt = `Analyze this codebase and generate a .github/copilot-instructions.md file.
 
 Use tools to explore:
 1. Check for existing instruction files: glob for **/{.github/copilot-instructions.md,AGENT.md,CLAUDE.md,.cursorrules,README.md}
@@ -85,15 +84,14 @@ Generate concise instructions (~20-50 lines) covering:
 
 Output ONLY the markdown content for the instructions file.`;
 
-      progress("Analyzing codebase...");
-      await session.sendAndWait({ prompt }, 180000);
-      await session.destroy();
+    progress("Analyzing codebase...");
+    await session.sendAndWait({ prompt }, 180000);
+    await session.destroy();
 
-      return content.trim() || "";
-    } finally {
-      await client.stop();
-    }
-  });
+    return content.trim() || "";
+  } finally {
+    await client.stop();
+  }
 }
 
 type GenerateAreaInstructionsOptions = {
@@ -109,53 +107,53 @@ export async function generateAreaInstructions(
   const { repoPath, area } = options;
   const progress = options.onProgress ?? (() => {});
 
-  return withCwd(repoPath, async () => {
-    progress(`Checking Copilot CLI for area "${area.name}"...`);
-    const cliConfig = await assertCopilotCliReady();
+  progress(`Checking Copilot CLI for area "${area.name}"...`);
+  const cliConfig = await assertCopilotCliReady();
 
-    progress(`Starting Copilot SDK for area "${area.name}"...`);
-    const sdk = await import("@github/copilot-sdk");
-    const client = new sdk.CopilotClient(cliConfig);
+  progress(`Starting Copilot SDK for area "${area.name}"...`);
+  const sdk = await import("@github/copilot-sdk");
+  const client = new sdk.CopilotClient(cliConfig);
 
-    try {
-      const applyToPatterns = Array.isArray(area.applyTo) ? area.applyTo : [area.applyTo];
-      const applyToStr = applyToPatterns.join(", ");
+  try {
+    const applyToPatterns = Array.isArray(area.applyTo) ? area.applyTo : [area.applyTo];
+    const applyToStr = applyToPatterns.join(", ");
 
-      progress(`Creating session for area "${area.name}"...`);
-      const preferredModel = options.model ?? DEFAULT_MODEL;
-      const session = await client.createSession({
-        model: preferredModel,
-        streaming: true,
-        systemMessage: {
-          content: `You are an expert codebase analyst. Your task is to generate a concise .instructions.md file for a specific area of a codebase. This file will be used as a file-based custom instruction in VS Code Copilot, automatically applied when working on files matching certain patterns. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content (no frontmatter, no explanations).`
-        },
-        infiniteSessions: { enabled: false }
-      });
+    progress(`Creating session for area "${area.name}"...`);
+    const preferredModel = options.model ?? DEFAULT_MODEL;
+    const session = await client.createSession({
+      model: preferredModel,
+      streaming: true,
+      workingDirectory: repoPath,
+      systemMessage: {
+        content: `You are an expert codebase analyst. Your task is to generate a concise .instructions.md file for a specific area of a codebase. This file will be used as a file-based custom instruction in VS Code Copilot, automatically applied when working on files matching certain patterns. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content (no frontmatter, no explanations).`
+      },
+      infiniteSessions: { enabled: false }
+    });
 
-      let content = "";
+    let content = "";
 
-      session.on((event) => {
-        const e = event as { type: string; data?: Record<string, unknown> };
-        if (e.type === "assistant.message_delta") {
-          const delta = e.data?.deltaContent as string | undefined;
-          if (delta) {
-            content += delta;
-            progress(`Generating instructions for "${area.name}"...`);
-          }
-        } else if (e.type === "tool.execution_start") {
-          const toolName = e.data?.toolName as string | undefined;
-          progress(`${area.name}: using tool ${toolName ?? "..."}`);
-        } else if (e.type === "session.error") {
-          const errorMsg = (e.data?.message as string) ?? "Unknown error";
-          if (errorMsg.toLowerCase().includes("auth") || errorMsg.toLowerCase().includes("login")) {
-            throw new Error(
-              "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
-            );
-          }
+    session.on((event) => {
+      const e = event as { type: string; data?: Record<string, unknown> };
+      if (e.type === "assistant.message_delta") {
+        const delta = e.data?.deltaContent as string | undefined;
+        if (delta) {
+          content += delta;
+          progress(`Generating instructions for "${area.name}"...`);
         }
-      });
+      } else if (e.type === "tool.execution_start") {
+        const toolName = e.data?.toolName as string | undefined;
+        progress(`${area.name}: using tool ${toolName ?? "..."}`);
+      } else if (e.type === "session.error") {
+        const errorMsg = (e.data?.message as string) ?? "Unknown error";
+        if (errorMsg.toLowerCase().includes("auth") || errorMsg.toLowerCase().includes("login")) {
+          throw new Error(
+            "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
+          );
+        }
+      }
+    });
 
-      const prompt = `Analyze the "${area.name}" area of this codebase and generate a file-based instruction file.
+    const prompt = `Analyze the "${area.name}" area of this codebase and generate a file-based instruction file.
 
 This area covers files matching: ${applyToStr}
 ${area.description ? `Description: ${area.description}` : ""}
@@ -178,15 +176,14 @@ IMPORTANT:
 - Keep it complementary to root instructions
 - Output ONLY the markdown content, no YAML frontmatter, no code fences`;
 
-      progress(`Analyzing area "${area.name}"...`);
-      await session.sendAndWait({ prompt }, 180000);
-      await session.destroy();
+    progress(`Analyzing area "${area.name}"...`);
+    await session.sendAndWait({ prompt }, 180000);
+    await session.destroy();
 
-      return content.trim() || "";
-    } finally {
-      await client.stop();
-    }
-  });
+    return content.trim() || "";
+  } finally {
+    await client.stop();
+  }
 }
 
 function escapeYamlString(value: string): string {

@@ -83,7 +83,6 @@ Ink/React components for interactive terminal workflows:
 
 - `output.ts` — `CommandResult<T>` type (`{ ok, status, data?, errors? }`), `ProgressReporter` interface
 - `fs.ts` — `safeWriteFile()` (rejects symlinks, requires `--force`), `validateCachePath()` (prevents path traversal)
-- `cwd.ts` — `withCwd()` serialized lock for Copilot SDK process directory
 - `logger.ts` — Structured logging
 - `repo.ts` / `pr.ts` — Shared repo/PR helpers
 
@@ -93,7 +92,7 @@ Ink/React components for interactive terminal workflows:
 - **CommandResult pattern:** All commands return `CommandResult<T>` with `{ ok, status, data?, errors? }`
 - **Safe writes:** `safeWriteFile()` rejects symlinks and skips existing files unless `--force`
 - **Path safety:** `validateCachePath()` prevents traversal in `.primer-cache/`
-- **Copilot SDK:** Sessions require `withCwd()` for process working directory serialization
+- **Copilot SDK:** Sessions use `workingDirectory` in `SessionConfig` for scoping tool operations
 - **Monorepo-aware:** Analyzer detects npm/pnpm/yarn/cargo/go/dotnet/gradle/maven workspaces; `Area` type scopes instructions via `applyTo` globs
 - **Single glob pass** for convention source discovery (see `src/services/instructions.ts`)
 

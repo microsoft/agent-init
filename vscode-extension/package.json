@@ -1,0 +1,219 @@
+{
+  "name": "primer-vscode",
+  "displayName": "Primer — AI Repository Setup",
+  "description": "Prime repositories for AI-assisted development: generate Copilot instructions, VS Code configs, MCP configs, and evaluate AI agent effectiveness.",
+  "version": "0.0.1",
+  "publisher": "digitarald",
+  "license": "ISC",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "primer.analyze",
+        "title": "Analyze Repository",
+        "category": "Primer",
+        "icon": "$(search)"
+      },
+      {
+        "command": "primer.generate",
+        "title": "Generate Configs",
+        "category": "Primer",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "primer.instructions",
+        "title": "Generate Copilot Instructions",
+        "category": "Primer",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "primer.readiness",
+        "title": "AI Readiness Report",
+        "category": "Primer",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "primer.eval",
+        "title": "Run Eval",
+        "category": "Primer",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "primer.evalInit",
+        "title": "Scaffold Eval Config",
+        "category": "Primer",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "primer.init",
+        "title": "Initialize Repository",
+        "category": "Primer",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "primer.pr",
+        "title": "Create Pull Request",
+        "category": "Primer",
+        "icon": "$(git-pull-request)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "primer",
+          "title": "Primer",
+          "icon": "resources/primer.svg"
+        }
+      ]
+    },
+    "views": {
+      "primer": [
+        {
+          "id": "primer.analysis",
+          "name": "Analysis",
+          "contextualTitle": "Primer"
+        },
+        {
+          "id": "primer.readiness",
+          "name": "Readiness",
+          "contextualTitle": "Primer"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "primer.analysis",
+        "contents": "Analyze this repository to discover languages, frameworks, and project structure.\n[$(search) Analyze Repository](command:primer.analyze)",
+        "when": "workspaceFolderCount > 0"
+      },
+      {
+        "view": "primer.analysis",
+        "contents": "[$(folder-opened) Open Folder](command:vscode.openFolder)",
+        "when": "workspaceFolderCount == 0"
+      },
+      {
+        "view": "primer.readiness",
+        "contents": "Evaluate how ready this repository is for AI-assisted development.\n[$(shield) Run Assessment](command:primer.readiness)",
+        "when": "workspaceFolderCount > 0"
+      },
+      {
+        "view": "primer.readiness",
+        "contents": "[$(folder-opened) Open Folder](command:vscode.openFolder)",
+        "when": "workspaceFolderCount == 0"
+      }
+    ],
+    "configuration": {
+      "title": "Primer",
+      "properties": {
+        "primer.model": {
+          "type": "string",
+          "default": "claude-sonnet-4.5",
+          "description": "Default Copilot model to use for generation."
+        },
+        "primer.autoAnalyze": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically analyze repository on workspace open."
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "primer.analyze",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.generate",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.instructions",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.readiness",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.eval",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.evalInit",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.init",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "primer.pr",
+          "when": "workspaceFolderCount > 0"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "primer.analyze",
+          "when": "view == primer.analysis",
+          "group": "navigation@1"
+        },
+        {
+          "command": "primer.instructions",
+          "when": "view == primer.analysis && primer.hasAnalysis",
+          "group": "navigation@2"
+        },
+        {
+          "command": "primer.generate",
+          "when": "view == primer.analysis && primer.hasAnalysis",
+          "group": "1_actions"
+        },
+        {
+          "command": "primer.init",
+          "when": "view == primer.analysis",
+          "group": "2_setup"
+        },
+        {
+          "command": "primer.readiness",
+          "when": "view == primer.readiness",
+          "group": "navigation@1"
+        },
+        {
+          "command": "primer.eval",
+          "when": "view == primer.readiness",
+          "group": "1_eval@1"
+        },
+        {
+          "command": "primer.evalInit",
+          "when": "view == primer.readiness",
+          "group": "1_eval@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.mjs --production",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "^0.1.19",
+    "simple-git": "^3.30.0"
+  },
+  "devDependencies": {
+    "@octokit/rest": "^22.0.1",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}
