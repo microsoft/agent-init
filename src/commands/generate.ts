@@ -1,11 +1,10 @@
-import fs from "fs/promises";
 import path from "path";
 
 import { analyzeRepo } from "../services/analyzer";
 import type { FileAction } from "../services/generator";
 import { generateConfigs } from "../services/generator";
 import { generateCopilotInstructions } from "../services/instructions";
-import { ensureDir } from "../utils/fs";
+import { ensureDir, safeWriteFile } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
 import {
   outputResult,
@@ -86,8 +85,20 @@ export async function generateCommand(
           continue;
         }
         await ensureDir(path.dirname(target.savePath));
-        await fs.writeFile(target.savePath, content, "utf8");
         const rel = path.relative(process.cwd(), target.savePath);
+        const { wrote, reason } = await safeWriteFile(
+          target.savePath,
+          content,
+          Boolean(options.force)
+        );
+        if (!wrote) {
+          const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+          if (shouldLog(options)) {
+            process.stderr.write(`  Skipped ${rel}: ${why}\n`);
+          }
+          allFiles.push({ path: rel, action: "skipped" });
+          continue;
+        }
         allFiles.push({ path: rel, action: "wrote" });
         if (shouldLog(options)) {
           process.stderr.write(`  ✓ ${rel}\n`);

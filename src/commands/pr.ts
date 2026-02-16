@@ -22,8 +22,10 @@ import { generateCopilotInstructions } from "../services/instructions";
 import { ensureDir, safeWriteFile, validateCachePath } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
 import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
-import { buildConfigsPrBody, buildInstructionsPrBody } from "../utils/pr";
+import { buildFullPrBody } from "../utils/pr";
 import { GITHUB_REPO_RE, AZURE_REPO_RE } from "../utils/repo";
+
+const DEFAULT_PR_BRANCH = "primer/add-ai-config";
 
 type PrOptions = {
   branch?: string;
@@ -81,7 +83,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
         await setRemoteUrl(repoPath, repoInfo.cloneUrl);
       }
 
-      const branch = options.branch ?? "primer/add-instructions";
+      const branch = options.branch ?? DEFAULT_PR_BRANCH;
       progress.update("Creating branch...");
       await checkoutBranch(repoPath, branch);
 
@@ -89,13 +91,25 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
       const instructions = await generateCopilotInstructions({ repoPath, model: options.model });
       const instructionsPath = path.join(repoPath, ".github", "copilot-instructions.md");
       await ensureDir(path.dirname(instructionsPath));
-      const { wrote } = await safeWriteFile(instructionsPath, instructions, true);
+      const { wrote, reason } = await safeWriteFile(instructionsPath, instructions, true);
       if (!wrote) {
-        throw new Error("Refused to write instructions (path is a symlink)");
+        throw new Error(
+          `Refused to write instructions (${reason === "symlink" ? "path is a symlink" : "file exists"})`
+        );
       }
 
+      progress.update("Analyzing...");
+      const analysis = await analyzeRepo(repoPath);
+      progress.update("Generating configs...");
+      await generateConfigs({
+        repoPath,
+        analysis,
+        selections: ["mcp", "vscode"],
+        force: true
+      });
+
       progress.update("Committing...");
-      await commitAll(repoPath, "chore: add copilot instructions via Primer");
+      await commitAll(repoPath, "chore: add AI configurations via Primer");
       progress.update("Pushing...");
       await pushBranch(repoPath, branch, token, "azure");
 
@@ -106,8 +120,8 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
         project,
         repoId: repoInfo.id,
         repoName: repoInfo.name,
-        title: "🤖 Add Copilot instructions via Primer",
-        body: buildInstructionsPrBody(),
+        title: "🤖 Prime this repo for AI",
+        body: buildFullPrBody(),
         sourceBranch: branch,
         targetBranch: repoInfo.defaultBranch
       });
@@ -160,9 +174,20 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
       await cloneRepo(repoInfo.cloneUrl, repoPath);
     }
 
-    const branch = options.branch ?? "primer/add-configs";
+    const branch = options.branch ?? DEFAULT_PR_BRANCH;
     progress.update("Creating branch...");
     await checkoutBranch(repoPath, branch);
+
+    progress.update("Generating instructions...");
+    const instructions = await generateCopilotInstructions({ repoPath, model: options.model });
+    const instructionsPath = path.join(repoPath, ".github", "copilot-instructions.md");
+    await ensureDir(path.dirname(instructionsPath));
+    const { wrote, reason } = await safeWriteFile(instructionsPath, instructions, true);
+    if (!wrote) {
+      throw new Error(
+        `Refused to write instructions (${reason === "symlink" ? "path is a symlink" : "file exists"})`
+      );
+    }
 
     progress.update("Analyzing...");
     const analysis = await analyzeRepo(repoPath);
@@ -185,7 +210,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
       owner,
       repo: name,
       title: "🤖 Prime this repo for AI",
-      body: buildConfigsPrBody(),
+      body: buildFullPrBody(),
       head: `${owner}:${branch}`,
       base: repoInfo.defaultBranch
     });

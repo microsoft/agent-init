@@ -1,4 +1,3 @@
-import fs from "fs/promises";
 import path from "path";
 
 import {
@@ -7,7 +6,7 @@ import {
   writeAreaInstruction
 } from "../services/instructions";
 import { analyzeRepo } from "../services/analyzer";
-import { ensureDir } from "../utils/fs";
+import { ensureDir, safeWriteFile } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
 import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
 
@@ -56,19 +55,38 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
 
       if (content) {
         await ensureDir(path.dirname(outputPath));
-        await fs.writeFile(outputPath, content, "utf8");
+        const { wrote, reason } = await safeWriteFile(
+          outputPath,
+          content,
+          Boolean(options.force)
+        );
 
-        const byteCount = Buffer.byteLength(content, "utf8");
+        if (!wrote) {
+          const relPath = path.relative(process.cwd(), outputPath);
+          const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+          if (options.json) {
+            const result: CommandResult<{ outputPath: string; skipped: true; reason: string }> = {
+              ok: true,
+              status: "noop",
+              data: { outputPath, skipped: true, reason: why }
+            };
+            outputResult(result, true);
+          } else if (shouldLog(options)) {
+            progress.update(`Skipped ${relPath}: ${why}`);
+          }
+        } else {
+          const byteCount = Buffer.byteLength(content, "utf8");
 
-        if (options.json) {
-          const result: CommandResult<{ outputPath: string; model: string; byteCount: number }> = {
-            ok: true,
-            status: "success",
-            data: { outputPath, model: options.model ?? "default", byteCount }
-          };
-          outputResult(result, true);
-        } else if (shouldLog(options)) {
-          progress.succeed(`Updated ${path.relative(process.cwd(), outputPath)}`);
+          if (options.json) {
+            const result: CommandResult<{ outputPath: string; model: string; byteCount: number }> = {
+              ok: true,
+              status: "success",
+              data: { outputPath, model: options.model ?? "default", byteCount }
+            };
+            outputResult(result, true);
+          } else if (shouldLog(options)) {
+            progress.succeed(`Updated ${path.relative(process.cwd(), outputPath)}`);
+          }
         }
       }
     }
@@ -136,6 +154,12 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
           if (result.status === "skipped") {
             if (shouldLog(options)) {
               progress.update(`Skipped "${area.name}" — file exists (use --force to overwrite).`);
+            }
+            continue;
+          }
+          if (result.status === "symlink") {
+            if (shouldLog(options)) {
+              progress.update(`Skipped "${area.name}" — path is a symlink.`);
             }
             continue;
           }

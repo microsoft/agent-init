@@ -1,8 +1,7 @@
-import fs from "fs/promises";
 import path from "path";
 
 import { DEFAULT_MODEL } from "../config";
-import { ensureDir, fileExists } from "../utils/fs";
+import { ensureDir, safeWriteFile } from "../utils/fs";
 
 import type { Area } from "./analyzer";
 import { sanitizeAreaName } from "./analyzer";
@@ -225,7 +224,10 @@ export function areaInstructionPath(repoPath: string, area: Area): string {
   );
 }
 
-export type WriteAreaResult = { status: "written" | "skipped" | "empty"; filePath: string };
+export type WriteAreaResult = {
+  status: "written" | "skipped" | "symlink" | "empty";
+  filePath: string;
+};
 
 export async function writeAreaInstruction(
   repoPath: string,
@@ -235,9 +237,15 @@ export async function writeAreaInstruction(
 ): Promise<WriteAreaResult> {
   const filePath = areaInstructionPath(repoPath, area);
   if (!body.trim()) return { status: "empty", filePath };
-  if (!force && (await fileExists(filePath))) return { status: "skipped", filePath };
   await ensureDir(path.dirname(filePath));
-  await fs.writeFile(filePath, buildAreaInstructionContent(area, body), "utf8");
+  const { wrote, reason } = await safeWriteFile(
+    filePath,
+    buildAreaInstructionContent(area, body),
+    Boolean(force)
+  );
+  if (!wrote) {
+    return { status: reason === "symlink" ? "symlink" : "skipped", filePath };
+  }
   return { status: "written", filePath };
 }
 

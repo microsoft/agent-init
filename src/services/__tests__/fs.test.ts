@@ -74,4 +74,31 @@ describe("safeWriteFile", () => {
     expect(result.wrote).toBe(true);
     expect(result.reason).toBeUndefined();
   });
+
+  it("rejects symlink even with force", async () => {
+    const realFile = path.join(tmpDir, "real.txt");
+    const symlink = path.join(tmpDir, "symlink.txt");
+    await fs.writeFile(realFile, "original");
+    await fs.symlink(realFile, symlink);
+
+    const result = await safeWriteFile(symlink, "malicious content", true);
+
+    expect(result.wrote).toBe(false);
+    expect(result.reason).toBe("symlink");
+    // Verify the original file was NOT modified
+    const content = await fs.readFile(realFile, "utf8");
+    expect(content).toBe("original");
+  });
+
+  it("rejects symlink without force", async () => {
+    const realFile = path.join(tmpDir, "real.txt");
+    const symlink = path.join(tmpDir, "symlink.txt");
+    await fs.writeFile(realFile, "original");
+    await fs.symlink(realFile, symlink);
+
+    const result = await safeWriteFile(symlink, "malicious content", false);
+
+    expect(result.wrote).toBe(false);
+    expect(result.reason).toBe("symlink");
+  });
 });
