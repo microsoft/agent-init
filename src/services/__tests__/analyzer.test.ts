@@ -485,6 +485,262 @@ describe("analyzeRepo", () => {
     expect(apiArea?.scripts?.build).toBe("tsc");
     expect(apiArea?.hasTsConfig).toBe(true);
   });
+
+  it("detects C++ language from CMakeLists.txt", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(
+      path.join(repoPath, "CMakeLists.txt"),
+      "cmake_minimum_required(VERSION 3.20)"
+    );
+    const result = await analyzeRepo(repoPath);
+    expect(result.languages).toContain("C++");
+  });
+
+  it("detects C++ language from moz.build", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(path.join(repoPath, "moz.build"), "DIRS += ['dom']");
+    const result = await analyzeRepo(repoPath);
+    expect(result.languages).toContain("C++");
+  });
+
+  it("detects Turborepo overlay on npm workspaces", async () => {
+    const repoPath = await makeTmpDir();
+    const packageJson = { name: "root", workspaces: ["packages/*"] };
+    await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify(packageJson));
+    await fs.writeFile(path.join(repoPath, "turbo.json"), JSON.stringify({ pipeline: {} }));
+    await fs.mkdir(path.join(repoPath, "packages", "web"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "web", "package.json"),
+      JSON.stringify({ name: "web" })
+    );
+    await fs.mkdir(path.join(repoPath, "packages", "api"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "api", "package.json"),
+      JSON.stringify({ name: "api" })
+    );
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.workspaceType).toBe("turborepo");
+    expect(result.isMonorepo).toBe(true);
+    expect(result.apps?.length).toBe(2);
+  });
+
+  it("detects Bazel workspace with MODULE.bazel", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(path.join(repoPath, "MODULE.bazel"), 'module(name = "myproject")');
+
+    await fs.mkdir(path.join(repoPath, "server"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "server", "BUILD"), 'java_binary(name = "server")');
+    await fs.mkdir(path.join(repoPath, "client"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "client", "BUILD.bazel"),
+      'java_binary(name = "client")'
+    );
+    // Dir without BUILD file should be skipped
+    await fs.mkdir(path.join(repoPath, "docs"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "docs", "README.md"), "# docs");
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaceType).toBe("bazel");
+    expect(result.apps?.length).toBe(2);
+    expect(result.apps?.map((a) => a.name).sort()).toEqual(["client", "server"]);
+    const clientApp = result.apps?.find((a) => a.name === "client");
+    expect(clientApp?.manifestPath).toBe(path.join(repoPath, "client", "BUILD.bazel"));
+    expect(clientApp?.ecosystem).toBeUndefined();
+    const serverApp = result.apps?.find((a) => a.name === "server");
+    expect(serverApp?.manifestPath).toBe(path.join(repoPath, "server", "BUILD"));
+  });
+
+  it("detects Bazel workspace with WORKSPACE.bazel file", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(path.join(repoPath, "WORKSPACE.bazel"), 'workspace(name = "myproject")');
+
+    await fs.mkdir(path.join(repoPath, "lib"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "lib", "BUILD"), 'cc_library(name = "lib")');
+    await fs.mkdir(path.join(repoPath, "bin"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "bin", "BUILD"), 'cc_binary(name = "bin")');
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaceType).toBe("bazel");
+    expect(result.packageManager).toBe("bazel");
+  });
+
+  it("prioritizes Nx workspaceType for JS workspaces when nx.json exists", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(path.join(repoPath, "nx.json"), JSON.stringify({ npmScope: "myorg" }));
+    await fs.writeFile(
+      path.join(repoPath, "package.json"),
+      JSON.stringify({ name: "root", workspaces: ["packages/*"] })
+    );
+    await fs.mkdir(path.join(repoPath, "packages", "app"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "app", "package.json"),
+      JSON.stringify({ name: "app" })
+    );
+    await fs.mkdir(path.join(repoPath, "packages", "lib"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "packages", "lib", "package.json"),
+      JSON.stringify({ name: "lib" })
+    );
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaceType).toBe("nx");
+    expect(result.apps?.map((a) => a.name).sort()).toEqual(["app", "lib"]);
+  });
+
+  it("detects Nx workspace with project.json files", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(path.join(repoPath, "nx.json"), JSON.stringify({ npmScope: "myorg" }));
+    await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify({ name: "root" }));
+
+    await fs.mkdir(path.join(repoPath, "apps", "web"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "apps", "web", "project.json"),
+      JSON.stringify({ name: "web", projectType: "application" })
+    );
+    await fs.writeFile(
+      path.join(repoPath, "apps", "web", "package.json"),
+      JSON.stringify({ name: "web" })
+    );
+    await fs.writeFile(path.join(repoPath, "apps", "web", "tsconfig.json"), "{}");
+
+    await fs.mkdir(path.join(repoPath, "libs", "shared"), { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "libs", "shared", "project.json"),
+      JSON.stringify({ name: "shared", projectType: "library" })
+    );
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaceType).toBe("nx");
+    expect(result.apps?.length).toBe(2);
+    expect(result.apps?.map((a) => a.name).sort()).toEqual(["shared", "web"]);
+    const webApp = result.apps?.find((a) => a.name === "web");
+    expect(webApp?.ecosystem).toBe("node");
+    expect(webApp?.hasTsConfig).toBe(true);
+  });
+
+  it("detects Pants workspace with pants.toml and BUILD files", async () => {
+    const repoPath = await makeTmpDir();
+    await fs.writeFile(path.join(repoPath, "pants.toml"), '[GLOBAL]\npants_version = "2.18.0"');
+
+    await fs.mkdir(path.join(repoPath, "src"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "src", "BUILD"), "python_sources()");
+    await fs.writeFile(path.join(repoPath, "src", "pyproject.toml"), "[project]");
+
+    await fs.mkdir(path.join(repoPath, "tests"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "tests", "BUILD.pants"), "python_tests()");
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaceType).toBe("pants");
+    expect(result.apps?.length).toBe(2);
+    expect(result.packageManager).toBe("pants");
+    const srcApp = result.apps?.find((a) => a.name === "src");
+    expect(srcApp?.ecosystem).toBe("python");
+    expect(srcApp?.manifestPath).toBe(path.join(repoPath, "src", "BUILD"));
+    const testsApp = result.apps?.find((a) => a.name === "tests");
+    expect(testsApp?.manifestPath).toBe(path.join(repoPath, "tests", "BUILD.pants"));
+    expect(testsApp?.ecosystem).toBeUndefined();
+  });
+
+  it("smart fallback detects areas in large repos", async () => {
+    const repoPath = await makeTmpDir();
+
+    // Create 12+ top-level dirs to trigger fallback (threshold: >10 dirs, <3 areas)
+    // Use names NOT in AREA_HEURISTIC_DIRS so heuristics won't find them
+    const dirs = [
+      "gfx",
+      "netwerk",
+      "ipc",
+      "intl",
+      "caps",
+      "chrome",
+      "widget",
+      "accessible",
+      "parser",
+      "image",
+      "hal",
+      "uriloader"
+    ];
+    for (const dir of dirs) {
+      await fs.mkdir(path.join(repoPath, dir), { recursive: true });
+      // Add enough children (>= 3) and code files/manifests
+      await fs.writeFile(path.join(repoPath, dir, "moz.build"), "DIRS += []");
+      await fs.writeFile(path.join(repoPath, dir, "README.md"), `# ${dir}`);
+      await fs.writeFile(path.join(repoPath, dir, "main.cpp"), "int main() {}");
+    }
+
+    const result = await analyzeRepo(repoPath);
+    const areaNames = (result.areas ?? []).map((a) => a.name);
+    // Fallback should detect these non-standard dirs
+    expect(areaNames).toContain("gfx");
+    expect(areaNames).toContain("netwerk");
+    expect(areaNames).toContain("ipc");
+    expect(areaNames).toContain("intl");
+    expect(areaNames).toContain("caps");
+    // Verify we got a good number of areas
+    expect(result.areas?.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("smart fallback skips hidden dirs and known skip dirs", async () => {
+    const repoPath = await makeTmpDir();
+
+    // Create enough dirs to trigger fallback
+    const contentDirs = [
+      "aaa",
+      "bbb",
+      "ccc",
+      "ddd",
+      "eee",
+      "fff",
+      "ggg",
+      "hhh",
+      "iii",
+      "jjj",
+      "kkk"
+    ];
+    for (const dir of contentDirs) {
+      await fs.mkdir(path.join(repoPath, dir), { recursive: true });
+      await fs.writeFile(path.join(repoPath, dir, "index.ts"), "export {};");
+      await fs.writeFile(path.join(repoPath, dir, "util.ts"), "export {};");
+      await fs.writeFile(path.join(repoPath, dir, "types.ts"), "export {};");
+    }
+
+    // These should be skipped
+    await fs.mkdir(path.join(repoPath, ".hidden"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, ".hidden", "file.ts"), "export {};");
+    await fs.mkdir(path.join(repoPath, "node_modules"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "node_modules", "pkg.js"), "");
+    await fs.mkdir(path.join(repoPath, "third_party"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "third_party", "lib.c"), "");
+
+    const result = await analyzeRepo(repoPath);
+    const areaNames = (result.areas ?? []).map((a) => a.name);
+    expect(areaNames).not.toContain(".hidden");
+    expect(areaNames).not.toContain("node_modules");
+    expect(areaNames).not.toContain("third_party");
+  });
+
+  it("fallback does not trigger for small repos", async () => {
+    const repoPath = await makeTmpDir();
+
+    // Only 3 top-level dirs — should NOT trigger fallback
+    await fs.mkdir(path.join(repoPath, "custom1"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "custom1", "main.py"), "print('hi')");
+    await fs.mkdir(path.join(repoPath, "custom2"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "custom2", "main.py"), "print('hi')");
+    await fs.mkdir(path.join(repoPath, "custom3"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "custom3", "main.py"), "print('hi')");
+
+    const result = await analyzeRepo(repoPath);
+    const areaNames = (result.areas ?? []).map((a) => a.name);
+    // custom1, custom2, custom3 are not in heuristic list and repo is small
+    expect(areaNames).not.toContain("custom1");
+  });
 });
 
 describe("loadPrimerConfig", () => {

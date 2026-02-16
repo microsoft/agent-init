@@ -35,7 +35,19 @@ export type RepoAnalysis = {
   frameworks: string[];
   packageManager?: string;
   isMonorepo?: boolean;
-  workspaceType?: "npm" | "pnpm" | "yarn" | "cargo" | "go" | "dotnet" | "gradle" | "maven";
+  workspaceType?:
+    | "npm"
+    | "pnpm"
+    | "yarn"
+    | "cargo"
+    | "go"
+    | "dotnet"
+    | "gradle"
+    | "maven"
+    | "bazel"
+    | "nx"
+    | "pants"
+    | "turborepo";
   workspacePatterns?: string[];
   apps?: RepoApp[];
   areas?: Area[];
@@ -68,6 +80,11 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
   const hasBuildGradle = files.includes("build.gradle") || files.includes("build.gradle.kts");
   const hasGemfile = files.includes("Gemfile");
   const hasComposerJson = files.includes("composer.json");
+  const hasCMakeLists = files.includes("CMakeLists.txt");
+  const hasMakefile = files.includes("Makefile") || files.includes("GNUmakefile");
+  const hasMesonBuild = files.includes("meson.build");
+  const hasConfigure = files.includes("configure") || files.includes("configure.ac");
+  const hasMozBuild = files.includes("moz.build");
 
   if (hasPackageJson) analysis.languages.push("JavaScript");
   if (hasTsConfig) analysis.languages.push("TypeScript");
@@ -78,6 +95,8 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
   if (hasPomXml || hasBuildGradle) analysis.languages.push("Java");
   if (hasGemfile) analysis.languages.push("Ruby");
   if (hasComposerJson) analysis.languages.push("PHP");
+  if (hasCMakeLists || hasMesonBuild || hasConfigure || hasMozBuild) analysis.languages.push("C++");
+  if (hasMakefile && !analysis.languages.length) analysis.languages.push("C");
 
   analysis.packageManager = await detectPackageManager(repoPath, files);
 
@@ -110,6 +129,14 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
     }
   }
 
+  if (workspace && files.includes("turbo.json") && apps.length > 1) {
+    analysis.workspaceType = "turborepo";
+  }
+
+  if (files.includes("nx.json") && apps.length > 1 && analysis.workspaceType !== "turborepo") {
+    analysis.workspaceType = "nx";
+  }
+
   analysis.apps = apps;
   analysis.isMonorepo = apps.length > 1;
 
@@ -136,6 +163,14 @@ async function detectPackageManager(
   if (files.includes("build.gradle") || files.includes("build.gradle.kts")) return "gradle";
   if (files.includes("Gemfile")) return "bundler";
   if (files.includes("composer.json")) return "composer";
+  if (
+    files.includes("MODULE.bazel") ||
+    files.includes("WORKSPACE") ||
+    files.includes("WORKSPACE.bazel")
+  )
+    return "bazel";
+  if (files.includes("pants.toml")) return "pants";
+  if (files.includes("nx.json")) return "nx";
   return undefined;
 }
 
@@ -161,6 +196,24 @@ async function safeReadFile(filePath: string): Promise<string | undefined> {
     return await fs.readFile(filePath, "utf8");
   } catch {
     return undefined;
+  }
+}
+
+async function isScannableDirectory(repoPath: string, candidatePath: string): Promise<boolean> {
+  try {
+    const stat = await fs.lstat(candidatePath);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) return false;
+
+    const resolvedRoot = await fs.realpath(repoPath).catch(() => path.resolve(repoPath));
+    const resolvedCandidate = await fs
+      .realpath(candidatePath)
+      .catch(() => path.resolve(candidatePath));
+
+    return (
+      resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(resolvedRoot + path.sep)
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -289,7 +342,7 @@ async function buildRepoApp(
 function buildNonJsApp(
   name: string,
   appPath: string,
-  ecosystem: NonNullable<RepoApp["ecosystem"]>,
+  ecosystem: RepoApp["ecosystem"],
   manifestPath: string
 ): RepoApp {
   return {
@@ -306,7 +359,7 @@ function buildNonJsApp(
 // ─── Non-JS monorepo detection ───
 
 type NonJsMonorepoResult = {
-  type?: "cargo" | "go" | "dotnet" | "gradle" | "maven";
+  type?: RepoAnalysis["workspaceType"];
   patterns?: string[];
   apps: RepoApp[];
 };
@@ -329,6 +382,15 @@ async function detectNonJsMonorepo(
 
   const mavenApps = await detectMavenMultiModule(repoPath);
   if (mavenApps.length > 1) return { type: "maven", apps: mavenApps };
+
+  const bazelApps = await detectBazelWorkspace(repoPath, files);
+  if (bazelApps.length > 1) return { type: "bazel", apps: bazelApps };
+
+  const nxApps = await detectNxWorkspace(repoPath, files);
+  if (nxApps.length > 1) return { type: "nx", apps: nxApps };
+
+  const pantsApps = await detectPantsWorkspace(repoPath, files);
+  if (pantsApps.length > 1) return { type: "pants", apps: pantsApps };
 
   return { apps: [] };
 }
@@ -481,6 +543,113 @@ async function detectMavenMultiModule(repoPath: string): Promise<RepoApp[]> {
   return apps;
 }
 
+async function detectBazelWorkspace(repoPath: string, files: string[]): Promise<RepoApp[]> {
+  const hasBazel =
+    files.includes("MODULE.bazel") ||
+    files.includes("WORKSPACE") ||
+    files.includes("WORKSPACE.bazel");
+  if (!hasBazel) return [];
+
+  // Scan first-level directories for BUILD / BUILD.bazel files
+  const entries = await safeReadDir(repoPath);
+  const apps: RepoApp[] = [];
+
+  for (const entry of entries) {
+    if (entry.startsWith(".")) continue;
+    const fullPath = path.join(repoPath, entry);
+    if (!(await isScannableDirectory(repoPath, fullPath))) continue;
+    const children = await safeReadDir(fullPath);
+    const buildFile = children.includes("BUILD")
+      ? "BUILD"
+      : children.includes("BUILD.bazel")
+        ? "BUILD.bazel"
+        : undefined;
+    if (!buildFile) continue;
+
+    apps.push(buildNonJsApp(entry, fullPath, undefined, path.join(fullPath, buildFile)));
+  }
+
+  return apps;
+}
+
+async function detectNxWorkspace(repoPath: string, files: string[]): Promise<RepoApp[]> {
+  if (!files.includes("nx.json")) return [];
+
+  // Find project.json files (depth-limited via glob pattern)
+  const projectJsonPaths = (
+    await fg(["*/project.json", "*/*/project.json", "*/*/*/project.json"], {
+      cwd: repoPath,
+      absolute: true,
+      onlyFiles: true,
+      dot: false,
+      followSymbolicLinks: false,
+      ignore: ["**/.git/**", "**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**"]
+    })
+  ).map((p) => path.normalize(p));
+
+  const apps: RepoApp[] = [];
+  for (const projPath of projectJsonPaths) {
+    const projDir = path.dirname(projPath);
+    const projJson = await readJson(projPath);
+    const name = typeof projJson?.name === "string" ? projJson.name : path.basename(projDir);
+    // Detect ecosystem from sibling files
+    const children = await safeReadDir(projDir);
+    const ecosystem: RepoApp["ecosystem"] = children.includes("package.json")
+      ? "node"
+      : children.includes("Cargo.toml")
+        ? "rust"
+        : children.includes("go.mod")
+          ? "go"
+          : children.includes("pyproject.toml")
+            ? "python"
+            : undefined;
+    apps.push({
+      name,
+      path: projDir,
+      ecosystem,
+      manifestPath: projPath,
+      packageJsonPath: children.includes("package.json") ? path.join(projDir, "package.json") : "",
+      scripts: {},
+      hasTsConfig: children.includes("tsconfig.json")
+    });
+  }
+
+  return apps;
+}
+
+async function detectPantsWorkspace(repoPath: string, files: string[]): Promise<RepoApp[]> {
+  if (!files.includes("pants.toml")) return [];
+
+  // Scan first-level directories for BUILD files
+  const entries = await safeReadDir(repoPath);
+  const apps: RepoApp[] = [];
+
+  for (const entry of entries) {
+    if (entry.startsWith(".")) continue;
+    const fullPath = path.join(repoPath, entry);
+    if (!(await isScannableDirectory(repoPath, fullPath))) continue;
+    const children = await safeReadDir(fullPath);
+    const buildFile = children.includes("BUILD")
+      ? "BUILD"
+      : children.includes("BUILD.pants")
+        ? "BUILD.pants"
+        : undefined;
+    if (!buildFile) continue;
+
+    // Infer ecosystem from sibling files
+    const ecosystem: RepoApp["ecosystem"] = children.includes("pyproject.toml")
+      ? "python"
+      : children.includes("go.mod")
+        ? "go"
+        : children.includes("Cargo.toml")
+          ? "rust"
+          : undefined;
+    apps.push(buildNonJsApp(entry, fullPath, ecosystem, path.join(fullPath, buildFile)));
+  }
+
+  return apps;
+}
+
 function unique<T>(items: T[]): T[] {
   return Array.from(new Set(items));
 }
@@ -514,8 +683,55 @@ const AREA_HEURISTIC_DIRS = [
   "portal",
   "dashboard",
   "worker",
-  "functions"
+  "functions",
+  // Browser / engine components
+  "browser",
+  "devtools",
+  "toolkit",
+  "dom",
+  "layout",
+  "media",
+  "security",
+  "testing",
+  "extensions",
+  "modules",
+  "editor",
+  "remote",
+  "storage"
 ];
+
+// Directories to skip in fallback area detection
+const FALLBACK_SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".hg",
+  ".svn",
+  "target",
+  "build",
+  "dist",
+  "out",
+  "output",
+  ".output",
+  ".next",
+  "vendor",
+  "third_party",
+  "other-licenses",
+  "coverage",
+  "__pycache__",
+  ".cache",
+  ".vscode",
+  ".idea",
+  ".github",
+  ".gitlab",
+  ".circleci",
+  "supply-chain",
+  "gradle",
+  ".cargo"
+]);
+
+const MIN_FALLBACK_CHILDREN = 3;
+const MIN_AREAS_FOR_FALLBACK = 3;
+const MIN_TOPLEVEL_DIRS_FOR_FALLBACK = 10;
 
 const MANIFEST_FILES = [
   "package.json",
@@ -529,7 +745,32 @@ const MANIFEST_FILES = [
   "Gemfile",
   "composer.json",
   "setup.py",
-  "setup.cfg"
+  "setup.cfg",
+  "CMakeLists.txt",
+  "meson.build",
+  "BUILD",
+  "BUILD.bazel",
+  "moz.build"
+];
+
+const CODE_EXTENSIONS = [
+  ".ts",
+  ".js",
+  ".py",
+  ".go",
+  ".rs",
+  ".java",
+  ".cs",
+  ".rb",
+  ".php",
+  ".c",
+  ".cc",
+  ".cpp",
+  ".h",
+  ".hpp",
+  ".swift",
+  ".kt",
+  ".scala"
 ];
 
 function areasFromApps(repoPath: string, apps: RepoApp[]): Area[] {
@@ -556,28 +797,12 @@ async function areasFromHeuristics(repoPath: string): Promise<Area[]> {
     if (!AREA_HEURISTIC_DIRS.includes(lower)) continue;
 
     const fullPath = path.join(repoPath, entry);
-    try {
-      const stat = await fs.stat(fullPath);
-      if (!stat.isDirectory()) continue;
-    } catch {
-      continue;
-    }
+    if (!(await isScannableDirectory(repoPath, fullPath))) continue;
 
     // Check if the directory has meaningful content (manifest or code files)
     const children = await safeReadDir(fullPath);
     const hasManifest = children.some((c) => MANIFEST_FILES.includes(c));
-    const hasCode = children.some(
-      (c) =>
-        c.endsWith(".ts") ||
-        c.endsWith(".js") ||
-        c.endsWith(".py") ||
-        c.endsWith(".go") ||
-        c.endsWith(".rs") ||
-        c.endsWith(".java") ||
-        c.endsWith(".cs") ||
-        c.endsWith(".rb") ||
-        c.endsWith(".php")
-    );
+    const hasCode = children.some((c) => CODE_EXTENSIONS.some((ext) => c.endsWith(ext)));
     const hasSrcDir = children.includes("src");
 
     if (!hasManifest && !hasCode && !hasSrcDir) continue;
@@ -607,6 +832,45 @@ async function areasFromHeuristics(repoPath: string): Promise<Area[]> {
   return areas;
 }
 
+/**
+ * Fallback area detection for large repos (e.g., Firefox, Chromium) where
+ * neither workspace managers nor the heuristic directory list provide good coverage.
+ * Scans first-level directories that contain code or manifests and meet a
+ * small minimum-size threshold to reduce noise.
+ */
+async function areasFromFallback(repoPath: string, existingAreas: Area[]): Promise<Area[]> {
+  const existingNames = new Set(existingAreas.map((a) => a.name.toLowerCase()));
+  const entries = await safeReadDir(repoPath);
+  const areas: Area[] = [];
+
+  for (const entry of entries) {
+    if (entry.startsWith(".")) continue;
+    if (FALLBACK_SKIP_DIRS.has(entry.toLowerCase())) continue;
+    if (existingNames.has(entry.toLowerCase())) continue;
+
+    const fullPath = path.join(repoPath, entry);
+    if (!(await isScannableDirectory(repoPath, fullPath))) continue;
+
+    const children = await safeReadDir(fullPath);
+    if (children.length < MIN_FALLBACK_CHILDREN) continue;
+
+    const hasManifest = children.some((c) => MANIFEST_FILES.includes(c));
+    const hasCode = children.some((c) => CODE_EXTENSIONS.some((ext) => c.endsWith(ext)));
+    const hasSrcDir = children.includes("src");
+
+    if (!hasManifest && !hasCode && !hasSrcDir) continue;
+
+    areas.push({
+      name: entry,
+      applyTo: `${entry}/**`,
+      path: fullPath,
+      source: "auto"
+    });
+  }
+
+  return areas;
+}
+
 async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Area[]> {
   let autoAreas: Area[];
 
@@ -622,6 +886,31 @@ async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Ar
     autoAreas = Array.from(byName.values());
   } else {
     autoAreas = await areasFromHeuristics(repoPath);
+  }
+
+  // Smart fallback: if few areas detected but repo has many top-level dirs,
+  // scan all first-level directories for code content
+  const topLevelEntries = await safeReadDir(repoPath);
+  const topLevelDirCount = (
+    await Promise.all(
+      topLevelEntries
+        .filter((e) => !e.startsWith("."))
+        .map(async (e) => isScannableDirectory(repoPath, path.join(repoPath, e)))
+    )
+  ).filter(Boolean).length;
+
+  if (
+    autoAreas.length < MIN_AREAS_FOR_FALLBACK &&
+    topLevelDirCount > MIN_TOPLEVEL_DIRS_FOR_FALLBACK
+  ) {
+    const fallbackAreas = await areasFromFallback(repoPath, autoAreas);
+    const byName = new Map(autoAreas.map((a) => [a.name.toLowerCase(), a]));
+    for (const a of fallbackAreas) {
+      if (!byName.has(a.name.toLowerCase())) {
+        byName.set(a.name.toLowerCase(), a);
+      }
+    }
+    autoAreas = Array.from(byName.values());
   }
 
   // Merge with config areas
