@@ -1,3 +1,20 @@
+/** File patterns that Primer generates and should be included in PRs. */
+export const PRIMER_FILE_PATTERNS = [
+  ".github/copilot-instructions.md",
+  ".vscode/mcp.json",
+  ".vscode/settings.json",
+  "AGENTS.md",
+  "primer.eval.json"
+] as const;
+
+/** Check if a file path is a Primer-generated file. */
+export function isPrimerFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return (
+    PRIMER_FILE_PATTERNS.some((p) => normalized === p) || normalized.endsWith(".instructions.md")
+  );
+}
+
 export function buildInstructionsPrBody(): string {
   return [
     "## 🤖 Copilot Instructions Added",

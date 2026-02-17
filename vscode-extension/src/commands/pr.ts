@@ -1,27 +1,44 @@
 import * as vscode from "vscode";
-import {
-  createPullRequest,
-  detectGitHubRemote,
-  getBranchInfo,
-  getPrimerFilesFromStatus,
-  commitAndPush
-} from "../services.js";
+import { createPullRequest, isPrimerFile } from "../services.js";
 import { getGitHubToken } from "../auth.js";
 import { getWorkspacePath } from "./analyze.js";
+import { getGitRepository } from "../gitUtils.js";
 
 export async function prCommand(): Promise<void> {
   const workspacePath = getWorkspacePath();
   if (!workspacePath) return;
 
-  const remote = await detectGitHubRemote(workspacePath);
-  if (!remote) {
-    vscode.window.showErrorMessage("Primer: Could not detect a GitHub remote from origin.");
+  const repository = getGitRepository(workspacePath);
+  if (!repository) return;
+
+  // Detect remote owner/repo
+  const origin = repository.state.remotes.find((r) => r.name === "origin");
+  const originUrl = origin?.pushUrl ?? origin?.fetchUrl;
+  if (!originUrl) {
+    vscode.window.showErrorMessage("Primer: No origin remote found.");
     return;
   }
-  const { owner, repo } = remote;
 
-  const branchInfo = await getBranchInfo(workspacePath);
-  if (branchInfo.current === branchInfo.defaultBranch) {
+  const match = originUrl.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/);
+  if (!match) {
+    vscode.window.showErrorMessage("Primer: Could not parse GitHub owner/repo from origin remote.");
+    return;
+  }
+  const [, owner, repo] = match;
+
+  const branch = repository.state.HEAD?.name;
+  if (!branch) {
+    vscode.window.showErrorMessage("Primer: Could not determine current branch (detached HEAD?).");
+    return;
+  }
+
+  // Detect default branch by checking remote refs for origin/main or origin/master
+  const refs = await repository.getRefs({ pattern: "refs/remotes/origin/*" });
+  const hasMain = refs.some((r) => r.name === "origin/main");
+  const hasMaster = refs.some((r) => r.name === "origin/master");
+  const base = hasMain ? "main" : hasMaster ? "master" : "main";
+
+  if (branch === base) {
     vscode.window.showErrorMessage(
       "Primer: Cannot create PR from the default branch. Check out a feature branch first."
     );
@@ -40,32 +57,64 @@ export async function prCommand(): Promise<void> {
       try {
         const token = await getGitHubToken();
 
-        const primerFiles = await getPrimerFilesFromStatus(workspacePath);
-
-        if (primerFiles.length === 0) {
-          vscode.window.showWarningMessage(
-            "Primer: No Primer-generated files found. Run 'Primer: Initialize Repository' or 'Primer: Generate Configs' first."
+        // Check for Primer files in both unstaged and staged changes
+        const allChanges = [
+          ...repository.state.workingTreeChanges,
+          ...repository.state.indexChanges
+        ];
+        // Deduplicate by URI (a file can appear in both working tree and index)
+        const seen = new Set<string>();
+        const changes = allChanges.filter((c) => {
+          const key = c.uri.toString();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        if (changes.length > 0) {
+          const primerChanges = changes.filter((c) =>
+            isPrimerFile(vscode.workspace.asRelativePath(c.uri, false))
           );
-          return;
+
+          if (primerChanges.length === 0) {
+            vscode.window.showWarningMessage("Primer: No Primer-generated files to commit.");
+            return;
+          }
+
+          // Warn if there are non-Primer files already staged that would be included in the commit
+          const stagedNonPrimer = repository.state.indexChanges.filter(
+            (c) => !isPrimerFile(vscode.workspace.asRelativePath(c.uri, false))
+          );
+          if (stagedNonPrimer.length > 0) {
+            const proceed = await vscode.window.showWarningMessage(
+              `Primer: ${stagedNonPrimer.length} non-Primer file(s) are already staged and will be included in the commit.`,
+              "Continue",
+              "Cancel"
+            );
+            if (proceed !== "Continue") return;
+          }
+
+          await repository.add(primerChanges.map((c) => c.uri));
+          await repository.commit(title);
         }
 
-        const picked = await vscode.window.showQuickPick(
-          primerFiles.map((f) => ({ label: f, picked: true })),
-          {
-            canPickMany: true,
-            placeHolder: "Select files to commit & push",
-            title: "Primer: Confirm files"
-          }
-        );
-        if (!picked || picked.length === 0) return;
+        // Push — ensures the branch exists on the remote even if changes were already committed
+        await repository.push("origin", branch, true);
 
-        await commitAndPush(
-          workspacePath,
-          picked.map((p) => p.label),
-          title,
-          branchInfo.current,
-          token
-        );
+        // Guard against empty PRs when branch has no diff from base
+        const baseRefs = await repository.getRefs({ pattern: `refs/remotes/origin/${base}` });
+        const headRefs = await repository.getRefs({ pattern: `refs/remotes/origin/${branch}` });
+        if (
+          baseRefs[0]?.commit &&
+          headRefs[0]?.commit &&
+          baseRefs[0].commit === headRefs[0].commit
+        ) {
+          const proceed = await vscode.window.showWarningMessage(
+            "Primer: No new changes detected. The PR may be empty.",
+            "Continue",
+            "Cancel"
+          );
+          if (proceed !== "Continue") return;
+        }
 
         const prUrl = await createPullRequest({
           token,
@@ -73,8 +122,8 @@ export async function prCommand(): Promise<void> {
           repo,
           title,
           body: "Generated by Primer VS Code extension.",
-          head: branchInfo.current,
-          base: branchInfo.defaultBranch
+          head: branch,
+          base
         });
 
         const openAction = "Open in Browser";
