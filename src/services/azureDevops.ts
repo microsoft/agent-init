@@ -70,18 +70,28 @@ function validateAdoSlug(value: string, label: string): string {
   return encodeURIComponent(value);
 }
 
-function getAuthHeader(token: string): string {
+export type AdoAuthMode = "pat" | "bearer";
+
+function getAuthHeader(token: string, authMode: AdoAuthMode = "pat"): string {
+  if (authMode === "bearer") {
+    return `Bearer ${token}`;
+  }
   const encoded = Buffer.from(`:${token}`).toString("base64");
   return `Basic ${encoded}`;
 }
 
-async function adoRequest<T>(url: string, token: string, init?: RequestInit): Promise<T> {
+async function adoRequest<T>(
+  url: string,
+  token: string,
+  init?: RequestInit & { authMode?: AdoAuthMode }
+): Promise<T> {
+  const { authMode, ...fetchInit } = init ?? {};
   const response = await fetch(url, {
-    ...init,
+    ...fetchInit,
     headers: {
       "Content-Type": "application/json",
-      Authorization: getAuthHeader(token),
-      ...(init?.headers ?? {})
+      Authorization: getAuthHeader(token, authMode),
+      ...(fetchInit.headers ?? {})
     }
   });
 
@@ -158,13 +168,14 @@ export async function getRepo(
   token: string,
   organization: string,
   project: string,
-  repo: string
+  repo: string,
+  authMode: AdoAuthMode = "pat"
 ): Promise<AzureDevOpsRepo> {
   const org = validateAdoSlug(organization, "organization");
   const proj = validateAdoSlug(project, "project");
   const r = validateAdoSlug(repo, "repo");
   const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories/${r}?api-version=7.1-preview.1`;
-  const response = await adoRequest<AzureDevOpsRepoResponse>(url, token);
+  const response = await adoRequest<AzureDevOpsRepoResponse>(url, token, { authMode });
 
   return {
     id: response.id,
@@ -194,6 +205,7 @@ export async function createPullRequest(params: {
   body: string;
   sourceBranch: string;
   targetBranch: string;
+  authMode?: AdoAuthMode;
 }): Promise<string> {
   const org = validateAdoSlug(params.organization, "organization");
   const proj = validateAdoSlug(params.project, "project");
@@ -207,7 +219,8 @@ export async function createPullRequest(params: {
 
   const response = await adoRequest<{ pullRequestId: number }>(url, params.token, {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    authMode: params.authMode
   });
 
   return `https://dev.azure.com/${org}/${proj}/_git/${encodeURIComponent(
@@ -219,14 +232,15 @@ export async function checkRepoHasInstructions(
   token: string,
   organization: string,
   project: string,
-  repoId: string
+  repoId: string,
+  authMode: AdoAuthMode = "pat"
 ): Promise<boolean> {
   const org = validateAdoSlug(organization, "organization");
   const proj = validateAdoSlug(project, "project");
   const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories/${encodeURIComponent(repoId)}/items?path=/.github/copilot-instructions.md&includeContentMetadata=true&api-version=7.1-preview.1`;
   const response = await fetch(url, {
     headers: {
-      Authorization: getAuthHeader(token)
+      Authorization: getAuthHeader(token, authMode)
     }
   });
 
@@ -241,6 +255,7 @@ export async function checkRepoHasInstructions(
   return true;
 }
 
+/** CLI-only batch helper — always uses PAT auth (no authMode param needed). */
 export async function checkReposForInstructions(
   token: string,
   repos: AzureDevOpsRepo[],

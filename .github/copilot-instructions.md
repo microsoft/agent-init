@@ -2,6 +2,14 @@
 
 **Primer** is a TypeScript CLI + VS Code extension for priming repositories for AI-assisted development. See `README.md` for full architecture, command reference, and service details.
 
+## Development Checklist
+
+All changes MUST be verified against this checklist before considered complete:
+
+- [ ] Implementation covers both CLI and VS Code extension (if applicable)
+- [ ] Ran lint/typecheck/test/build npm tasks. ALL PASSED
+- [ ] Ran Review subagent. NO BLOCKERS reported
+
 ## Build & Test
 
 ```sh

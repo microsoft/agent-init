@@ -10,6 +10,10 @@ export { generateEvalScaffold } from "primer/services/evalScaffold.js";
 export { runReadinessReport, groupPillars } from "primer/services/readiness.js";
 export { generateVisualReport } from "primer/services/visualReport.js";
 export { createPullRequest } from "primer/services/github.js";
+export {
+  createPullRequest as createAzurePullRequest,
+  getRepo as getAzureDevOpsRepo
+} from "primer/services/azureDevops.js";
 export { isPrimerFile } from "primer/utils/pr.js";
 export { safeWriteFile } from "primer/utils/fs.js";
 export { DEFAULT_MODEL } from "primer/config.js";
