@@ -1,6 +1,12 @@
 import * as vscode from "vscode";
 import path from "node:path";
-import { runEval, generateEvalScaffold, analyzeRepo, safeWriteFile } from "../services.js";
+import {
+  runEval,
+  generateEvalScaffold,
+  analyzeRepo,
+  safeWriteFile,
+  DEFAULT_MODEL
+} from "../services.js";
 import { VscodeProgressReporter } from "../progress.js";
 import { getWorkspacePath, getCachedAnalysis, setCachedAnalysis } from "./analyze.js";
 import { createWebviewPanel } from "../webview.js";
@@ -24,7 +30,7 @@ export async function evalCommand(): Promise<void> {
   }
 
   const config = vscode.workspace.getConfiguration("primer");
-  const model = config.get<string>("model") ?? "claude-sonnet-4.5";
+  const model = config.get<string>("model") ?? DEFAULT_MODEL;
 
   await vscode.window.withProgress(
     {

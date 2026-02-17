@@ -1,16 +1,16 @@
-import fs from "fs/promises";
 import path from "path";
 
 import chalk from "chalk";
 
+import { parsePolicySources } from "../services/policy";
 import type {
   ReadinessReport,
   ReadinessCriterionResult,
   AreaReadinessReport
 } from "../services/readiness";
 import { runReadinessReport, groupPillars } from "../services/readiness";
-import { parsePolicySources } from "../services/policy";
 import { generateVisualReport } from "../services/visualReport";
+import { safeWriteFile } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
 import { outputResult, outputError, shouldLog } from "../utils/output";
 
@@ -18,9 +18,11 @@ type ReadinessOptions = {
   json?: boolean;
   quiet?: boolean;
   output?: string;
+  force?: boolean;
   visual?: boolean;
   perArea?: boolean;
   policy?: string;
+  failLevel?: string;
 };
 
 export async function readinessCommand(
@@ -42,6 +44,23 @@ export async function readinessCommand(
     return;
   }
 
+  // Check --fail-level threshold early so it applies regardless of output format
+  const failLevel = Number.parseInt(options.failLevel ?? "", 10);
+  if (Number.isFinite(failLevel)) {
+    const clamped = Math.max(1, Math.min(5, failLevel));
+    if (clamped !== failLevel && shouldLog(options)) {
+      process.stderr.write(`Warning: --fail-level clamped to ${clamped} (valid range: 1–5)\n`);
+    }
+    if ((report.achievedLevel ?? 0) < clamped) {
+      if (shouldLog(options)) {
+        process.stderr.write(
+          `Error: Readiness level ${report.achievedLevel ?? 0} is below threshold ${clamped}\n`
+        );
+      }
+      process.exitCode = 1;
+    }
+  }
+
   // Generate visual HTML report
   if (options.visual || (options.output && options.output.endsWith(".html"))) {
     const html = generateVisualReport({
@@ -54,7 +73,12 @@ export async function readinessCommand(
       ? path.resolve(options.output)
       : path.join(repoPath, "readiness-report.html");
 
-    await fs.writeFile(outputPath, html, "utf8");
+    const { wrote, reason } = await safeWriteFile(outputPath, html, Boolean(options.force));
+    if (!wrote) {
+      const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+      outputError(`Skipped ${outputPath}: ${why}`, Boolean(options.json));
+      return;
+    }
     if (shouldLog(options)) {
       process.stderr.write(chalk.green(`✓ Visual report generated: ${outputPath}`) + "\n");
     }
@@ -64,7 +88,16 @@ export async function readinessCommand(
   // Output to JSON file
   if (options.output && options.output.endsWith(".json")) {
     const outputPath = path.resolve(options.output);
-    await fs.writeFile(outputPath, JSON.stringify(report, null, 2), "utf8");
+    const { wrote, reason } = await safeWriteFile(
+      outputPath,
+      JSON.stringify(report, null, 2),
+      Boolean(options.force)
+    );
+    if (!wrote) {
+      const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+      outputError(`Skipped ${outputPath}: ${why}`, Boolean(options.json));
+      return;
+    }
     if (shouldLog(options)) {
       process.stderr.write(chalk.green(`✓ JSON report saved: ${outputPath}`) + "\n");
     }
@@ -93,7 +126,7 @@ function printReadinessChecklist(report: ReadinessReport): void {
   log(
     `- Monorepo: ${report.isMonorepo ? "yes" : "no"}${report.apps.length ? ` (${report.apps.length} apps)` : ""}`
   );
-  log(`- Level: ${report.achievedLevel || 1} (${levelName(report.achievedLevel || 1)})`);
+  log(`- Level: ${report.achievedLevel ?? 1} (${levelName(report.achievedLevel ?? 1)})`);
 
   const groups = groupPillars(report.pillars);
   for (const { label, pillars } of groups) {

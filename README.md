@@ -10,7 +10,13 @@ Primer is a CLI and VS Code extension that helps teams prepare repositories for 
 ## Quick Start
 
 ```bash
-# Clone and install
+# Run directly (no install needed)
+npx github:digitarald/primer readiness
+```
+
+Or install locally:
+
+```bash
 git clone https://github.com/digitarald/primer.git
 cd primer && npm install && npm run build && npm link
 
@@ -38,11 +44,11 @@ primer init
 | **GitHub CLI** _(optional)_       | For batch processing and PRs: `brew install gh && gh auth login` |
 | **Azure DevOps PAT** _(optional)_ | Set `AZURE_DEVOPS_PAT` for Azure DevOps workflows                |
 
-## Core Workflows
+## Commands
 
-### Assess AI Readiness
+### `primer readiness` — Assess AI Readiness
 
-Score a repo across 9 pillars grouped into **Repo Health** (style, build, testing, docs, dev environment, code quality, observability, security) and **AI Setup** (instructions, MCP, agents, skills):
+Score a repo across 9 pillars grouped into **Repo Health** and **AI Setup**:
 
 ```bash
 primer readiness                        # terminal summary
@@ -50,6 +56,7 @@ primer readiness --visual               # GitHub-themed HTML report
 primer readiness --per-area             # include per-area breakdown
 primer readiness --policy ./strict.json # apply a custom policy
 primer readiness --json                 # machine-readable JSON
+primer readiness --fail-level 3         # CI gate: exit 1 if below level 3
 ```
 
 **Maturity levels:**
@@ -62,67 +69,71 @@ primer readiness --json                 # machine-readable JSON
 | 4     | Optimized    | MCP servers, custom agents, AI skills configured    |
 | 5     | Autonomous   | Full AI-native development with minimal oversight   |
 
-### Generate Instructions
+### `primer instructions` — Generate Instructions
 
 Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK:
 
 ```bash
-primer instructions                                 # copilot-instructions.md (default)
-primer instructions --format agents-md               # AGENTS.md
-primer instructions --per-app                        # per-app in monorepos
-primer instructions --areas                          # root + all detected areas
-primer instructions --areas-only                     # area files only (skip root)
-primer instructions --area frontend                  # single area
-primer instructions --output /path/to/file.md        # custom output path
-primer instructions --model claude-sonnet-4.5        # pick model
+primer instructions                      # copilot-instructions.md (default)
+primer instructions --format agents-md   # AGENTS.md
+primer instructions --per-app            # per-app in monorepos
+primer instructions --areas              # root + all detected areas
+primer instructions --area frontend      # single area
+primer instructions --model claude-sonnet-4.5
 ```
 
-### Evaluate Instructions
+### `primer eval` — Evaluate Instructions
 
 Measure how instructions improve AI responses with a judge model:
 
 ```bash
-primer eval --init                        # scaffold eval config from codebase
-primer eval primer.eval.json              # run evaluation
+primer eval --init                       # scaffold eval config from codebase
+primer eval primer.eval.json             # run evaluation
 primer eval --model gpt-4.1 --judge-model claude-sonnet-4.5
-primer eval --list-models                 # list available models
+primer eval --fail-level 80              # CI gate: exit 1 if pass rate < 80%
 ```
 
-### Generate Configs
-
-Generate MCP and VS Code configuration files:
+### `primer generate` — Generate Configs
 
 ```bash
-primer generate mcp                       # .vscode/mcp.json
-primer generate vscode --force            # .vscode/settings.json (overwrite)
+primer generate mcp                      # .vscode/mcp.json
+primer generate vscode --force           # .vscode/settings.json (overwrite)
 ```
 
-### Batch Processing
-
-Process multiple repos across an organization:
+### `primer batch` / `primer pr` — Batch & PRs
 
 ```bash
-primer batch                              # interactive TUI (GitHub)
-primer batch --provider azure             # Azure DevOps
-primer batch owner/repo1 owner/repo2 --json  # headless
-primer batch-readiness --output team.html    # consolidated readiness report
+primer batch                             # interactive TUI (GitHub)
+primer batch --provider azure            # Azure DevOps
+primer batch owner/repo1 owner/repo2 --json
+primer batch-readiness --output team.html
+primer pr owner/repo-name                # clone → generate → open PR
 ```
 
-### Create PRs
-
-Clone a repo, generate configs, and open a PR:
+### `primer tui` — Interactive Mode
 
 ```bash
-primer pr owner/repo-name
-primer pr my-org/my-project/my-repo --provider azure
+primer tui
 ```
 
-## Readiness Policies
+### `primer init` — Guided Setup
 
-Policies customize which criteria are evaluated, override metadata, and tune pass-rate thresholds:
+Interactive or headless repo onboarding — detects your stack and walks through readiness, instructions, and config generation.
+
+### Global Options
+
+All commands support `--json` (structured JSON to stdout) and `--quiet` (suppress stderr). JSON output uses a `CommandResult<T>` envelope:
+
+```json
+{ "ok": true, "status": "success", "data": { ... } }
+```
+
+### Readiness Policies
+
+Policies customize scoring criteria, override metadata, and tune thresholds:
 
 ```bash
-primer readiness --policy ./my-policy.json
+primer readiness --policy ./strict.json
 primer readiness --policy ./base.json,./strict.json  # chain multiple
 ```
 
@@ -138,35 +149,9 @@ primer readiness --policy ./base.json,./strict.json  # chain multiple
 }
 ```
 
-Policies can also be set in `primer.config.json` to apply automatically:
-
-```json
-{ "policies": ["./my-policy.json"] }
-```
+Policies can also be set in `primer.config.json` (`{ "policies": ["./my-policy.json"] }`).
 
 > **Security:** Config-sourced policies are restricted to JSON files only — JS/TS module policies must be passed via `--policy`.
-
-## Global Options
-
-All commands support `--json` (structured JSON to stdout) and `--quiet` (suppress stderr progress). JSON output uses a `CommandResult<T>` envelope:
-
-```json
-{ "ok": true, "status": "success", "data": { ... } }
-```
-
-## Interactive TUI
-
-```bash
-primer tui
-```
-
-| Key       | Action                             |
-| --------- | ---------------------------------- |
-| `G`       | Generate instructions or AGENTS.md |
-| `E`       | Run evals or init eval config      |
-| `B`       | Batch — GitHub or Azure DevOps     |
-| `M` / `J` | Pick eval / judge model            |
-| `Q`       | Quit                               |
 
 ## Development
 

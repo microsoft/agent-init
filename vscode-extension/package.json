@@ -136,17 +136,6 @@
             ]
           },
           {
-            "id": "readiness",
-            "title": "Check AI Readiness",
-            "description": "Score your repo across 9 pillars with a visual maturity report.\n[$(shield) Run Assessment](command:primer.readiness)",
-            "media": {
-              "markdown": "resources/walkthrough/readiness.md"
-            },
-            "completionEvents": [
-              "onCommand:primer.readiness"
-            ]
-          },
-          {
             "id": "instructions",
             "title": "Generate AI Instructions",
             "description": "Create custom instructions that teach AI about your codebase.\n[$(edit) Generate Instructions](command:primer.instructions)",
@@ -166,6 +155,17 @@
             },
             "completionEvents": [
               "onCommand:primer.generate"
+            ]
+          },
+          {
+            "id": "readiness",
+            "title": "Check AI Readiness",
+            "description": "Score your repo across 9 pillars with a visual maturity report.\n[$(shield) Run Assessment](command:primer.readiness)",
+            "media": {
+              "markdown": "resources/walkthrough/readiness.md"
+            },
+            "completionEvents": [
+              "onCommand:primer.readiness"
             ]
           },
           {

@@ -77,7 +77,7 @@ jobs:
           fi
 
           THRESHOLD="${{ inputs.fail-threshold || '50' }}"
-          ARGS="$ARGS --fail-threshold $THRESHOLD"
+          ARGS="$ARGS --fail-level $THRESHOLD"
 
           node dist/index.js eval $ARGS 2>&1 | tee .primer/evals/eval.log
         env:

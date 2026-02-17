@@ -1,6 +1,12 @@
 import * as vscode from "vscode";
 import path from "node:path";
-import { generateCopilotInstructions, generateAreaInstructions, analyzeRepo } from "../services.js";
+import {
+  generateCopilotInstructions,
+  generateAreaInstructions,
+  writeAreaInstruction,
+  safeWriteFile,
+  analyzeRepo
+} from "../services.js";
 import { VscodeProgressReporter } from "../progress.js";
 import { getWorkspacePath, getCachedAnalysis, setCachedAnalysis } from "./analyze.js";
 
@@ -69,22 +75,30 @@ export async function instructionsCommand(): Promise<void> {
         const reporter = new VscodeProgressReporter(progress);
 
         reporter.update("Generating root instructions…");
-        await generateCopilotInstructions({
+        const content = await generateCopilotInstructions({
           repoPath: workspacePath,
-          instructionFile,
           model,
           onProgress: (msg) => reporter.update(msg)
         });
 
+        if (content.trim()) {
+          const dir = path.dirname(instructionFile);
+          await vscode.workspace.fs.createDirectory(vscode.Uri.file(dir));
+          await safeWriteFile(instructionFile, content, true);
+        }
+
         if (selectedAreas) {
           for (const area of selectedAreas) {
             reporter.update(`Generating instructions for ${area.name}…`);
-            await generateAreaInstructions({
+            const body = await generateAreaInstructions({
               repoPath: workspacePath,
               area,
               model,
               onProgress: (msg) => reporter.update(msg)
             });
+            if (body.trim()) {
+              await writeAreaInstruction(workspacePath, area, body, true);
+            }
           }
         }
 

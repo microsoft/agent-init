@@ -96,32 +96,30 @@ primer init --github owner/repo
 primer generate mcp
 primer generate vscode
 
+# Generate instructions
+primer instructions
+
 # Create PR with all generated configs
 primer pr owner/repo
 
 # Readiness report
 primer readiness
-
-# Update existing configurations
-primer update
-
-# List available templates
-primer templates
-
-# Configure CLI settings
-primer config
-
-# Generate instructions
-primer instructions
+primer readiness --fail-level 3  # CI gate
 
 # Run evaluations
 primer eval primer.eval.json
+primer eval --init              # Scaffold config
+primer eval --fail-level 80     # CI gate (pass rate %)
+
+# Analyze repository
+primer analyze
 
 # Run TUI
 primer tui
 
 # Batch processing
 primer batch
+primer batch-readiness
 ```
 
 ---
@@ -394,34 +392,52 @@ primer/
 ├── src/
 │   ├── index.ts              # Entry point
 │   ├── cli.ts                # Commander setup
+│   ├── config.ts             # Shared constants (DEFAULT_MODEL, etc.)
 │   ├── commands/
+│   │   ├── analyze.ts
 │   │   ├── batch.tsx
-│   │   ├── config.ts
+│   │   ├── batchReadiness.tsx
 │   │   ├── eval.ts
 │   │   ├── generate.ts
 │   │   ├── init.ts
-│   │   ├── instructions.tsx
+│   │   ├── instructions.ts
 │   │   ├── pr.ts
 │   │   ├── readiness.ts
-│   │   ├── templates.ts
-│   │   ├── tui.tsx
-│   │   └── update.ts
+│   │   └── tui.tsx
 │   ├── services/
 │   │   ├── analyzer.ts       # Repo analysis logic
 │   │   ├── azureDevops.ts    # Azure DevOps integration
+│   │   ├── batch.ts          # Batch processing logic
+│   │   ├── copilot.ts        # Copilot CLI integration
+│   │   ├── evalScaffold.ts   # Eval config scaffolding
 │   │   ├── evaluator.ts      # Eval runner
 │   │   ├── generator.ts      # Config generation
 │   │   ├── git.ts            # Local git operations
 │   │   ├── github.ts         # GitHub API interactions
-│   │   └── instructions.ts   # Copilot SDK integration
+│   │   ├── instructions.ts   # Copilot SDK integration
+│   │   ├── policy.ts         # Policy-driven readiness
+│   │   ├── readiness.ts      # Readiness assessment
+│   │   └── visualReport.ts   # HTML report generation
 │   ├── ui/
 │   │   ├── AnimatedBanner.tsx
+│   │   ├── BatchReadinessTui.tsx
 │   │   ├── BatchTui.tsx
 │   │   ├── BatchTuiAzure.tsx
 │   │   └── tui.tsx
 │   └── utils/
-│       ├── fs.ts             # File system helpers
-│       └── logger.ts         # Styled console output
+│       ├── fs.ts             # File system helpers (safeWriteFile)
+│       ├── logger.ts         # Styled console output
+│       ├── output.ts         # CommandResult, ProgressReporter
+│       ├── pr.ts             # PR body templates
+│       └── repo.ts           # Repo URL parsing
+├── vscode-extension/         # VS Code extension
+│   ├── src/
+│   │   ├── extension.ts
+│   │   ├── services.ts       # Re-exports CLI services
+│   │   ├── types.ts
+│   │   ├── commands/
+│   │   └── views/
+│   └── package.json
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -487,32 +503,32 @@ Create example repos for each major stack:
 ### Phase 1: MVP (2-3 weeks)
 
 - [x] Project setup (TypeScript, Commander, tsup)
-- [ ] Basic CLI with `init` and `generate` commands
-- [ ] Local repo analysis
-- [ ] Custom instructions generation via Copilot SDK
-- [ ] Generate VS Code settings and MCP configuration
-- [ ] Basic interactive prompts
+- [x] Basic CLI with `init` and `generate` commands
+- [x] Local repo analysis
+- [x] Custom instructions generation via Copilot SDK
+- [x] Generate VS Code settings and MCP configuration
+- [x] Basic interactive prompts
 
 ### Phase 2: GitHub Integration (1-2 weeks)
 
-- [ ] GitHub authentication
-- [ ] Remote repo access
-- [ ] PR creation
-- [ ] Fork workflow
+- [x] GitHub authentication
+- [x] Remote repo access
+- [x] PR creation
+- [x] Fork workflow
 
 ### Phase 3: Polish (1 week)
 
-- [ ] Beautiful TUI with previews
-- [ ] More language/framework support
-- [ ] MCP configurations
-- [ ] Documentation and examples
+- [x] Beautiful TUI with previews
+- [x] More language/framework support
+- [x] MCP configurations
+- [x] Documentation and examples
 
 ### Phase 4: Distribution (1 week)
 
-- [ ] npm publish
+- [x] npm publish
 - [ ] Standalone binaries
 - [ ] Homebrew formula
-- [ ] CI/CD setup
+- [x] CI/CD setup
 
 ---
 

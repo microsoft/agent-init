@@ -9,7 +9,6 @@ import { assertCopilotCliReady } from "./copilot";
 
 type GenerateInstructionsOptions = {
   repoPath: string;
-  instructionFile?: string;
   model?: string;
   onProgress?: (message: string) => void;
 };
@@ -248,6 +247,3 @@ export async function writeAreaInstruction(
   }
   return { status: "written", filePath };
 }
-
-// Re-export for backward compatibility
-export { sanitizeAreaName } from "./analyzer";

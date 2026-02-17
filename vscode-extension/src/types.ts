@@ -1,7 +1,7 @@
 /**
  * Re-export Primer CLI types for use in the extension.
  */
-export type { RepoAnalysis, Area } from "primer/services/analyzer.js";
+export type { RepoAnalysis } from "primer/services/analyzer.js";
 
 export type {
   ReadinessReport,

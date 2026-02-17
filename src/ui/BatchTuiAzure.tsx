@@ -1,5 +1,3 @@
-import fs from "fs/promises";
-
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useEffect, useState } from "react";
 
@@ -12,6 +10,7 @@ import {
 } from "../services/azureDevops";
 import { processAzureRepo } from "../services/batch";
 import type { ProcessResult } from "../services/batch";
+import { safeWriteFile } from "../utils/fs";
 
 import { StaticBanner } from "./AnimatedBanner";
 
@@ -173,7 +172,7 @@ export function BatchTuiAzure({ token, outputPath }: Props): React.JSX.Element {
     }
 
     if (outputPath) {
-      await fs.writeFile(outputPath, JSON.stringify(localResults, null, 2), "utf8");
+      await safeWriteFile(outputPath, JSON.stringify(localResults, null, 2), true);
     }
 
     setStatus("complete");

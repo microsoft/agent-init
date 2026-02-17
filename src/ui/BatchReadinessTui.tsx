@@ -12,7 +12,7 @@ import { listUserOrgs, listOrgRepos, listAccessibleRepos } from "../services/git
 import type { ReadinessReport } from "../services/readiness";
 import { runReadinessReport } from "../services/readiness";
 import { generateVisualReport } from "../services/visualReport";
-import { ensureDir, validateCachePath } from "../utils/fs";
+import { safeWriteFile, ensureDir, validateCachePath } from "../utils/fs";
 
 import { StaticBanner } from "./AnimatedBanner";
 
@@ -179,7 +179,8 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
       });
 
       const finalOutputPath = outputPath ?? path.join(process.cwd(), "batch-readiness-report.html");
-      await fs.writeFile(finalOutputPath, html, "utf8");
+      const { wrote, reason } = await safeWriteFile(finalOutputPath, html, true);
+      if (!wrote) throw new Error(reason === "symlink" ? "Path is a symlink" : "Write failed");
 
       setStatus("complete");
       setMessage(`Report generated: ${finalOutputPath}`);
