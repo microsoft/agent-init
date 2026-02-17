@@ -56,9 +56,9 @@ export class AnalysisTreeProvider implements vscode.TreeDataProvider<AnalysisIte
       items.push(frameworks);
     }
 
-    if (analysis.isMonorepo && analysis.areas) {
+    if (analysis.areas && analysis.areas.length > 0) {
       const areas = new AnalysisItem(
-        "Monorepo",
+        analysis.isMonorepo ? "Monorepo" : "Areas",
         vscode.TreeItemCollapsibleState.Expanded,
         analysis.areas.map((a) => {
           const item = new AnalysisItem(a.name, vscode.TreeItemCollapsibleState.None);

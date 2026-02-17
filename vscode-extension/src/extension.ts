@@ -9,12 +9,11 @@ import { prCommand } from "./commands/pr.js";
 import { analysisTreeProvider, readinessTreeProvider } from "./views/providers.js";
 
 export function activate(context: vscode.ExtensionContext): void {
-  // Status bar
+  // Status bar — only show after analysis
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
   statusBar.text = "$(beaker) Primer";
   statusBar.tooltip = "Primer — click to analyze repository";
   statusBar.command = "primer.analyze";
-  statusBar.show();
   context.subscriptions.push(statusBar);
 
   // Tree views (createTreeView for description/badge support)
@@ -51,9 +50,9 @@ export function activate(context: vscode.ExtensionContext): void {
       const parts = analysis.languages.slice(0, 2);
       statusBar.text = `$(beaker) ${parts.join(", ") || "Primer"}`;
       statusBar.tooltip = `Primer — ${analysis.languages.join(", ")}${analysis.isMonorepo ? " | monorepo" : ""}`;
+      statusBar.show();
     } else {
-      statusBar.text = "$(beaker) Primer";
-      statusBar.tooltip = "Primer — click to analyze repository";
+      statusBar.hide();
     }
   }
 

@@ -1,8 +1,8 @@
-import fs from "fs/promises";
-
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useEffect, useState } from "react";
 
+import { processGitHubRepo } from "../services/batch";
+import type { ProcessResult } from "../services/batch";
 import type { GitHubOrg, GitHubRepo } from "../services/github";
 import {
   listUserOrgs,
@@ -10,8 +10,7 @@ import {
   listAccessibleRepos,
   checkReposForInstructions
 } from "../services/github";
-import { processGitHubRepo } from "../services/batch";
-import type { ProcessResult } from "../services/batch";
+import { safeWriteFile } from "../utils/fs";
 
 import { StaticBanner } from "./AnimatedBanner";
 
@@ -164,7 +163,7 @@ export function BatchTui({ token, outputPath }: Props): React.JSX.Element {
 
     // Write results if output path specified
     if (outputPath) {
-      await fs.writeFile(outputPath, JSON.stringify(localResults, null, 2), "utf8");
+      await safeWriteFile(outputPath, JSON.stringify(localResults, null, 2), true);
     }
 
     setStatus("complete");

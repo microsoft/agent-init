@@ -12,17 +12,22 @@ export async function generateCommand(): Promise<void> {
   if (!workspacePath) return;
 
   const picked = await vscode.window.showQuickPick(
-    GENERATE_OPTIONS.map((o) => ({ label: o.label, description: o.description, value: o.value })),
-    { placeHolder: "Select config type to generate" }
+    GENERATE_OPTIONS.map((o) => ({
+      label: o.label,
+      description: o.description,
+      value: o.value,
+      picked: false
+    })),
+    { placeHolder: "Select config type(s) to generate", canPickMany: true }
   );
-  if (!picked) return;
+  if (!picked || picked.length === 0) return;
 
   let analysis = getCachedAnalysis();
 
   const result = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `Primer: Generating ${picked.label}…`
+      title: `Primer: Generating ${picked.map((p) => p.label).join(", ")}…`
     },
     async () => {
       try {
@@ -34,7 +39,7 @@ export async function generateCommand(): Promise<void> {
         return await generateConfigs({
           repoPath: workspacePath,
           analysis,
-          selections: [picked.value],
+          selections: picked.map((p) => p.value),
           force: false
         });
       } catch (err) {
@@ -69,13 +74,13 @@ export async function generateCommand(): Promise<void> {
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `Primer: Overwriting ${picked.label}…`
+          title: `Primer: Overwriting configs…`
         },
         async () => {
           const forceResult = await generateConfigs({
             repoPath: workspacePath,
             analysis: analysis!,
-            selections: [picked.value],
+            selections: picked.map((p) => p.value),
             force: true
           });
           const forceWrote = forceResult.files.filter((f) => f.action === "wrote");

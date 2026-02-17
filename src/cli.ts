@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Argument, Command } from "commander";
 
 import { analyzeCommand } from "./commands/analyze";
 import { batchCommand } from "./commands/batch";
@@ -42,6 +42,7 @@ export function runCli(argv: string[]): void {
 
   program
     .command("init")
+    .description("Interactive repo setup — analyze, generate instructions and configs")
     .argument("[path]", "Path to a local repository")
     .option("--github", "Use a GitHub repository")
     .option("--provider <provider>", "Repo provider (github|azure)")
@@ -52,12 +53,21 @@ export function runCli(argv: string[]): void {
 
   program
     .command("analyze")
+    .description("Detect languages, frameworks, monorepo structure, and areas")
     .argument("[path]", "Path to a local repository")
     .action(withGlobalOpts(analyzeCommand));
 
   program
     .command("generate")
-    .argument("<type>", "instructions|agents|mcp|vscode")
+    .description("Generate instructions, agents, MCP, or VS Code configs")
+    .addArgument(
+      new Argument("<type>", "Config type to generate").choices([
+        "instructions",
+        "agents",
+        "mcp",
+        "vscode"
+      ])
+    )
     .argument("[path]", "Path to a local repository")
     .option("--force", "Overwrite existing files")
     .option("--per-app", "Generate per-app in monorepos")
@@ -66,6 +76,7 @@ export function runCli(argv: string[]): void {
 
   program
     .command("pr")
+    .description("Create a PR with generated configs on GitHub or Azure DevOps")
     .argument("[repo]", "Repo identifier (github: owner/name, azure: org/project/repo)")
     .option("--branch <name>", "Branch name")
     .option("--provider <provider>", "Repo provider (github|azure)")
@@ -74,6 +85,7 @@ export function runCli(argv: string[]): void {
 
   program
     .command("eval")
+    .description("Compare AI responses with and without instructions")
     .argument("[path]", "Path to eval config JSON")
     .option("--repo <path>", "Repository path", process.cwd())
     .option("--model <name>", "Model for responses", DEFAULT_MODEL)
@@ -82,17 +94,19 @@ export function runCli(argv: string[]): void {
     .option("--output <path>", "Write results JSON to file")
     .option("--init", "Create a starter primer.eval.json file")
     .option("--count <number>", "Number of eval cases to generate (with --init)")
-    .option("--fail-threshold <number>", "Exit with error if pass rate (%) falls below threshold")
+    .option("--fail-level <number>", "Exit with error if pass rate (%) falls below threshold")
     .action(withGlobalOpts(evalCommand));
 
   program
     .command("tui")
+    .description("Interactive terminal UI for generation, evaluation, and batch workflows")
     .option("--repo <path>", "Repository path", process.cwd())
     .option("--no-animation", "Skip the animated banner intro")
     .action(withGlobalOpts(tuiCommand));
 
   program
     .command("instructions")
+    .description("Generate root and per-area .instructions.md files")
     .option("--repo <path>", "Repository path", process.cwd())
     .option("--output <path>", "Output path for copilot instructions")
     .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
@@ -104,11 +118,14 @@ export function runCli(argv: string[]): void {
 
   program
     .command("readiness")
+    .description("AI readiness assessment across 9 maturity pillars")
     .argument("[path]", "Path to a local repository")
     .option("--output <path>", "Write report to file (.json or .html)")
+    .option("--force", "Overwrite existing output file")
     .option("--visual", "Generate visual HTML report")
     .option("--per-area", "Show per-area readiness breakdown")
     .option("--policy <sources>", "Policy sources (comma-separated: paths, npm packages)")
+    .option("--fail-level <number>", "Exit with error if readiness level is below threshold (1–5)")
     .action(withGlobalOpts(readinessCommand));
 
   program

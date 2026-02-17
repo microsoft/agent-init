@@ -4,7 +4,7 @@ import type {
   ReadinessPillarSummary,
   ReadinessCriterionResult
 } from "../types.js";
-import { groupPillars } from "primer/services/readiness.js";
+import { groupPillars } from "../services.js";
 
 export class ReadinessTreeProvider implements vscode.TreeDataProvider<ReadinessItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<ReadinessItem | undefined>();

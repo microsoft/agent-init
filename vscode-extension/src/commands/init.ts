@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import path from "node:path";
-import { analyzeRepo, generateConfigs, generateCopilotInstructions } from "../services.js";
+import {
+  analyzeRepo,
+  generateConfigs,
+  generateCopilotInstructions,
+  safeWriteFile
+} from "../services.js";
 import { VscodeProgressReporter } from "../progress.js";
 import { getWorkspacePath, setCachedAnalysis } from "./analyze.js";
 
@@ -26,11 +31,23 @@ export async function initCommand(): Promise<void> {
         setCachedAnalysis(analysis);
 
         reporter.update("Generating Copilot instructions…");
-        await generateCopilotInstructions({
+        const instructionsContent = await generateCopilotInstructions({
           repoPath: workspacePath,
           model,
           onProgress: (msg) => reporter.update(msg)
         });
+
+        let skippedInstructions = false;
+
+        if (instructionsContent.trim()) {
+          const instructionsPath = path.join(workspacePath, ".github", "copilot-instructions.md");
+          const dir = path.dirname(instructionsPath);
+          await vscode.workspace.fs.createDirectory(vscode.Uri.file(dir));
+          const { wrote } = await safeWriteFile(instructionsPath, instructionsContent, false);
+          if (!wrote) {
+            skippedInstructions = true;
+          }
+        }
 
         reporter.update("Generating configs…");
         const result = await generateConfigs({
@@ -42,6 +59,10 @@ export async function initCommand(): Promise<void> {
 
         const wrote = result.files.filter((f) => f.action === "wrote");
         const skipped = result.files.filter((f) => f.action === "skipped");
+        if (skippedInstructions)
+          skipped.push({ path: ".github/copilot-instructions.md", action: "skipped" });
+        else if (instructionsContent.trim())
+          wrote.push({ path: ".github/copilot-instructions.md", action: "wrote" });
         const parts: string[] = [];
         if (wrote.length) parts.push(`${wrote.length} files generated`);
         if (skipped.length) parts.push(`${skipped.length} skipped (already exist)`);

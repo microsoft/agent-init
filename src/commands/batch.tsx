@@ -1,4 +1,3 @@
-import fs from "fs/promises";
 import readline from "readline";
 
 import { render } from "ink";
@@ -10,10 +9,11 @@ import { runBatchHeadlessGitHub, runBatchHeadlessAzure, sanitizeError } from "..
 import type { ProcessResult } from "../services/batch";
 import type { GitHubRepo } from "../services/github";
 import { getGitHubToken, getRepo as getGitHubRepo } from "../services/github";
-import type { CommandResult } from "../utils/output";
-import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
 import { BatchTui } from "../ui/BatchTui";
 import { BatchTuiAzure } from "../ui/BatchTuiAzure";
+import { safeWriteFile } from "../utils/fs";
+import type { CommandResult } from "../utils/output";
+import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
 import { GITHUB_REPO_RE, AZURE_REPO_RE } from "../utils/repo";
 
 type BatchOptions = {
@@ -194,7 +194,7 @@ async function emitResults(results: ProcessResult[], options: BatchOptions): Pro
   const failed = results.length - succeeded;
 
   if (options.output) {
-    await fs.writeFile(options.output, JSON.stringify(results, null, 2), "utf8");
+    await safeWriteFile(options.output, JSON.stringify(results, null, 2), true);
   }
 
   if (options.json) {

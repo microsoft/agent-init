@@ -373,7 +373,9 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
               const outputPath =
                 generateSavePath || path.join(repoPath, ".github", "copilot-instructions.md");
               await fs.mkdir(path.dirname(outputPath), { recursive: true });
-              await fs.writeFile(outputPath, generatedContent, "utf8");
+              const { wrote, reason } = await safeWriteFile(outputPath, generatedContent, true);
+              if (!wrote)
+                throw new Error(reason === "symlink" ? "Path is a symlink" : "Write failed");
               setStatus("done");
               const relPath = path.relative(repoPath, outputPath);
               const msg = `Saved to ${relPath}`;
@@ -525,7 +527,8 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
                 });
                 if (content.trim()) {
                   await fs.mkdir(path.dirname(savePath), { recursive: true });
-                  await fs.writeFile(savePath, content, "utf8");
+                  const { wrote: saved } = await safeWriteFile(savePath, content, true);
+                  if (!saved) continue;
                   count++;
                   addLog(`${app.name}: saved ${path.basename(savePath)}`, "success");
                 }

@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { buildTimestampedName } from "../utils/fs";
+import { buildTimestampedName, safeWriteFile } from "../utils/fs";
 
 import { assertCopilotCliReady } from "./copilot";
 import type { EvalConfig } from "./evalScaffold";
@@ -180,9 +180,9 @@ export async function runEval(
     let viewerPath: string | undefined;
     if (outputPath) {
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      await fs.writeFile(outputPath, JSON.stringify(output, null, 2), "utf8");
+      await safeWriteFile(outputPath, JSON.stringify(output, null, 2), true);
       viewerPath = buildViewerPath(outputPath);
-      await fs.writeFile(viewerPath, buildTrajectoryViewerHtml(output), "utf8");
+      await safeWriteFile(viewerPath, buildTrajectoryViewerHtml(output), true);
     }
 
     const summary = formatSummary(results, runFinishedAt - runStartedAt);

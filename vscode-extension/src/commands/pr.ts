@@ -57,8 +57,10 @@ export async function prCommand(): Promise<void> {
             .map((f) => f.path)
             .filter(
               (p) =>
-                p.startsWith(".github/") ||
-                p.startsWith(".vscode/") ||
+                p === ".github/copilot-instructions.md" ||
+                p === ".vscode/mcp.json" ||
+                p === ".vscode/settings.json" ||
+                p === "AGENTS.md" ||
                 p.endsWith(".instructions.md") ||
                 p === "primer.eval.json"
             );

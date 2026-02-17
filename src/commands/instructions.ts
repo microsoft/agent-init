@@ -1,11 +1,11 @@
 import path from "path";
 
+import { analyzeRepo } from "../services/analyzer";
 import {
   generateCopilotInstructions,
   generateAreaInstructions,
   writeAreaInstruction
 } from "../services/instructions";
-import { analyzeRepo } from "../services/analyzer";
 import { ensureDir, safeWriteFile } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
 import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
@@ -174,9 +174,10 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
     }
 
     if (!wantAreas && shouldLog(options) && !options.json) {
-      process.stderr.write(
-        "Please review and share feedback on any unclear or incomplete sections.\n"
-      );
+      process.stderr.write("\nNext steps:\n");
+      process.stderr.write("  primer eval --init      Scaffold evaluation test cases\n");
+      process.stderr.write("  primer generate mcp     Generate MCP configuration\n");
+      process.stderr.write("  primer generate vscode  Generate VS Code settings\n");
     }
   } catch (error) {
     outputError(

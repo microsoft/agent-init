@@ -1,10 +1,10 @@
-import fs from "fs/promises";
 import path from "path";
 
 import { DEFAULT_MODEL, DEFAULT_JUDGE_MODEL } from "../config";
 import { listCopilotModels } from "../services/copilot";
 import { generateEvalScaffold } from "../services/evalScaffold";
 import { runEval } from "../services/evaluator";
+import { safeWriteFile } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
 import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
 
@@ -16,7 +16,7 @@ type EvalOptions = {
   init?: boolean;
   count?: string;
   listModels?: boolean;
-  failThreshold?: string;
+  failLevel?: string;
   json?: boolean;
   quiet?: boolean;
 };
@@ -67,13 +67,6 @@ export async function evalCommand(
     const outputPath = path.join(repoPath, "primer.eval.json");
     const desiredCount = Math.max(1, Number.parseInt(options.count ?? "5", 10) || 5);
     try {
-      await fs.access(outputPath);
-      outputError(`primer.eval.json already exists at ${outputPath}`, Boolean(options.json));
-      return;
-    } catch {
-      // File doesn't exist, create it
-    }
-    try {
       const progress = createProgressReporter(!shouldLog(options));
       const scaffold = await generateEvalScaffold({
         repoPath,
@@ -81,7 +74,16 @@ export async function evalCommand(
         model: options.model,
         onProgress: (msg) => progress.update(msg)
       });
-      await fs.writeFile(outputPath, JSON.stringify(scaffold, null, 2), "utf8");
+      const { wrote, reason } = await safeWriteFile(
+        outputPath,
+        JSON.stringify(scaffold, null, 2),
+        false
+      );
+      if (!wrote) {
+        const why = reason === "symlink" ? "path is a symlink" : "file exists";
+        outputError(`Skipped ${outputPath}: ${why}`, Boolean(options.json));
+        return;
+      }
 
       if (options.json) {
         const result: CommandResult<{ outputPath: string }> = {
@@ -132,7 +134,7 @@ export async function evalCommand(
       }
     }
 
-    const threshold = Number.parseInt(options.failThreshold ?? "", 10);
+    const threshold = Number.parseInt(options.failLevel ?? "", 10);
     if (Number.isFinite(threshold)) {
       const total = results.length;
       const passed = results.filter((r) => r.verdict === "pass").length;
@@ -142,6 +144,7 @@ export async function evalCommand(
           `Pass rate ${passRate}% (${passed}/${total}) is below threshold ${threshold}%`,
           Boolean(options.json)
         );
+        process.exitCode = 1;
       }
     }
   } catch (error) {

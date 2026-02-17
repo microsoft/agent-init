@@ -242,5 +242,11 @@ export async function initCommand(
     for (const file of genResult.files) {
       process.stderr.write(`${file.action === "wrote" ? "Wrote" : "Skipped"} ${file.path}\n`);
     }
+    process.stderr.write("\nNext steps:\n");
+    process.stderr.write("  primer readiness             Check AI readiness across 9 pillars\n");
+    if (analysis.areas && analysis.areas.length > 0) {
+      process.stderr.write("  primer instructions --areas   Generate per-area instructions\n");
+    }
+    process.stderr.write("  primer eval --init            Scaffold evaluation test cases\n");
   }
 }

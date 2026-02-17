@@ -13,12 +13,6 @@ export async function isGitRepo(repoPath: string): Promise<boolean> {
   }
 }
 
-export async function getRepoRoot(repoPath: string): Promise<string> {
-  const git = simpleGit(repoPath);
-  const root = await git.revparse(["--show-toplevel"]);
-  return root.trim();
-}
-
 export type CloneOptions = {
   shallow?: boolean;
   timeoutMs?: number;

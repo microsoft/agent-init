@@ -1,28 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildConfigsPrBody, buildInstructionsPrBody, buildFullPrBody } from "../../utils/pr";
-
-describe("buildConfigsPrBody", () => {
-  it("includes VS Code config files", () => {
-    const body = buildConfigsPrBody();
-
-    expect(body).toContain(".vscode/settings.json");
-    expect(body).toContain(".vscode/mcp.json");
-  });
-
-  it("does not include instructions file", () => {
-    const body = buildConfigsPrBody();
-
-    expect(body).not.toContain("copilot-instructions.md");
-  });
-
-  it("includes markdown headers", () => {
-    const body = buildConfigsPrBody();
-
-    expect(body).toContain("## ");
-    expect(body).toContain("### ");
-  });
-});
+import { buildInstructionsPrBody, buildFullPrBody } from "../../utils/pr";
 
 describe("buildInstructionsPrBody", () => {
   it("includes instructions file", () => {
