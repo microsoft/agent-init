@@ -8,7 +8,7 @@ import type {
   ReadinessCriterionResult,
   AreaReadinessReport
 } from "../services/readiness";
-import { runReadinessReport } from "../services/readiness";
+import { runReadinessReport, groupPillars } from "../services/readiness";
 import { parsePolicySources } from "../services/policy";
 import { generateVisualReport } from "../services/visualReport";
 import type { CommandResult } from "../utils/output";
@@ -95,11 +95,15 @@ function printReadinessChecklist(report: ReadinessReport): void {
   );
   log(`- Level: ${report.achievedLevel || 1} (${levelName(report.achievedLevel || 1)})`);
 
-  log(chalk.bold("\nPillars"));
-  for (const pillar of report.pillars) {
-    const rate = formatPercent(pillar.passRate);
-    const icon = pillar.passRate >= 0.8 ? chalk.green("●") : chalk.yellow("●");
-    log(`${icon} ${pillar.name}: ${pillar.passed}/${pillar.total} (${rate})`);
+  const groups = groupPillars(report.pillars);
+  for (const { label, pillars } of groups) {
+    if (pillars.length === 0) continue;
+    log(chalk.bold(`\n${label}`));
+    for (const pillar of pillars) {
+      const rate = formatPercent(pillar.passRate);
+      const icon = pillar.passRate >= 0.8 ? chalk.green("●") : chalk.yellow("●");
+      log(`${icon} ${pillar.name}: ${pillar.passed}/${pillar.total} (${rate})`);
+    }
   }
 
   log(chalk.bold("\nFix first"));

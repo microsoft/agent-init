@@ -1,61 +1,93 @@
-# Primer — VS Code Extension
+# Primer — AI Repository Setup
 
-Prime repositories for AI-assisted development directly from VS Code.
+Prime your repositories for AI-assisted development, right from VS Code.
+
+## Getting Started
+
+Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for **Primer** — or click the **Primer** icon in the Activity Bar to start from the sidebar.
+
+First time? Run **Primer: Get Started** (or open the walkthrough from the Welcome tab) for a guided 5-step setup.
 
 ## Features
 
-### Command Palette
+### Analyze Repository
 
-All commands are available via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
+Detect languages, frameworks, package managers, and monorepo structure. Results populate the **Analysis** tree view in the sidebar.
 
-| Command                                   | Description                                          |
-| ----------------------------------------- | ---------------------------------------------------- |
-| **Primer: Analyze Repository**            | Detect languages, frameworks, monorepo structure     |
-| **Primer: Generate Configs**              | Generate MCP or VS Code settings                     |
-| **Primer: Generate Copilot Instructions** | Generate `.github/copilot-instructions.md`           |
-| **Primer: AI Readiness Report**           | Run 9-pillar readiness assessment with visual report |
-| **Primer: Run Eval**                      | Compare AI responses with/without instructions       |
-| **Primer: Scaffold Eval Config**          | Auto-generate `primer.eval.json` test cases          |
-| **Primer: Initialize Repository**         | Full setup: analyze + instructions + configs         |
-| **Primer: Create Pull Request**           | Commit and push changes, create PR on GitHub         |
+`Primer: Analyze Repository`
 
-### Sidebar
+### AI Readiness Assessment
 
-The **Primer** activity bar provides two tree views:
+Score your repo across **9 pillars** grouped into **Repo Health** and **AI Setup**, with maturity levels from Functional (1) to Autonomous (5).
 
-- **Analysis** — Languages, frameworks, monorepo areas detected in the workspace
-- **Readiness** — 9-pillar AI readiness scores with drill-down into criteria
+- Interactive HTML report with dark/light theme
+- Drill-down into criteria in the **Readiness** tree view
+- Pass/fail icons with evidence for each criterion
 
-### Webview Reports
+`Primer: AI Readiness Report`
 
-- **Readiness Report** — Full HTML dashboard with dark/light theme
-- **Eval Results** — Interactive viewer for eval comparisons
+### Generate Instructions
 
-### Status Bar
+Create AI instruction files using the Copilot SDK. Choose your format:
 
-A **Primer** status bar item provides quick access to repository analysis.
+- **copilot-instructions.md** — GitHub Copilot's native format
+- **AGENTS.md** — Broader agent format at repo root
+
+For monorepos, pick specific areas to generate per-area instruction files with `applyTo` scoping.
+
+`Primer: Generate Copilot Instructions`
+
+### Generate Configs
+
+Set up MCP servers (`.vscode/mcp.json`) and VS Code settings (`.vscode/settings.json`) tuned to your project.
+
+`Primer: Generate Configs`
+
+### Evaluate Instructions
+
+Measure how much your instructions improve AI responses by comparing with/without using a judge model. Results display in an interactive viewer inside VS Code.
+
+`Primer: Run Eval` · `Primer: Scaffold Eval Config`
+
+### Initialize Repository
+
+One command to analyze, generate instructions, and create configs:
+
+`Primer: Initialize Repository`
+
+### Create Pull Request
+
+Commit Primer-generated files and open a PR directly from VS Code:
+
+`Primer: Create Pull Request`
+
+## Sidebar Views
+
+The **Primer** Activity Bar icon opens two tree views:
+
+| View          | Contents                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| **Analysis**  | Languages, frameworks, monorepo areas — with action buttons for instructions and configs          |
+| **Readiness** | Maturity level, pillar groups (Repo Health / AI Setup), criteria pass/fail with evidence tooltips |
+
+Both views show welcome screens with action buttons when no data is loaded yet.
 
 ## Settings
 
-| Setting              | Default             | Description                               |
-| -------------------- | ------------------- | ----------------------------------------- |
-| `primer.model`       | `claude-sonnet-4.5` | Default Copilot model for generation      |
-| `primer.autoAnalyze` | `false`             | Auto-analyze repository on workspace open |
+| Setting              | Default             | Description                                        |
+| -------------------- | ------------------- | -------------------------------------------------- |
+| `primer.model`       | `claude-sonnet-4.5` | Default Copilot model for generation               |
+| `primer.autoAnalyze` | `false`             | Automatically analyze repository on workspace open |
 
 ## Requirements
 
-- VS Code 1.100.0+
-- GitHub authentication (for Copilot instructions, eval, and PR creation)
-- [Copilot CLI](https://docs.github.com/en/copilot) installed and authenticated (for SDK-dependent features)
+- **VS Code 1.100.0+**
+- **GitHub Copilot Chat extension** (provides the Copilot CLI)
+- **Copilot authentication** — run `copilot` → `/login` in your terminal
+- **GitHub CLI** _(optional)_ — for PR creation: `brew install gh && gh auth login`
 
-## Development
+## Links
 
-```sh
-cd vscode-extension
-npm install
-npm run build       # Build with esbuild
-npm run watch       # Watch mode
-npm run typecheck   # TypeScript check
-```
-
-Press **F5** to launch the Extension Development Host for testing.
+- [Primer CLI on GitHub](https://github.com/digitarald/primer)
+- [Contributing Guide](https://github.com/digitarald/primer/blob/main/CONTRIBUTING.md)
+- [License (MIT)](https://github.com/digitarald/primer/blob/main/LICENSE)

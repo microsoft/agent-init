@@ -9,7 +9,16 @@
     "vscode": "^1.100.0"
   },
   "categories": [
+    "Machine Learning",
     "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "ai",
+    "instructions",
+    "mcp",
+    "readiness",
+    "agents"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
@@ -90,23 +99,87 @@
     "viewsWelcome": [
       {
         "view": "primer.analysis",
-        "contents": "Analyze this repository to discover languages, frameworks, and project structure.\n[$(search) Analyze Repository](command:primer.analyze)",
+        "contents": "Discover languages, frameworks, and project structure in your repository.\n[$(search) Analyze Repository](command:primer.analyze)\nNew to Primer? [Get Started](command:workbench.action.openWalkthrough?%5B%22digitarald.primer-vscode%23primer.gettingStarted%22%5D)",
         "when": "workspaceFolderCount > 0"
       },
       {
         "view": "primer.analysis",
-        "contents": "[$(folder-opened) Open Folder](command:vscode.openFolder)",
+        "contents": "Open a folder to get started.\n[$(folder-opened) Open Folder](command:vscode.openFolder)",
         "when": "workspaceFolderCount == 0"
       },
       {
         "view": "primer.readiness",
-        "contents": "Evaluate how ready this repository is for AI-assisted development.\n[$(shield) Run Assessment](command:primer.readiness)",
+        "contents": "Score your repo across 9 AI-readiness pillars — from build systems to custom instructions.\n[$(shield) Run Assessment](command:primer.readiness)",
         "when": "workspaceFolderCount > 0"
       },
       {
         "view": "primer.readiness",
-        "contents": "[$(folder-opened) Open Folder](command:vscode.openFolder)",
+        "contents": "Open a folder to get started.\n[$(folder-opened) Open Folder](command:vscode.openFolder)",
         "when": "workspaceFolderCount == 0"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "primer.gettingStarted",
+        "title": "Get Started with Primer",
+        "description": "Prime your repository for AI-assisted development in 5 steps.",
+        "steps": [
+          {
+            "id": "analyze",
+            "title": "Analyze Your Repository",
+            "description": "Discover languages, frameworks, and project structure.\n[$(search) Analyze Repository](command:primer.analyze)",
+            "media": {
+              "markdown": "resources/walkthrough/analyze.md"
+            },
+            "completionEvents": [
+              "onCommand:primer.analyze"
+            ]
+          },
+          {
+            "id": "readiness",
+            "title": "Check AI Readiness",
+            "description": "Score your repo across 9 pillars with a visual maturity report.\n[$(shield) Run Assessment](command:primer.readiness)",
+            "media": {
+              "markdown": "resources/walkthrough/readiness.md"
+            },
+            "completionEvents": [
+              "onCommand:primer.readiness"
+            ]
+          },
+          {
+            "id": "instructions",
+            "title": "Generate AI Instructions",
+            "description": "Create custom instructions that teach AI about your codebase.\n[$(edit) Generate Instructions](command:primer.instructions)",
+            "media": {
+              "markdown": "resources/walkthrough/instructions.md"
+            },
+            "completionEvents": [
+              "onCommand:primer.instructions"
+            ]
+          },
+          {
+            "id": "configs",
+            "title": "Generate Configs",
+            "description": "Set up MCP servers and VS Code settings for AI workflows.\n[$(file-code) Generate Configs](command:primer.generate)",
+            "media": {
+              "markdown": "resources/walkthrough/configs.md"
+            },
+            "completionEvents": [
+              "onCommand:primer.generate"
+            ]
+          },
+          {
+            "id": "eval",
+            "title": "Evaluate Effectiveness",
+            "description": "Measure how much your instructions improve AI responses.\n[$(new-file) Scaffold Eval Config](command:primer.evalInit)\n[$(beaker) Run Eval](command:primer.eval)",
+            "media": {
+              "markdown": "resources/walkthrough/eval.md"
+            },
+            "completionEvents": [
+              "onCommand:primer.evalInit"
+            ]
+          }
+        ]
       }
     ],
     "configuration": {

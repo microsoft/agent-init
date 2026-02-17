@@ -1,4 +1,6 @@
-import type { ReadinessReport, AreaReadinessReport } from "./readiness";
+import type { ReadinessReport, AreaReadinessReport, ReadinessPillarSummary } from "./readiness";
+import { PILLAR_GROUPS, PILLAR_GROUP_NAMES } from "./readiness";
+import type { PillarGroup } from "./readiness";
 
 type VisualReportOptions = {
   reports: Array<{ repo: string; report: ReadinessReport; error?: string }>;
@@ -413,23 +415,7 @@ export function generateVisualReport(options: VisualReportOptions): string {
 
     <div class="section">
       <h2 class="section-title">Pillar Performance</h2>
-      <div class="pillar-grid">
-        ${pillarStats
-          .map(
-            (pillar) => `
-          <div class="pillar-card">
-            <div class="pillar-name">${escapeHtml(pillar.name)}</div>
-            <div class="pillar-stats">
-              <div class="progress-bar">
-                <div class="progress-fill ${getProgressClass(pillar.passRate)}" style="width: ${Math.max(pillar.passRate * 100, pillar.total > 0 ? 2 : 0)}%"></div>
-              </div>
-              <span>${pillar.passed}/${pillar.total} (${Math.round(pillar.passRate * 100)}%)</span>
-            </div>
-          </div>
-        `
-          )
-          .join("")}
-      </div>
+      ${buildGroupedPillarsHtml(pillarStats)}
     </div>
 
     <div class="section">
@@ -848,6 +834,40 @@ function buildAiToolingHeroHtml(
       ${perRepoHtml}
     </div>
   `;
+}
+
+function buildGroupedPillarsHtml(
+  pillarStats: Array<{ id: string; name: string; passed: number; total: number; passRate: number }>
+): string {
+  const groups: PillarGroup[] = ["repo-health", "ai-setup"];
+  return groups
+    .map((group) => {
+      const pillars = pillarStats.filter(
+        (p) => PILLAR_GROUPS[p.id as keyof typeof PILLAR_GROUPS] === group
+      );
+      if (pillars.length === 0) return "";
+      return `
+        <h3 style="font-size: 13px; font-weight: 600; color: var(--color-fg-muted); margin-bottom: 8px; margin-top: 12px;">${escapeHtml(PILLAR_GROUP_NAMES[group])}</h3>
+        <div class="pillar-grid">
+          ${pillars
+            .map(
+              (pillar) => `
+            <div class="pillar-card">
+              <div class="pillar-name">${escapeHtml(pillar.name)}</div>
+              <div class="pillar-stats">
+                <div class="progress-bar">
+                  <div class="progress-fill ${getProgressClass(pillar.passRate)}" style="width: ${Math.max(pillar.passRate * 100, pillar.total > 0 ? 2 : 0)}%"></div>
+                </div>
+                <span>${pillar.passed}/${pillar.total} (${Math.round(pillar.passRate * 100)}%)</span>
+              </div>
+            </div>
+          `
+            )
+            .join("")}
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function escapeHtml(text: string): string {

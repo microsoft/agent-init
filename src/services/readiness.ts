@@ -19,6 +19,36 @@ export type ReadinessPillar =
   | "security-governance"
   | "ai-tooling";
 
+export type PillarGroup = "repo-health" | "ai-setup";
+
+export const PILLAR_GROUPS: Record<ReadinessPillar, PillarGroup> = {
+  "style-validation": "repo-health",
+  "build-system": "repo-health",
+  testing: "repo-health",
+  documentation: "repo-health",
+  "dev-environment": "repo-health",
+  "code-quality": "repo-health",
+  observability: "repo-health",
+  "security-governance": "repo-health",
+  "ai-tooling": "ai-setup"
+};
+
+export const PILLAR_GROUP_NAMES: Record<PillarGroup, string> = {
+  "repo-health": "Repo Health",
+  "ai-setup": "AI Setup"
+};
+
+export function groupPillars(
+  pillars: ReadinessPillarSummary[]
+): Array<{ group: PillarGroup; label: string; pillars: ReadinessPillarSummary[] }> {
+  const groups: PillarGroup[] = ["repo-health", "ai-setup"];
+  return groups.map((group) => ({
+    group,
+    label: PILLAR_GROUP_NAMES[group],
+    pillars: pillars.filter((p) => PILLAR_GROUPS[p.id] === group)
+  }));
+}
+
 export type ReadinessScope = "repo" | "app" | "area";
 
 export type ReadinessStatus = "pass" | "fail" | "skip";

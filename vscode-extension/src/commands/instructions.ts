@@ -1,13 +1,35 @@
 import * as vscode from "vscode";
+import path from "node:path";
 import { generateCopilotInstructions, generateAreaInstructions, analyzeRepo } from "../services.js";
 import { VscodeProgressReporter } from "../progress.js";
 import { getWorkspacePath, getCachedAnalysis, setCachedAnalysis } from "./analyze.js";
+
+const FORMAT_OPTIONS = [
+  {
+    label: "$(file) copilot-instructions.md",
+    description: ".github/copilot-instructions.md",
+    value: "copilot-instructions" as const,
+    relativePath: path.join(".github", "copilot-instructions.md")
+  },
+  {
+    label: "$(robot) AGENTS.md",
+    description: "AGENTS.md at repo root",
+    value: "agents-md" as const,
+    relativePath: "AGENTS.md"
+  }
+];
 
 export async function instructionsCommand(): Promise<void> {
   const workspacePath = getWorkspacePath();
   if (!workspacePath) return;
 
   const model = vscode.workspace.getConfiguration("primer").get<string>("model");
+
+  // Pick format
+  const formatPick = await vscode.window.showQuickPick(FORMAT_OPTIONS, {
+    placeHolder: "Choose instruction format"
+  });
+  if (!formatPick) return;
 
   // Ensure analysis is available before starting progress
   let analysis = getCachedAnalysis();
@@ -34,10 +56,12 @@ export async function instructionsCommand(): Promise<void> {
     }
   }
 
+  const instructionFile = path.join(workspacePath, formatPick.relativePath);
+
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Primer: Generating Copilot instructions…",
+      title: `Primer: Generating ${formatPick.relativePath}…`,
       cancellable: false
     },
     async (progress) => {
@@ -47,6 +71,7 @@ export async function instructionsCommand(): Promise<void> {
         reporter.update("Generating root instructions…");
         await generateCopilotInstructions({
           repoPath: workspacePath,
+          instructionFile,
           model,
           onProgress: (msg) => reporter.update(msg)
         });
@@ -64,6 +89,14 @@ export async function instructionsCommand(): Promise<void> {
         }
 
         reporter.succeed("Instructions generated.");
+
+        // Open the generated file
+        try {
+          const doc = await vscode.workspace.openTextDocument(instructionFile);
+          await vscode.window.showTextDocument(doc);
+        } catch {
+          // File may not exist if generation produced no content
+        }
       } catch (err) {
         vscode.window.showErrorMessage(
           `Primer: Instruction generation failed — ${err instanceof Error ? err.message : String(err)}`

@@ -4,6 +4,7 @@ import type {
   ReadinessPillarSummary,
   ReadinessCriterionResult
 } from "../types.js";
+import { groupPillars } from "primer/services/readiness.js";
 
 export class ReadinessTreeProvider implements vscode.TreeDataProvider<ReadinessItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<ReadinessItem | undefined>();
@@ -52,9 +53,33 @@ export class ReadinessTreeProvider implements vscode.TreeDataProvider<ReadinessI
     level.contextValue = "level";
     items.push(level);
 
-    for (const pillar of report.pillars) {
-      const criteria = report.criteria.filter((c) => c.pillar === pillar.id);
-      items.push(this.createPillarItem(pillar, criteria));
+    const groups = groupPillars(report.pillars);
+    for (const { label, pillars } of groups) {
+      const groupChildren = pillars.map((pillar) => {
+        const criteria = report.criteria.filter((c) => c.pillar === pillar.id);
+        return this.createPillarItem(pillar, criteria);
+      });
+
+      const groupPassed = pillars.reduce((sum, p) => sum + p.passed, 0);
+      const groupTotal = pillars.reduce((sum, p) => sum + p.total, 0);
+      const groupPct = groupTotal > 0 ? Math.round((groupPassed / groupTotal) * 100) : 0;
+
+      const groupItem = new ReadinessItem(
+        label,
+        vscode.TreeItemCollapsibleState.Expanded,
+        groupChildren
+      );
+      groupItem.iconPath = new vscode.ThemeIcon(
+        groupPct === 100 ? "pass" : groupPct >= 50 ? "warning" : "error",
+        groupPct === 100
+          ? new vscode.ThemeColor("testing.iconPassed")
+          : groupPct >= 50
+            ? new vscode.ThemeColor("problemsWarningIcon.foreground")
+            : new vscode.ThemeColor("testing.iconFailed")
+      );
+      groupItem.description = `${groupPassed}/${groupTotal} (${groupPct}%)`;
+      groupItem.contextValue = "pillarGroup";
+      items.push(groupItem);
     }
 
     return items;

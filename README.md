@@ -5,102 +5,56 @@
 [![CI](https://github.com/digitarald/primer/actions/workflows/ci.yml/badge.svg)](https://github.com/digitarald/primer/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Primer is a CLI and VS Code extension that helps teams prepare repositories for AI-assisted development. It generates custom instructions, assesses AI readiness with a maturity model, and supports batch processing across organizations — with an interactive TUI, visual reports, and a policy system for org-wide standards.
-
-```bash
-npx github:digitarald/primer readiness --visual
-```
-
-## Features
-
-- **AI Readiness Reports** — Score repos across 9 pillars with a maturity model (Functional → Autonomous), including an AI tooling pillar that checks for MCP, custom agents, Copilot skills, and custom instructions. Supports per-area breakdowns for monorepos and multi-domain projects
-- **Visual Reports** — GitHub-themed HTML reports with light/dark toggle, expandable pillar details, and maturity model descriptions
-- **Readiness Policies** — Customize which criteria are evaluated, override metadata, and tune pass-rate thresholds with chainable JSON policies
-- **Instruction Generation** — Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK, with per-app support for monorepos. Generate file-based `.instructions.md` files for detected areas (frontend, backend, infra, etc.)
-- **VS Code Extension** — All CLI workflows accessible from command palette, sidebar tree views, and webview panels
-- **Batch Processing** — Process multiple repos across GitHub or Azure DevOps organizations
-- **Evaluation Framework** — Measure how instructions improve AI responses with a judge model
-- **Monorepo Detection** — Supports npm/pnpm/yarn, Cargo, Go, .NET, Gradle, Maven, Bazel, Nx, Pants, and Turborepo workspaces
-- **Interactive TUI** — Ink-based terminal UI with submenus, model picker, activity log, and animated banner
-- **Config Generation** — Generate MCP and VS Code configurations
-- **GitHub & Azure DevOps** — Clone repos, create branches, and open PRs across both platforms
-- **Cross-Platform** — Works on macOS, Linux, and Windows (including `.cmd`/`.bat` Copilot CLI wrappers)
-
-## Prerequisites
-
-| Requirement                       | Notes                                                                    |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| **Node.js 20+**                   | Runtime                                                                  |
-| **GitHub Copilot CLI**            | Bundled with the VS Code Copilot Chat extension                          |
-| **Copilot authentication**        | Run `copilot` → `/login`                                                 |
-| **GitHub CLI** _(optional)_       | For batch processing and PR creation: `brew install gh && gh auth login` |
-| **Azure DevOps PAT** _(optional)_ | Set `AZURE_DEVOPS_PAT` for Azure DevOps workflows                        |
-
-## Installation
-
-```bash
-git clone https://github.com/digitarald/primer.git
-cd primer
-npm install
-npm run build
-npm link
-```
-
-Verify:
-
-```bash
-primer --help
-```
+Primer is a CLI and VS Code extension that helps teams prepare repositories for AI-assisted development. It generates custom instructions, assesses AI readiness across a maturity model, and supports batch processing across organizations.
 
 ## Quick Start
 
 ```bash
-# Interactive setup — generates instructions, MCP, and VS Code configs
+# Clone and install
+git clone https://github.com/digitarald/primer.git
+cd primer && npm install && npm run build && npm link
+
+# 1. Check how AI-ready your repo is
+primer readiness
+
+# 2. Generate AI instructions
+primer instructions
+
+# 3. Generate MCP and VS Code configs
+primer generate mcp
+primer generate vscode
+
+# Or do everything interactively
 primer init
-
-# Non-interactive with defaults
-primer init --yes
 ```
 
-## Global Options
+## Prerequisites
 
-All commands support these flags:
+| Requirement                       | Notes                                                            |
+| --------------------------------- | ---------------------------------------------------------------- |
+| **Node.js 20+**                   | Runtime                                                          |
+| **GitHub Copilot CLI**            | Bundled with the VS Code Copilot Chat extension                  |
+| **Copilot authentication**        | Run `copilot` → `/login`                                         |
+| **GitHub CLI** _(optional)_       | For batch processing and PRs: `brew install gh && gh auth login` |
+| **Azure DevOps PAT** _(optional)_ | Set `AZURE_DEVOPS_PAT` for Azure DevOps workflows                |
 
-| Flag      | Description                                         |
-| --------- | --------------------------------------------------- |
-| `--json`  | Output structured JSON to stdout (machine-readable) |
-| `--quiet` | Suppress all non-essential output                   |
+## Core Workflows
 
-When `--json` is set, commands emit a `CommandResult<T>` envelope:
+### Assess AI Readiness
 
-```json
-{
-  "ok": true,
-  "status": "success",
-  "data": { ... }
-}
-```
-
-Status is one of `"success"`, `"partial"`, `"noop"`, or `"error"`. Errors include an `errors` array.
-
-## Commands
-
-### `primer readiness`
-
-Score a repo's AI readiness across 9 pillars:
+Score a repo across 9 pillars grouped into **Repo Health** (style, build, testing, docs, dev environment, code quality, observability, security) and **AI Setup** (instructions, MCP, agents, skills):
 
 ```bash
 primer readiness                        # terminal summary
 primer readiness --visual               # GitHub-themed HTML report
-primer readiness --json                 # machine-readable JSON
 primer readiness --per-area             # include per-area breakdown
 primer readiness --policy ./strict.json # apply a custom policy
-primer readiness /path/to/repo --output report.html
+primer readiness --json                 # machine-readable JSON
 ```
 
 **Maturity levels:**
 
-| Level | Name         | Description                                         |
+| Level | Name         | What it means                                       |
 | ----- | ------------ | --------------------------------------------------- |
 | 1     | Functional   | Builds, tests, basic tooling in place               |
 | 2     | Documented   | README, CONTRIBUTING, custom AI instructions exist  |
@@ -108,132 +62,53 @@ primer readiness /path/to/repo --output report.html
 | 4     | Optimized    | MCP servers, custom agents, AI skills configured    |
 | 5     | Autonomous   | Full AI-native development with minimal oversight   |
 
-**AI Tooling checks** include `copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, MCP configs, custom agents, and Copilot/Claude skills.
+### Generate Instructions
 
-#### Policies
-
-Policies let you customize which readiness criteria are evaluated, override their metadata, and tune pass-rate thresholds. Multiple policies chain together (last wins).
+Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK:
 
 ```bash
-# Apply a local JSON policy
-primer readiness --policy ./my-policy.json
-
-# Chain multiple policies (comma-separated)
-primer readiness --policy ./base.json,./strict.json
-
-# Also works with batch-readiness
-primer batch-readiness --policy ./org-policy.json
+primer instructions                                 # copilot-instructions.md (default)
+primer instructions --format agents-md               # AGENTS.md
+primer instructions --per-app                        # per-app in monorepos
+primer instructions --areas                          # root + all detected areas
+primer instructions --areas-only                     # area files only (skip root)
+primer instructions --area frontend                  # single area
+primer instructions --output /path/to/file.md        # custom output path
+primer instructions --model claude-sonnet-4.5        # pick model
 ```
 
-A policy file looks like:
+### Evaluate Instructions
 
-```json
-{
-  "name": "my-org-policy",
-  "criteria": {
-    "disable": ["lint-config"],
-    "override": { "readme": { "impact": "high", "level": 2 } }
-  },
-  "extras": {
-    "disable": ["pre-commit"]
-  },
-  "thresholds": {
-    "passRate": 0.9
-  }
-}
-```
-
-Policies can also be set in `primer.config.json` so they apply automatically:
-
-```json
-{
-  "policies": ["./my-policy.json"]
-}
-```
-
-> **Security:** Config-sourced policies are restricted to JSON files only — JS/TS module and npm package policies must be passed via `--policy` to prevent untrusted code execution.
-
-### `primer batch-readiness`
-
-Consolidated visual readiness report across multiple repositories:
+Measure how instructions improve AI responses with a judge model:
 
 ```bash
-primer batch-readiness
-primer batch-readiness --output team-readiness.html
+primer eval --init                        # scaffold eval config from codebase
+primer eval primer.eval.json              # run evaluation
+primer eval --model gpt-4.1 --judge-model claude-sonnet-4.5
+primer eval --list-models                 # list available models
 ```
 
-### `primer generate`
+### Generate Configs
 
-Generate AI configuration files using the Copilot SDK:
+Generate MCP and VS Code configuration files:
 
 ```bash
-primer generate instructions             # copilot-instructions.md
-primer generate agents                    # AGENTS.md
-primer generate instructions --per-app    # per-app in monorepos
 primer generate mcp                       # .vscode/mcp.json
 primer generate vscode --force            # .vscode/settings.json (overwrite)
 ```
 
-Standalone shortcut for instructions:
+### Batch Processing
+
+Process multiple repos across an organization:
 
 ```bash
-primer instructions --repo /path/to/repo --model claude-sonnet-4.5
+primer batch                              # interactive TUI (GitHub)
+primer batch --provider azure             # Azure DevOps
+primer batch owner/repo1 owner/repo2 --json  # headless
+primer batch-readiness --output team.html    # consolidated readiness report
 ```
 
-#### File-based area instructions
-
-Generate `.instructions.md` files scoped to detected areas (e.g., frontend, backend, infra). These use `applyTo` glob patterns so Copilot applies the right context per file:
-
-```bash
-primer instructions --areas              # root + all detected areas
-primer instructions --areas-only         # area files only (skip root)
-primer instructions --area frontend      # single area
-primer instructions --areas --force      # overwrite existing area files
-```
-
-### `primer eval`
-
-Measure how instructions improve AI responses:
-
-```bash
-primer eval --init                        # scaffold eval config from codebase analysis
-primer eval primer.eval.json --repo .     # run evaluation (default model: claude-sonnet-4.5)
-primer eval --model gpt-4.1 --judge-model claude-sonnet-4.5
-primer eval --list-models                 # list available Copilot CLI models
-```
-
-Results include an interactive HTML trajectory viewer comparing responses with/without instructions, with token usage, tool-call counts, and duration.
-
-### `primer batch`
-
-Batch-process repos across an organization:
-
-```bash
-primer batch                              # GitHub repos (interactive TUI)
-primer batch --provider azure             # Azure DevOps repos (interactive TUI)
-```
-
-**Headless mode** — pass repos as arguments or via stdin for CI/automation:
-
-```bash
-# GitHub repos
-primer batch owner/repo1 owner/repo2 --json
-echo "owner/repo1\nowner/repo2" | primer batch --json
-
-# Azure DevOps repos
-primer batch org/project/repo1 org/project/repo2 --provider azure --json
-```
-
-### `primer analyze`
-
-Analyze a repository's tech stack:
-
-```bash
-primer analyze                            # human-readable summary
-primer analyze /path/to/repo --json       # structured JSON output
-```
-
-### `primer pr`
+### Create PRs
 
 Clone a repo, generate configs, and open a PR:
 
@@ -242,13 +117,47 @@ primer pr owner/repo-name
 primer pr my-org/my-project/my-repo --provider azure
 ```
 
-### `primer tui`
+## Readiness Policies
 
-Interactive terminal UI:
+Policies customize which criteria are evaluated, override metadata, and tune pass-rate thresholds:
+
+```bash
+primer readiness --policy ./my-policy.json
+primer readiness --policy ./base.json,./strict.json  # chain multiple
+```
+
+```json
+{
+  "name": "my-org-policy",
+  "criteria": {
+    "disable": ["lint-config"],
+    "override": { "readme": { "impact": "high", "level": 2 } }
+  },
+  "extras": { "disable": ["pre-commit"] },
+  "thresholds": { "passRate": 0.9 }
+}
+```
+
+Policies can also be set in `primer.config.json` to apply automatically:
+
+```json
+{ "policies": ["./my-policy.json"] }
+```
+
+> **Security:** Config-sourced policies are restricted to JSON files only — JS/TS module policies must be passed via `--policy`.
+
+## Global Options
+
+All commands support `--json` (structured JSON to stdout) and `--quiet` (suppress stderr progress). JSON output uses a `CommandResult<T>` envelope:
+
+```json
+{ "ok": true, "status": "success", "data": { ... } }
+```
+
+## Interactive TUI
 
 ```bash
 primer tui
-primer tui --repo /path/to/repo --no-animation
 ```
 
 | Key       | Action                             |
@@ -264,22 +173,17 @@ primer tui --repo /path/to/repo --no-animation
 ```bash
 npm run typecheck        # type check
 npm run lint             # ESLint (flat config + Prettier)
-npm run test             # 267 Vitest tests
-npm run test:coverage    # with coverage via @vitest/coverage-v8
+npm run test             # Vitest tests
+npm run test:coverage    # with coverage
 npm run build            # production build via tsup
-
-# Run from source (no build needed)
-npx tsx src/index.ts --help
+npx tsx src/index.ts --help  # run from source
 ```
 
 ### VS Code Extension
 
 ```bash
 cd vscode-extension
-npm install
-npm run build            # esbuild bundle
-npm run watch            # watch mode
-npm run typecheck        # TypeScript check
+npm install && npm run build
 # Press F5 to launch Extension Development Host
 ```
 
@@ -289,35 +193,23 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and code style guidelines.
 
 ```
 src/
-├── index.ts              # Entry point
 ├── cli.ts                # Commander CLI wiring
-├── config.ts             # Default models (claude-sonnet-4.5)
-├── commands/             # CLI subcommands
+├── commands/             # CLI subcommands (thin orchestrators)
 ├── services/             # Core logic
-│   ├── analyzer.ts        # Repo scanning (languages, frameworks, monorepos)
-│   ├── batch.ts           # Shared batch processing (GitHub + Azure DevOps)
-│   ├── readiness.ts       # 9-pillar scoring engine (with per-area support)
+│   ├── readiness.ts       # 9-pillar scoring engine with pillar groups
 │   ├── visualReport.ts    # HTML report generator
 │   ├── instructions.ts    # Copilot SDK integration
+│   ├── analyzer.ts        # Repo scanning (languages, frameworks, monorepos)
 │   ├── evaluator.ts       # Eval runner + trajectory viewer
-│   ├── evalScaffold.ts    # AI-powered eval config generation
 │   ├── generator.ts       # MCP/VS Code config generation
 │   ├── policy.ts          # Readiness policy loading and chain resolution
 │   ├── git.ts             # Git operations (clone, branch, push)
 │   ├── github.ts          # GitHub API (Octokit)
-│   ├── azureDevops.ts     # Azure DevOps API
-│   └── __tests__/         # Test suite (267 tests)
+│   └── azureDevops.ts     # Azure DevOps API
 ├── ui/                   # Ink/React terminal UI
-└── utils/                # Shared utilities (fs, logger, output, repo, pr)
+└── utils/                # Shared utilities (fs, logger, output)
 
-vscode-extension/
-├── src/
-│   ├── extension.ts       # Extension entry point
-│   ├── commands/          # VS Code command handlers
-│   ├── views/             # Tree view providers (Analysis, Readiness)
-│   ├── services.ts        # Bridge to CLI services
-│   └── webview.ts         # Webview panel management
-└── package.json           # Extension manifest
+vscode-extension/         # VS Code extension (commands, tree views, webview)
 ```
 
 ## Troubleshooting
