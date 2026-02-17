@@ -57,7 +57,7 @@ One command to analyze, generate instructions, and create configs:
 
 ### Create Pull Request
 
-Commit Primer-generated files and open a PR directly from VS Code:
+Commit Primer-generated files and open a PR directly from VS Code. Supports both **GitHub** and **Azure DevOps** repositories — the platform is detected automatically from your git remote.
 
 `Primer: Create Pull Request`
 
@@ -84,7 +84,8 @@ Both views show welcome screens with action buttons when no data is loaded yet.
 - **VS Code 1.100.0+**
 - **GitHub Copilot Chat extension** (provides the Copilot CLI)
 - **Copilot authentication** — run `copilot` → `/login` in your terminal
-- **GitHub CLI** _(optional)_ — for PR creation: `brew install gh && gh auth login`
+- **GitHub account** — for GitHub PR creation (authenticated via VS Code)
+- **Microsoft account** _(optional)_ — for Azure DevOps PR creation (authenticated via VS Code)
 
 ## Links
 
