@@ -8,6 +8,7 @@ import { sanitizeError } from "../batch";
 import { safeWriteFile } from "../../utils/fs";
 import { deriveFileStatus, shouldLog } from "../../utils/output";
 import { GITHUB_REPO_RE, AZURE_REPO_RE } from "../../utils/repo";
+import { resolveOutputPath } from "../../commands/instructions";
 
 // ── sanitizeError ──
 
@@ -196,5 +197,29 @@ describe("safeWriteFile symlink", () => {
     expect(wrote).toBe(false);
     expect(reason).toBe("symlink");
     expect(await fs.readFile(realFile, "utf8")).toBe("original");
+  });
+});
+
+// ── resolveOutputPath ──
+
+describe("resolveOutputPath", () => {
+  it("returns .github/copilot-instructions.md for copilot-instructions format", () => {
+    const result = resolveOutputPath("/repo", "copilot-instructions");
+    expect(result).toBe(path.join("/repo", ".github", "copilot-instructions.md"));
+  });
+
+  it("returns AGENTS.md for agents-md format", () => {
+    const result = resolveOutputPath("/repo", "agents-md");
+    expect(result).toBe(path.join("/repo", "AGENTS.md"));
+  });
+
+  it("uses customOutput when provided, ignoring format", () => {
+    const result = resolveOutputPath("/repo", "agents-md", "/custom/output.md");
+    expect(result).toBe(path.resolve("/custom/output.md"));
+  });
+
+  it("resolves customOutput relative paths", () => {
+    const result = resolveOutputPath("/repo", "copilot-instructions", "relative/path.md");
+    expect(result).toBe(path.resolve("relative/path.md"));
   });
 });

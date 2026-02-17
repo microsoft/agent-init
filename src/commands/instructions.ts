@@ -3,17 +3,30 @@ import path from "path";
 import {
   generateCopilotInstructions,
   generateAreaInstructions,
-  writeAreaInstruction
+  writeAreaInstruction,
+  areaInstructionPath
 } from "../services/instructions";
 import { analyzeRepo } from "../services/analyzer";
+import type { Area } from "../services/analyzer";
 import { ensureDir, safeWriteFile } from "../utils/fs";
+import type { FileAction } from "../services/generator";
 import type { CommandResult } from "../utils/output";
-import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
+import {
+  outputResult,
+  outputError,
+  deriveFileStatus,
+  createProgressReporter,
+  shouldLog
+} from "../utils/output";
+
+type InstructionsFormat = "copilot-instructions" | "agents-md";
 
 type InstructionsOptions = {
   repo?: string;
   output?: string;
   model?: string;
+  format?: InstructionsFormat;
+  perApp?: boolean;
   json?: boolean;
   quiet?: boolean;
   force?: boolean;
@@ -22,75 +35,37 @@ type InstructionsOptions = {
   area?: string;
 };
 
+export function resolveOutputPath(
+  basePath: string,
+  format: InstructionsFormat,
+  customOutput?: string
+): string {
+  if (customOutput) return path.resolve(customOutput);
+  return format === "agents-md"
+    ? path.join(basePath, "AGENTS.md")
+    : path.join(basePath, ".github", "copilot-instructions.md");
+}
+
 export async function instructionsCommand(options: InstructionsOptions): Promise<void> {
   const repoPath = path.resolve(options.repo ?? process.cwd());
-  const outputPath = path.resolve(
-    options.output ?? path.join(repoPath, ".github", "copilot-instructions.md")
-  );
+  const format: InstructionsFormat = options.format ?? "copilot-instructions";
   const progress = createProgressReporter(!shouldLog(options));
   const wantAreas = options.areas || options.areasOnly || options.area;
+  const allFiles: FileAction[] = [];
 
   try {
-    // Generate root instructions unless --areas-only
-    if (!options.areasOnly && !options.area) {
-      let content = "";
-      try {
-        progress.update("Generating instructions...");
-        content = await generateCopilotInstructions({
-          repoPath,
-          model: options.model
-        });
-      } catch (error) {
-        const msg =
-          "Failed to generate instructions with Copilot SDK. " +
-          "Ensure the Copilot CLI is installed (copilot --version) and logged in. " +
-          (error instanceof Error ? error.message : String(error));
-        outputError(msg, Boolean(options.json));
-        if (!wantAreas) return;
-      }
-      if (!content && !wantAreas) {
-        outputError("No instructions were generated.", Boolean(options.json));
-        return;
-      }
-
-      if (content) {
-        await ensureDir(path.dirname(outputPath));
-        const { wrote, reason } = await safeWriteFile(outputPath, content, Boolean(options.force));
-
-        if (!wrote) {
-          const relPath = path.relative(process.cwd(), outputPath);
-          const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
-          if (options.json) {
-            const result: CommandResult<{ outputPath: string; skipped: true; reason: string }> = {
-              ok: true,
-              status: "noop",
-              data: { outputPath, skipped: true, reason: why }
-            };
-            outputResult(result, true);
-          } else if (shouldLog(options)) {
-            progress.update(`Skipped ${relPath}: ${why}`);
-          }
-        } else {
-          const byteCount = Buffer.byteLength(content, "utf8");
-
-          if (options.json) {
-            const result: CommandResult<{ outputPath: string; model: string; byteCount: number }> =
-              {
-                ok: true,
-                status: "success",
-                data: { outputPath, model: options.model ?? "default", byteCount }
-              };
-            outputResult(result, true);
-          } else if (shouldLog(options)) {
-            progress.succeed(`Updated ${path.relative(process.cwd(), outputPath)}`);
-          }
-        }
-      }
+    // Validate option conflicts
+    if (options.perApp && options.output) {
+      outputError(
+        "--output cannot be combined with --per-app (each app gets its own file)",
+        Boolean(options.json)
+      );
+      return;
     }
 
-    // Generate area-based instructions
-    if (wantAreas) {
-      let analysis;
+    // Analyze repo for --per-app or --areas
+    let analysis;
+    if (options.perApp || wantAreas) {
       try {
         analysis = await analyzeRepo(repoPath);
       } catch (error) {
@@ -100,80 +75,142 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
         );
         return;
       }
-      const areas = analysis.areas ?? [];
+    }
 
-      if (areas.length === 0) {
-        if (shouldLog(options)) {
-          progress.update("No areas detected. Use primer.config.json to define custom areas.");
+    // Validate --area early (before generating root instructions)
+    let targetAreas: Area[] = [];
+    if (wantAreas) {
+      const areas = analysis!.areas ?? [];
+      if (options.area) {
+        const areaFilter = options.area.toLowerCase();
+        targetAreas = areas.filter((a) => a.name.toLowerCase() === areaFilter);
+        if (targetAreas.length === 0) {
+          outputError(
+            `Area "${options.area}" not found. Available: ${areas.map((a) => a.name).join(", ")}`,
+            Boolean(options.json)
+          );
+          return;
         }
-        return;
+      } else {
+        targetAreas = areas;
       }
+    }
 
-      const areaFilter = options.area?.toLowerCase();
-      const targetAreas = areaFilter
-        ? areas.filter((a) => a.name.toLowerCase() === areaFilter)
-        : areas;
+    // Build generation targets
+    const targets: Array<{ repoPath: string; savePath: string; label: string }> = [];
+    const apps = analysis?.apps ?? [];
 
-      if (options.area && targetAreas.length === 0) {
-        outputError(
-          `Area "${options.area}" not found. Available: ${areas.map((a) => a.name).join(", ")}`,
-          Boolean(options.json)
+    if (options.perApp && analysis?.isMonorepo && apps.length > 1) {
+      for (const app of apps) {
+        const savePath = resolveOutputPath(app.path, format);
+        targets.push({ repoPath: app.path, savePath, label: app.name });
+      }
+    } else if (!options.areasOnly && !options.area) {
+      const outputPath = resolveOutputPath(repoPath, format, options.output);
+      targets.push({ repoPath, savePath: outputPath, label: path.basename(repoPath) });
+    }
+
+    // Generate root instructions for each target
+    for (const target of targets) {
+      progress.update(`Generating ${format} for ${target.label}...`);
+      try {
+        const content = await generateCopilotInstructions({
+          repoPath: target.repoPath,
+          model: options.model,
+          onProgress: (msg) => progress.update(msg)
+        });
+        if (!content.trim()) {
+          progress.update(`No content generated for ${target.label}.`);
+          allFiles.push({ path: path.relative(process.cwd(), target.savePath), action: "skipped" });
+          continue;
+        }
+        await ensureDir(path.dirname(target.savePath));
+        const rel = path.relative(process.cwd(), target.savePath);
+        const { wrote, reason } = await safeWriteFile(
+          target.savePath,
+          content,
+          Boolean(options.force)
         );
-        return;
+        if (!wrote) {
+          const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+          progress.update(`Skipped ${rel}: ${why}`);
+          allFiles.push({ path: rel, action: "skipped" });
+        } else {
+          allFiles.push({ path: rel, action: "wrote" });
+          progress.succeed(`Wrote ${rel}`);
+        }
+      } catch (error) {
+        const msg =
+          "Failed to generate instructions with Copilot SDK. " +
+          "Ensure the Copilot CLI is installed (copilot --version) and logged in. " +
+          (error instanceof Error ? error.message : String(error));
+        progress.fail(msg);
+        allFiles.push({ path: path.relative(process.cwd(), target.savePath), action: "skipped" });
+        if (!wantAreas) {
+          break;
+        }
       }
+    }
 
-      if (shouldLog(options)) {
+    // Generate area-based instructions
+    if (wantAreas) {
+      if (targetAreas.length === 0) {
+        progress.update("No areas detected. Use primer.config.json to define custom areas.");
+      } else {
         progress.update(`Generating file-based instructions for ${targetAreas.length} area(s)...`);
-      }
 
-      for (const area of targetAreas) {
-        try {
-          if (shouldLog(options)) {
+        for (const area of targetAreas) {
+          const areaRel = path.relative(process.cwd(), areaInstructionPath(repoPath, area));
+          try {
             progress.update(
               `Generating for "${area.name}" (${Array.isArray(area.applyTo) ? area.applyTo.join(", ") : area.applyTo})...`
             );
-          }
-          const body = await generateAreaInstructions({
-            repoPath,
-            area,
-            model: options.model,
-            onProgress: shouldLog(options) ? (msg) => progress.update(msg) : undefined
-          });
+            const body = await generateAreaInstructions({
+              repoPath,
+              area,
+              model: options.model,
+              onProgress: (msg) => progress.update(msg)
+            });
 
-          if (!body.trim()) {
-            if (shouldLog(options)) {
+            if (!body.trim()) {
               progress.update(`Skipped "${area.name}" — no content generated.`);
+              allFiles.push({ path: areaRel, action: "skipped" });
+              continue;
             }
-            continue;
-          }
 
-          const result = await writeAreaInstruction(repoPath, area, body, options.force);
-          if (result.status === "skipped") {
-            if (shouldLog(options)) {
-              progress.update(`Skipped "${area.name}" — file exists (use --force to overwrite).`);
+            const result = await writeAreaInstruction(repoPath, area, body, options.force);
+            if (result.status === "written") {
+              allFiles.push({ path: areaRel, action: "wrote" });
+              progress.succeed(`Wrote ${areaRel}`);
+            } else {
+              const why =
+                result.status === "symlink"
+                  ? "path is a symlink"
+                  : "file exists (use --force to overwrite)";
+              progress.update(`Skipped "${area.name}" — ${why}.`);
+              allFiles.push({ path: areaRel, action: "skipped" });
             }
-            continue;
-          }
-          if (result.status === "symlink") {
-            if (shouldLog(options)) {
-              progress.update(`Skipped "${area.name}" — path is a symlink.`);
-            }
-            continue;
-          }
-          if (shouldLog(options)) {
-            progress.succeed(`Wrote ${path.relative(process.cwd(), result.filePath)}`);
-          }
-        } catch (error) {
-          if (shouldLog(options)) {
-            progress.update(
+          } catch (error) {
+            progress.fail(
               `Failed for "${area.name}": ${error instanceof Error ? error.message : String(error)}`
             );
+            allFiles.push({ path: areaRel, action: "skipped" });
           }
         }
       }
     }
 
-    if (!wantAreas && shouldLog(options) && !options.json) {
+    // Output JSON result
+    if (options.json) {
+      const { ok, status } = deriveFileStatus(allFiles);
+      const result: CommandResult<{ format: string; files: FileAction[] }> = {
+        ok,
+        status,
+        data: { format, files: allFiles }
+      };
+      outputResult(result, true);
+      if (!ok) process.exitCode = 1;
+    } else if (!wantAreas && shouldLog(options)) {
       process.stderr.write(
         "Please review and share feedback on any unclear or incomplete sections.\n"
       );

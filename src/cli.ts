@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 
 import { analyzeCommand } from "./commands/analyze";
 import { batchCommand } from "./commands/batch";
@@ -57,11 +57,9 @@ export function runCli(argv: string[]): void {
 
   program
     .command("generate")
-    .argument("<type>", "instructions|agents|mcp|vscode")
+    .argument("<type>", "mcp|vscode")
     .argument("[path]", "Path to a local repository")
     .option("--force", "Overwrite existing files")
-    .option("--per-app", "Generate per-app in monorepos")
-    .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
     .action(withGlobalOpts(generateCommand));
 
   program
@@ -94,9 +92,15 @@ export function runCli(argv: string[]): void {
   program
     .command("instructions")
     .option("--repo <path>", "Repository path", process.cwd())
-    .option("--output <path>", "Output path for copilot instructions")
+    .option("--output <path>", "Output path for instructions")
+    .addOption(
+      new Option("--format <format>", "Output format: copilot-instructions or agents-md")
+        .choices(["copilot-instructions", "agents-md"])
+        .default("copilot-instructions")
+    )
+    .option("--per-app", "Generate per-app instructions in monorepos")
     .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
-    .option("--force", "Overwrite existing area instruction files")
+    .option("--force", "Overwrite existing files")
     .option("--areas", "Also generate file-based instructions for detected areas")
     .option("--areas-only", "Generate only file-based area instructions (skip root)")
     .option("--area <name>", "Generate file-based instructions for a specific area")
