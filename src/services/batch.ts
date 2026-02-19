@@ -1,10 +1,12 @@
 import path from "path";
 
 import { DEFAULT_MODEL } from "../config";
+import { ensureDir, safeWriteFile, validateCachePath } from "../utils/fs";
+import type { ProgressReporter } from "../utils/output";
+import { buildInstructionsPrBody } from "../utils/pr";
+
 import type { AzureDevOpsRepo } from "./azureDevops";
 import { createPullRequest as createAzurePullRequest } from "./azureDevops";
-import type { GitHubRepo } from "./github";
-import { createPullRequest as createGitHubPullRequest } from "./github";
 import {
   buildAuthedUrl,
   checkoutBranch,
@@ -14,10 +16,9 @@ import {
   pushBranch,
   setRemoteUrl
 } from "./git";
+import type { GitHubRepo } from "./github";
+import { createPullRequest as createGitHubPullRequest } from "./github";
 import { generateCopilotInstructions } from "./instructions";
-import { ensureDir, safeWriteFile, validateCachePath } from "../utils/fs";
-import type { ProgressReporter } from "../utils/output";
-import { buildInstructionsPrBody } from "../utils/pr";
 
 // ── Types ──
 

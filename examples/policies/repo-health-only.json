@@ -1,0 +1,15 @@
+{
+  "name": "repo-health-only",
+  "criteria": {
+    "disable": [
+      "custom-instructions",
+      "mcp-config",
+      "custom-agents",
+      "copilot-skills",
+      "area-instructions"
+    ]
+  },
+  "extras": {
+    "disable": ["agents-doc"]
+  }
+}

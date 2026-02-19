@@ -3,8 +3,8 @@ import React from "react";
 
 import { getGitHubToken } from "../services/github";
 import { parsePolicySources } from "../services/policy";
-import { outputError } from "../utils/output";
 import { BatchReadinessTui } from "../ui/BatchReadinessTui";
+import { outputError } from "../utils/output";
 
 type BatchReadinessOptions = {
   output?: string;

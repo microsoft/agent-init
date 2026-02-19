@@ -46,6 +46,18 @@ primer init
 
 ## Commands
 
+### `primer analyze` — Inspect Repository Structure
+
+Detects languages, frameworks, monorepo/workspace structure, and area mappings:
+
+```bash
+primer analyze                                # terminal summary
+primer analyze --json                         # machine-readable analysis
+primer analyze --output analysis.json         # save JSON report
+primer analyze --output analysis.md           # save Markdown report
+primer analyze --output analysis.json --force # overwrite existing report
+```
+
 ### `primer readiness` — Assess AI Readiness
 
 Score a repo across 9 pillars grouped into **Repo Health** and **AI Setup**:
@@ -54,7 +66,10 @@ Score a repo across 9 pillars grouped into **Repo Health** and **AI Setup**:
 primer readiness                        # terminal summary
 primer readiness --visual               # GitHub-themed HTML report
 primer readiness --per-area             # include per-area breakdown
-primer readiness --policy ./strict.json # apply a custom policy
+primer readiness --output readiness.json # save JSON report
+primer readiness --output readiness.md   # save Markdown report
+primer readiness --output readiness.html # save HTML report
+primer readiness --policy ./examples/policies/strict.json # apply a custom policy
 primer readiness --json                 # machine-readable JSON
 primer readiness --fail-level 3         # CI gate: exit 1 if below level 3
 ```
@@ -133,8 +148,8 @@ All commands support `--json` (structured JSON to stdout) and `--quiet` (suppres
 Policies customize scoring criteria, override metadata, and tune thresholds:
 
 ```bash
-primer readiness --policy ./strict.json
-primer readiness --policy ./base.json,./strict.json  # chain multiple
+primer readiness --policy ./examples/policies/strict.json
+primer readiness --policy ./examples/policies/strict.json,./my-overrides.json  # chain multiple
 ```
 
 ```json

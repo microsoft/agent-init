@@ -218,12 +218,17 @@ export async function loadPolicy(
     const config = (mod.default ?? mod) as unknown;
     return validatePolicyConfig(config, source);
   } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message: unknown }).message)
+          : String(err);
     if (
-      err instanceof Error &&
-      (err.message.includes("Cannot find module") ||
-        err.message.includes("Cannot find package") ||
-        err.message.includes("MODULE_NOT_FOUND") ||
-        err.message.includes("ERR_MODULE_NOT_FOUND"))
+      message.includes("Cannot find module") ||
+      message.includes("Cannot find package") ||
+      message.includes("MODULE_NOT_FOUND") ||
+      message.includes("ERR_MODULE_NOT_FOUND")
     ) {
       throw new Error(`Policy "${source}" not found. Install it with: npm install ${source}`);
     }

@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
 
 import { withGlobalOpts } from "../../cli";

@@ -55,6 +55,8 @@ export function runCli(argv: string[]): void {
     .command("analyze")
     .description("Detect languages, frameworks, monorepo structure, and areas")
     .argument("[path]", "Path to a local repository")
+    .option("--output <path>", "Write report to file (.json or .md)")
+    .option("--force", "Overwrite existing output file")
     .action(withGlobalOpts(analyzeCommand));
 
   program
@@ -120,7 +122,7 @@ export function runCli(argv: string[]): void {
     .command("readiness")
     .description("AI readiness assessment across 9 maturity pillars")
     .argument("[path]", "Path to a local repository")
-    .option("--output <path>", "Write report to file (.json or .html)")
+    .option("--output <path>", "Write report to file (.json, .md, or .html)")
     .option("--force", "Overwrite existing output file")
     .option("--visual", "Generate visual HTML report")
     .option("--per-area", "Show per-area readiness breakdown")

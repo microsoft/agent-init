@@ -6,7 +6,8 @@ import { parsePolicySources } from "../services/policy";
 import type {
   ReadinessReport,
   ReadinessCriterionResult,
-  AreaReadinessReport
+  AreaReadinessReport,
+  ReadinessPillarSummary
 } from "../services/readiness";
 import { runReadinessReport, groupPillars } from "../services/readiness";
 import { generateVisualReport } from "../services/visualReport";
@@ -31,6 +32,9 @@ export async function readinessCommand(
 ): Promise<void> {
   const repoPath = path.resolve(repoPathArg ?? process.cwd());
   const repoName = path.basename(repoPath);
+  const resolvedOutputPath = options.output ? path.resolve(options.output) : "";
+  const outputExt = options.output ? path.extname(options.output).toLowerCase() : "";
+  let failLevelError: string | undefined;
 
   let report: ReadinessReport;
   try {
@@ -52,17 +56,49 @@ export async function readinessCommand(
       process.stderr.write(`Warning: --fail-level clamped to ${clamped} (valid range: 1–5)\n`);
     }
     if ((report.achievedLevel ?? 0) < clamped) {
+      failLevelError = `Readiness level ${report.achievedLevel ?? 0} is below threshold ${clamped}`;
       if (shouldLog(options)) {
-        process.stderr.write(
-          `Error: Readiness level ${report.achievedLevel ?? 0} is below threshold ${clamped}\n`
-        );
+        process.stderr.write(`Error: ${failLevelError}\n`);
       }
       process.exitCode = 1;
     }
   }
 
+  const jsonResult: CommandResult<ReadinessReport> = failLevelError
+    ? {
+        ok: false,
+        status: "error",
+        data: report,
+        errors: [failLevelError]
+      }
+    : {
+        ok: true,
+        status: "success",
+        data: report
+      };
+  const emitJsonResult = (): void => outputResult(jsonResult, true);
+
+  // Validate output extension early, before any output branch
+  if (options.output) {
+    if (outputExt !== ".json" && outputExt !== ".md" && outputExt !== ".html") {
+      outputError(
+        `Unsupported output format: ${outputExt || "(no extension)"}. Use .json, .md, or .html`,
+        Boolean(options.json)
+      );
+      return;
+    }
+  }
+
+  if (options.visual && outputExt && outputExt !== ".html") {
+    outputError(
+      `Cannot use --visual with ${outputExt} output. Use a .html output path or omit --output.`,
+      Boolean(options.json)
+    );
+    return;
+  }
+
   // Generate visual HTML report
-  if (options.visual || (options.output && options.output.endsWith(".html"))) {
+  if (options.visual || outputExt === ".html") {
     const html = generateVisualReport({
       reports: [{ repo: repoName, report }],
       title: `AI Readiness Report: ${repoName}`,
@@ -70,7 +106,7 @@ export async function readinessCommand(
     });
 
     const outputPath = options.output
-      ? path.resolve(options.output)
+      ? resolvedOutputPath
       : path.join(repoPath, "readiness-report.html");
 
     const { wrote, reason } = await safeWriteFile(outputPath, html, Boolean(options.force));
@@ -82,35 +118,53 @@ export async function readinessCommand(
     if (shouldLog(options)) {
       process.stderr.write(chalk.green(`✓ Visual report generated: ${outputPath}`) + "\n");
     }
+    if (options.json) {
+      emitJsonResult();
+    }
+    return;
+  }
+
+  // Output to Markdown file
+  if (outputExt === ".md") {
+    const md = formatReadinessMarkdown(report, repoName);
+    const { wrote, reason } = await safeWriteFile(resolvedOutputPath, md, Boolean(options.force));
+    if (!wrote) {
+      const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+      outputError(`Skipped ${resolvedOutputPath}: ${why}`, Boolean(options.json));
+      return;
+    }
+    if (shouldLog(options)) {
+      process.stderr.write(chalk.green(`✓ Markdown report saved: ${resolvedOutputPath}`) + "\n");
+    }
+    if (options.json) {
+      emitJsonResult();
+    }
     return;
   }
 
   // Output to JSON file
-  if (options.output && options.output.endsWith(".json")) {
-    const outputPath = path.resolve(options.output);
+  if (outputExt === ".json") {
     const { wrote, reason } = await safeWriteFile(
-      outputPath,
+      resolvedOutputPath,
       JSON.stringify(report, null, 2),
       Boolean(options.force)
     );
     if (!wrote) {
       const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
-      outputError(`Skipped ${outputPath}: ${why}`, Boolean(options.json));
+      outputError(`Skipped ${resolvedOutputPath}: ${why}`, Boolean(options.json));
       return;
     }
     if (shouldLog(options)) {
-      process.stderr.write(chalk.green(`✓ JSON report saved: ${outputPath}`) + "\n");
+      process.stderr.write(chalk.green(`✓ JSON report saved: ${resolvedOutputPath}`) + "\n");
+    }
+    if (options.json) {
+      emitJsonResult();
     }
     return;
   }
 
   if (options.json) {
-    const result: CommandResult<ReadinessReport> = {
-      ok: true,
-      status: "success",
-      data: report
-    };
-    outputResult(result, true);
+    emitJsonResult();
     return;
   }
 
@@ -237,4 +291,91 @@ function printAreaBreakdown(areaReports: AreaReadinessReport[]): void {
       log(`  ${chalk.red("✖")} ${f.title}${f.reason ? ` — ${chalk.dim(f.reason)}` : ""}`);
     }
   }
+}
+
+export function formatReadinessMarkdown(report: ReadinessReport, repoName: string): string {
+  const lines: string[] = [];
+
+  lines.push(`# AI Readiness Report: ${repoName}`);
+  lines.push("");
+  lines.push(`**Level ${report.achievedLevel}** — ${levelName(report.achievedLevel)}`);
+  lines.push("");
+
+  // Pillar summary table
+  const groups = groupPillars(report.pillars);
+  for (const { label, pillars } of groups) {
+    if (pillars.length === 0) continue;
+    lines.push(`## ${label}`);
+    lines.push("");
+    lines.push("| Pillar | Passed | Total | Rate |");
+    lines.push("| --- | ---: | ---: | ---: |");
+    for (const pillar of pillars) {
+      const icon = pillar.passRate >= 0.8 ? "✅" : "⚠️";
+      lines.push(
+        `| ${icon} ${pillar.name} | ${pillar.passed} | ${pillar.total} | ${formatPercent(pillar.passRate)} |`
+      );
+    }
+    lines.push("");
+  }
+
+  // Fix-first list
+  const fixes = rankFixes(report.criteria);
+  if (fixes.length > 0) {
+    lines.push("## Fix First");
+    lines.push("");
+    for (const fix of fixes) {
+      const detail = fix.appSummary
+        ? ` (${fix.appSummary.passed}/${fix.appSummary.total} apps)`
+        : "";
+      lines.push(`- **${fix.title}**${detail} — ${fix.impact} impact, ${fix.effort} effort`);
+      if (fix.reason) {
+        lines.push(`  - ${fix.reason}`);
+      }
+    }
+    lines.push("");
+  }
+
+  // Extras
+  if (report.extras.length > 0) {
+    lines.push("## AI Readiness Extras");
+    lines.push("");
+    for (const extra of report.extras) {
+      const icon = extra.status === "pass" ? "✅" : "❌";
+      lines.push(`- ${icon} ${extra.title}`);
+    }
+    lines.push("");
+  }
+
+  // Area breakdown
+  if (report.areaReports?.length) {
+    lines.push("## Per-Area Breakdown");
+    lines.push("");
+    for (const ar of report.areaReports) {
+      const passed = ar.pillars.reduce(
+        (sum: number, p: ReadinessPillarSummary) => sum + p.passed,
+        0
+      );
+      const total = ar.pillars.reduce((sum: number, p: ReadinessPillarSummary) => sum + p.total, 0);
+      const pct = total ? Math.round((passed / total) * 100) : 0;
+      lines.push(`### ${ar.area.name} — ${passed}/${total} (${pct}%)`);
+      lines.push("");
+      const failures = ar.criteria.filter((c) => c.status === "fail");
+      if (failures.length > 0) {
+        for (const f of failures) {
+          lines.push(`- ❌ ${f.title}${f.reason ? ` — ${f.reason}` : ""}`);
+        }
+      } else {
+        lines.push("All criteria passing.");
+      }
+      lines.push("");
+    }
+  }
+
+  lines.push("---");
+  lines.push(
+    `*Generated by [Primer](https://github.com/digitarald/primer) on ${report.generatedAt}*`
+  );
+  lines.push("");
+
+  return lines.join("\n");
 }

@@ -4,10 +4,10 @@ import path from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { sanitizeError } from "../batch";
 import { safeWriteFile } from "../../utils/fs";
 import { deriveFileStatus, shouldLog } from "../../utils/output";
 import { GITHUB_REPO_RE, AZURE_REPO_RE } from "../../utils/repo";
+import { sanitizeError } from "../batch";
 
 // ── sanitizeError ──
 

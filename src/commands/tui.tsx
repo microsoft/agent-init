@@ -3,8 +3,8 @@ import path from "path";
 import { render } from "ink";
 import React from "react";
 
-import { outputError } from "../utils/output";
 import { PrimerTui } from "../ui/tui";
+import { outputError } from "../utils/output";
 
 type TuiOptions = {
   repo?: string;

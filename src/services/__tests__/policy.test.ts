@@ -4,9 +4,9 @@ import path from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { ReadinessCriterion } from "../readiness";
 import type { ExtraDefinition, PolicyConfig } from "../policy";
 import { loadPolicy, resolveChain, parsePolicySources } from "../policy";
+import type { ReadinessCriterion } from "../readiness";
 
 // ─── Helpers ───
 

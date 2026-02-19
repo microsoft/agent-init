@@ -1,0 +1,25 @@
+{
+  "name": "ai-only",
+  "criteria": {
+    "disable": [
+      "lint-config",
+      "typecheck-config",
+      "build-script",
+      "ci-config",
+      "test-script",
+      "readme",
+      "contributing",
+      "lockfile",
+      "env-example",
+      "format-config",
+      "codeowners",
+      "license",
+      "security-policy",
+      "dependabot",
+      "observability",
+      "area-readme",
+      "area-build-script",
+      "area-test-script"
+    ]
+  }
+}
