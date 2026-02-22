@@ -4,7 +4,7 @@
   "description": "Prime repositories for AI-assisted development: generate Copilot instructions, VS Code configs, MCP configs, and evaluate AI agent effectiveness.",
   "version": "0.0.1",
   "publisher": "digitarald",
-  "license": "ISC",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.100.0"
   },
