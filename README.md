@@ -2,7 +2,7 @@
 
 > Prime your repositories for AI-assisted development.
 
-[![CI](https://github.com/digitarald/primer/actions/workflows/ci.yml/badge.svg)](https://github.com/digitarald/primer/actions/workflows/ci.yml)
+[![CI](https://github.com/pierceboggan/primer/actions/workflows/ci.yml/badge.svg)](https://github.com/pierceboggan/primer/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Primer is a CLI and VS Code extension that helps teams prepare repositories for AI-assisted development. It generates custom instructions, assesses AI readiness across a maturity model, and supports batch processing across organizations.
@@ -11,13 +11,13 @@ Primer is a CLI and VS Code extension that helps teams prepare repositories for 
 
 ```bash
 # Run directly (no install needed)
-npx github:digitarald/primer readiness
+npx github:pierceboggan/primer readiness
 ```
 
 Or install locally:
 
 ```bash
-git clone https://github.com/digitarald/primer.git
+git clone https://github.com/pierceboggan/primer.git
 cd primer && npm install && npm run build && npm link
 
 # 1. Check how AI-ready your repo is
