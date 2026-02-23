@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 
 import type { Key } from "ink";
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
 import React, { useEffect, useMemo, useState } from "react";
 
 import type { RepoApp, Area } from "../services/analyzer";
@@ -61,6 +61,20 @@ type LogEntry = {
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+/** Track terminal columns reactively so resize triggers a re-render. */
+function useTerminalColumns(): number {
+  const { stdout } = useStdout();
+  const [columns, setColumns] = useState(stdout.columns ?? 80);
+  useEffect(() => {
+    const onResize = () => setColumns(stdout.columns ?? 80);
+    stdout.on("resize", onResize);
+    return () => {
+      stdout.off("resize", onResize);
+    };
+  }, [stdout]);
+  return columns;
+}
+
 function useSpinner(active: boolean): string {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
@@ -99,26 +113,34 @@ function KeyHint({ k, label }: { k: string; label: string }): React.JSX.Element 
   );
 }
 
-function Divider({ label }: { label?: string }): React.JSX.Element {
+function Divider({ label, columns }: { label?: string; columns: number }): React.JSX.Element {
+  // Account for root Box border (2) + padding (2) = 4 chars
+  const innerWidth = Math.max(0, columns - 4);
   if (label) {
+    const prefix = "── ";
+    const suffix = " ";
+    const used = prefix.length + label.length + suffix.length;
+    const fill = "─".repeat(Math.max(1, innerWidth - used));
     return (
       <Box marginTop={1}>
         <Text color="gray" dimColor>
-          {"── "}
+          {prefix}
         </Text>
         <Text color="gray" bold>
           {label}
         </Text>
         <Text color="gray" dimColor>
-          {" ──────────────────────────────────────────"}
+          {suffix}
+          {fill}
         </Text>
       </Box>
     );
   }
+  const fill = "─".repeat(Math.max(1, innerWidth));
   return (
     <Box marginTop={1}>
       <Text color="gray" dimColor>
-        {"────────────────────────────────────────────────────"}
+        {fill}
       </Text>
     </Box>
   );
@@ -135,6 +157,7 @@ function pickBestModel(available: string[], fallback: string): string {
 
 export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
+  const terminalColumns = useTerminalColumns();
   const [status, setStatus] = useState<Status>(skipAnimation ? "idle" : "intro");
   const [message, setMessage] = useState<string>("");
   const [generatedContent, setGeneratedContent] = useState<string>("");
@@ -362,11 +385,6 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           return;
         }
 
-        if (key.escape || input.toLowerCase() === "q") {
-          app.exit();
-          return;
-        }
-
         if (status === "preview") {
           if (input.toLowerCase() === "s") {
             try {
@@ -395,6 +413,10 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             setMessage("Discarded generated instructions.");
             addLog("Discarded instructions.", "info");
             setGeneratedContent("");
+            return;
+          }
+          if (key.escape || input.toLowerCase() === "q") {
+            app.exit();
             return;
           }
           return;
@@ -431,6 +453,13 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             return;
           }
 
+          if (key.escape) {
+            setStatus("idle");
+            setMessage("");
+            setEvalCaseCountInput("");
+            setEvalBootstrapCount(null);
+            return;
+          }
           return;
         }
 
@@ -446,11 +475,16 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             return;
           }
 
-          if (input.toLowerCase() === "n") {
+          if (input.toLowerCase() === "n" || key.escape) {
             setStatus("idle");
             setMessage("Bootstrap cancelled.");
             setEvalCaseCountInput("");
             setEvalBootstrapCount(null);
+            return;
+          }
+          if (input.toLowerCase() === "q") {
+            app.exit();
+            return;
           }
           return;
         }
@@ -823,6 +857,11 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           setModelCursor(idx >= 0 ? idx : 0);
           return;
         }
+
+        if (key.escape || input.toLowerCase() === "q") {
+          app.exit();
+          return;
+        }
       } catch (err) {
         setStatus("error");
         setMessage(err instanceof Error ? err.message : "Unexpected error");
@@ -885,12 +924,14 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
     return <BatchTuiAzure token={batchAzureToken} />;
   }
 
+  const innerWidth = Math.max(0, terminalColumns - 4);
+
   return (
-    <Box flexDirection="column" padding={1} borderStyle="round" borderColor="magenta">
+    <Box flexDirection="column" padding={1} borderStyle="round" borderColor="magenta" width="100%">
       {status === "intro" ? (
-        <AnimatedBanner onComplete={handleAnimationComplete} />
+        <AnimatedBanner onComplete={handleAnimationComplete} maxWidth={innerWidth} />
       ) : (
-        <StaticBanner />
+        <StaticBanner maxWidth={innerWidth} />
       )}
 
       {/* Status Bar */}
@@ -904,7 +945,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       </Box>
 
       {/* Context */}
-      <Divider label="Context" />
+      <Divider columns={terminalColumns} label="Context" />
       <Box marginTop={0} flexDirection="column" paddingLeft={1}>
         <Text>
           <Text color="gray">Repo </Text>
@@ -945,7 +986,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       </Box>
 
       {/* Activity */}
-      <Divider label="Activity" />
+      <Divider columns={terminalColumns} label="Activity" />
       <Box marginTop={0} flexDirection="column" paddingLeft={1}>
         {activityLog.length === 0 && !message ? (
           <Text color="gray" dimColor>
@@ -989,7 +1030,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       {/* Model Picker */}
       {status === "model-pick" && availableModels.length > 0 && (
         <>
-          <Divider label={`Pick ${modelPickTarget} model`} />
+          <Divider columns={terminalColumns} label={`Pick ${modelPickTarget} model`} />
           <Box flexDirection="column" paddingLeft={1}>
             {availableModels.map((model, i) => {
               const current = modelPickTarget === "eval" ? evalModel : judgeModel;
@@ -1025,7 +1066,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       {/* App picker for monorepo generate */}
       {status === "generate-app-pick" && repoApps.length > 0 && (
         <>
-          <Divider label={`Generate ${generateTarget}`} />
+          <Divider columns={terminalColumns} label={`Generate ${generateTarget}`} />
           <Box flexDirection="column" paddingLeft={1}>
             {repoApps.map((app, i) => (
               <Text key={app.name}>
@@ -1047,7 +1088,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       {/* Area picker for file-based instructions */}
       {status === "generate-area-pick" && repoAreas.length > 0 && (
         <>
-          <Divider label="File-based instructions" />
+          <Divider columns={terminalColumns} label="File-based instructions" />
           <Box flexDirection="column" paddingLeft={1}>
             {repoAreas.map((area, i) => (
               <Text key={area.name}>
@@ -1103,7 +1144,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       {/* Eval Results */}
       {evalResults && evalResults.length > 0 && (
         <>
-          <Divider label="Eval Results" />
+          <Divider columns={terminalColumns} label="Eval Results" />
           <Box flexDirection="column" paddingLeft={1}>
             {evalResults.map((r) => (
               <Text key={r.id}>
@@ -1129,7 +1170,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       )}
 
       {/* Commands */}
-      <Divider label="Commands" />
+      <Divider columns={terminalColumns} label="Commands" />
       <Box marginTop={0} paddingLeft={1} flexDirection="column">
         {status === "intro" ? (
           <Text color="gray">Press any key to skip animation...</Text>
