@@ -14,19 +14,16 @@ const watch = process.argv.includes("--watch");
 const shimSdkImportMeta = {
   name: "shim-sdk-import-meta",
   setup(build) {
-    build.onLoad(
-      { filter: /copilot-sdk[\\/]dist[\\/]client\.js$/ },
-      async (args) => {
-        let contents = await readFile(args.path, "utf8");
-        // Replace the body of getBundledCliPath with a safe no-op return.
-        // The function signature and surrounding code stay intact.
-        contents = contents.replace(
-          'const sdkUrl = import.meta.resolve("@github/copilot/sdk");\n  const sdkPath = fileURLToPath(sdkUrl);\n  return join(dirname(dirname(sdkPath)), "index.js");',
-          'return "bundled-cli-unavailable";'
-        );
-        return { contents, loader: "js" };
-      }
-    );
+    build.onLoad({ filter: /copilot-sdk[\\/]dist[\\/]client\.js$/ }, async (args) => {
+      let contents = await readFile(args.path, "utf8");
+      // Replace the body of getBundledCliPath with a safe no-op return.
+      // The function signature and surrounding code stay intact.
+      contents = contents.replace(
+        'const sdkUrl = import.meta.resolve("@github/copilot/sdk");\n  const sdkPath = fileURLToPath(sdkUrl);\n  return join(dirname(dirname(sdkPath)), "index.js");',
+        'return "bundled-cli-unavailable";'
+      );
+      return { contents, loader: "js" };
+    });
   }
 };
 
