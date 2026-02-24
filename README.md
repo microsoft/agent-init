@@ -78,13 +78,16 @@ primer readiness --fail-level 3         # CI gate: exit 1 if below level 3
 
 **Maturity levels:**
 
-| Level | Name         | What it means                                       |
-| ----- | ------------ | --------------------------------------------------- |
-| 1     | Functional   | Builds, tests, basic tooling in place               |
-| 2     | Documented   | README, CONTRIBUTING, custom AI instructions exist  |
-| 3     | Standardized | CI/CD, security policies, CODEOWNERS, observability |
-| 4     | Optimized    | MCP servers, custom agents, AI skills configured    |
-| 5     | Autonomous   | Full AI-native development with minimal oversight   |
+| Level | Name       | What it means                                      |
+| ----- | ---------- | -------------------------------------------------- |
+| 1     | Functional | Builds, tests, basic tooling in place              |
+| 2     | Documented | README, CONTRIBUTING, custom AI instructions exist |
+
+At Level 2, Primer also checks **instruction consistency** — when a repo has multiple AI instruction files (e.g. `copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`), it detects whether they diverge. Symlinked or identical files pass; diverging files fail with a similarity score and a suggestion to consolidate.
+
+| 3 | Standardized | CI/CD, security policies, CODEOWNERS, observability |
+| 4 | Optimized | MCP servers, custom agents, AI skills configured |
+| 5 | Autonomous | Full AI-native development with minimal oversight |
 
 ### `primer instructions` — Generate Instructions
 

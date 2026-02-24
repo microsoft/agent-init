@@ -7,6 +7,10 @@ Generate custom instruction files that help Copilot (and other AI tools) underst
 - **copilot-instructions.md** — GitHub Copilot's native format, placed in `.github/`
 - **AGENTS.md** — Broader agent instructions at the repo root
 
+### Keep instructions consistent
+
+When your repo has multiple instruction files (e.g. both `copilot-instructions.md` and `CLAUDE.md`), Primer's readiness check detects whether they diverge. Symlinked or identical files pass; diverging files are flagged with a similarity score. Consider symlinking one to the other or consolidating into a single source of truth.
+
 ### Monorepo support
 
 For monorepos, Primer can generate **per-area** instruction files scoped with `applyTo` glob patterns. Each area (frontend, backend, infra) gets its own tailored instructions.

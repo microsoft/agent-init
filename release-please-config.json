@@ -4,6 +4,10 @@
     ".": {
       "package-name": "primer",
       "changelog-path": "CHANGELOG.md"
+    },
+    "vscode-extension": {
+      "package-name": "primer-vscode",
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }

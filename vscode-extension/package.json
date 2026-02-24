@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/digitarald/primer.git"
+    "url": "https://github.com/pierceboggan/primer.git"
   },
   "engines": {
     "vscode": "^1.109.0"
@@ -294,6 +294,7 @@
     "@octokit/rest": "^22.0.1",
     "@types/node": "^25.2.3",
     "@types/vscode": "^1.109.0",
+    "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.27.3",
     "typescript": "^5.9.3"
   }

@@ -15,7 +15,7 @@ Primer evaluates your repository across **9 pillars** organized into two groups:
 
 ### AI Setup
 
-- **AI Tooling** — custom instructions, MCP servers, agents, skills
+- **AI Tooling** — custom instructions, instruction consistency, MCP servers, agents, skills
 
 ### Maturity levels
 
