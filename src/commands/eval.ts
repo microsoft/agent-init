@@ -1,6 +1,12 @@
 import path from "path";
-import fs from "fs/promises";
+
+import { DEFAULT_MODEL, DEFAULT_JUDGE_MODEL } from "../config";
+import { listCopilotModels } from "../services/copilot";
+import { generateEvalScaffold } from "../services/evalScaffold";
 import { runEval } from "../services/evaluator";
+import { safeWriteFile } from "../utils/fs";
+import type { CommandResult } from "../utils/output";
+import { outputResult, outputError, createProgressReporter, shouldLog } from "../utils/output";
 
 type EvalOptions = {
   repo?: string;
@@ -8,58 +14,143 @@ type EvalOptions = {
   judgeModel?: string;
   output?: string;
   init?: boolean;
+  count?: string;
+  listModels?: boolean;
+  failLevel?: string;
+  json?: boolean;
+  quiet?: boolean;
 };
 
-const EVAL_SCAFFOLD = {
-  instructionFile: ".github/copilot-instructions.md",
-  cases: [
-    {
-      id: "project-overview",
-      prompt: "Summarize what this project does and list the main entry points.",
-      expectation: "Should mention the primary purpose and key files/directories."
-    },
-    {
-      id: "tech-stack",
-      prompt: "What languages and frameworks does this project use?",
-      expectation: "Should correctly identify the main languages and frameworks."
-    },
-    {
-      id: "build-commands",
-      prompt: "How do I build and test this project?",
-      expectation: "Should provide the correct build and test commands from package.json or equivalent."
-    }
-  ]
-};
-
-export async function evalCommand(configPathArg: string | undefined, options: EvalOptions): Promise<void> {
+export async function evalCommand(
+  configPathArg: string | undefined,
+  options: EvalOptions
+): Promise<void> {
   const repoPath = path.resolve(options.repo ?? process.cwd());
-  
+
+  if (options.listModels) {
+    try {
+      const models = await listCopilotModels();
+      if (!models.length) {
+        if (options.json) {
+          const result: CommandResult<{ models: string[] }> = {
+            ok: true,
+            status: "success",
+            data: { models: [] }
+          };
+          outputResult(result, true);
+        } else if (shouldLog(options)) {
+          process.stderr.write("No models detected from Copilot CLI.\n");
+        }
+        return;
+      }
+      if (options.json) {
+        const result: CommandResult<{ models: string[] }> = {
+          ok: true,
+          status: "success",
+          data: { models }
+        };
+        outputResult(result, true);
+      } else if (shouldLog(options)) {
+        process.stderr.write(models.join("\n") + "\n");
+      }
+    } catch (error) {
+      outputError(
+        `Failed to list models: ${error instanceof Error ? error.message : String(error)}`,
+        Boolean(options.json)
+      );
+    }
+    return;
+  }
+
   // Handle --init flag
   if (options.init) {
     const outputPath = path.join(repoPath, "primer.eval.json");
+    const desiredCount = Math.max(1, Number.parseInt(options.count ?? "5", 10) || 5);
     try {
-      await fs.access(outputPath);
-      console.error(`primer.eval.json already exists at ${outputPath}`);
-      process.exitCode = 1;
-      return;
-    } catch {
-      // File doesn't exist, create it
+      const progress = createProgressReporter(!shouldLog(options));
+      const scaffold = await generateEvalScaffold({
+        repoPath,
+        count: desiredCount,
+        model: options.model,
+        onProgress: (msg) => progress.update(msg)
+      });
+      const { wrote, reason } = await safeWriteFile(
+        outputPath,
+        JSON.stringify(scaffold, null, 2),
+        false
+      );
+      if (!wrote) {
+        const why = reason === "symlink" ? "path is a symlink" : "file exists";
+        outputError(`Skipped ${outputPath}: ${why}`, Boolean(options.json));
+        return;
+      }
+
+      if (options.json) {
+        const result: CommandResult<{ outputPath: string }> = {
+          ok: true,
+          status: "success",
+          data: { outputPath }
+        };
+        outputResult(result, true);
+      } else if (shouldLog(options)) {
+        process.stderr.write(`Created ${outputPath}\n`);
+        process.stderr.write(
+          "Edit the file to add your own test cases, then run 'primer eval' to test.\n"
+        );
+      }
+    } catch (error) {
+      outputError(
+        `Failed to scaffold eval config: ${error instanceof Error ? error.message : String(error)}`,
+        Boolean(options.json)
+      );
     }
-    await fs.writeFile(outputPath, JSON.stringify(EVAL_SCAFFOLD, null, 2), "utf8");
-    console.log(`Created ${outputPath}`);
-    console.log("Edit the file to add your own test cases, then run 'primer eval' to test.");
     return;
   }
 
   const configPath = path.resolve(configPathArg ?? path.join(repoPath, "primer.eval.json"));
 
-  const { summary } = await runEval({
-    configPath,
-    repoPath,
-    model: options.model ?? "gpt-5",
-    judgeModel: options.judgeModel ?? "gpt-5",
-    outputPath: options.output
-  });
+  try {
+    const progress = createProgressReporter(!shouldLog(options));
+    const { summary, results, viewerPath } = await runEval({
+      configPath,
+      repoPath,
+      model: options.model ?? DEFAULT_MODEL,
+      judgeModel: options.judgeModel ?? DEFAULT_JUDGE_MODEL,
+      outputPath: options.output,
+      onProgress: (msg) => progress.update(msg)
+    });
 
-  console.log(summary);
+    if (options.json) {
+      const result: CommandResult<{ summary: string; viewerPath?: string }> = {
+        ok: true,
+        status: "success",
+        data: { summary, viewerPath }
+      };
+      outputResult(result, true);
+    } else if (shouldLog(options)) {
+      process.stderr.write(summary + "\n");
+      if (viewerPath) {
+        process.stderr.write(`Trajectory viewer: ${viewerPath}\n`);
+      }
+    }
+
+    const threshold = Number.parseInt(options.failLevel ?? "", 10);
+    if (Number.isFinite(threshold)) {
+      const total = results.length;
+      const passed = results.filter((r) => r.verdict === "pass").length;
+      const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+      if (passRate < threshold) {
+        outputError(
+          `Pass rate ${passRate}% (${passed}/${total}) is below threshold ${threshold}%`,
+          Boolean(options.json)
+        );
+        process.exitCode = 1;
+      }
+    }
+  } catch (error) {
+    outputError(
+      `Eval failed: ${error instanceof Error ? error.message : String(error)}`,
+      Boolean(options.json)
+    );
+  }
 }

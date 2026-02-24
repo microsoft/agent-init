@@ -1,6 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
-import simpleGit, { SimpleGitProgressEvent } from "simple-git";
+
+import type { SimpleGitProgressEvent } from "simple-git";
+import simpleGit from "simple-git";
 
 export async function isGitRepo(repoPath: string): Promise<boolean> {
   try {
@@ -11,12 +13,6 @@ export async function isGitRepo(repoPath: string): Promise<boolean> {
   }
 }
 
-export async function getRepoRoot(repoPath: string): Promise<string> {
-  const git = simpleGit(repoPath);
-  const root = await git.revparse(["--show-toplevel"]);
-  return root.trim();
-}
-
 export type CloneOptions = {
   shallow?: boolean;
   timeoutMs?: number;
@@ -24,16 +20,18 @@ export type CloneOptions = {
 };
 
 export async function cloneRepo(
-  repoUrl: string, 
+  repoUrl: string,
   destination: string,
   options: CloneOptions = {}
 ): Promise<void> {
   const { shallow = true, timeoutMs = 60000, onProgress } = options;
-  
+
   const git = simpleGit({
-    progress: onProgress ? ({ stage, progress }: SimpleGitProgressEvent) => {
-      onProgress(stage, progress);
-    } : undefined,
+    progress: onProgress
+      ? ({ stage, progress }: SimpleGitProgressEvent) => {
+          onProgress(stage, progress);
+        }
+      : undefined,
     timeout: {
       block: timeoutMs
     }
@@ -45,6 +43,15 @@ export async function cloneRepo(
   }
 
   await git.clone(repoUrl, destination, cloneArgs);
+}
+
+/**
+ * Replace the remote origin URL, typically to strip embedded credentials
+ * after cloning with an authenticated URL.
+ */
+export async function setRemoteUrl(repoPath: string, url: string): Promise<void> {
+  const git = simpleGit(repoPath);
+  await git.remote(["set-url", "origin", url]);
 }
 
 export async function checkoutBranch(repoPath: string, branch: string): Promise<void> {
@@ -65,6 +72,8 @@ export async function commitAll(repoPath: string, message: string): Promise<void
   await git.commit(message);
 }
 
+export type AuthProvider = "github" | "azure";
+
 /** Normalize a git URL by removing trailing slashes and any existing auth */
 function normalizeGitUrl(url: string): string {
   let normalized = url.trim();
@@ -74,21 +83,44 @@ function normalizeGitUrl(url: string): string {
   }
   // Remove any existing x-access-token auth
   normalized = normalized.replace(/https:\/\/x-access-token:[^@]+@/, "https://");
+  // Remove any existing PAT auth
+  normalized = normalized.replace(/https:\/\/pat:[^@]+@/, "https://");
   return normalized;
 }
 
-export async function pushBranch(repoPath: string, branch: string, token?: string): Promise<void> {
+export function buildAuthedUrl(url: string, token: string, provider: AuthProvider): string {
+  const normalizedUrl = normalizeGitUrl(url);
+  if (!normalizedUrl.startsWith("https://")) return normalizedUrl;
+  if (provider === "azure") {
+    return normalizedUrl.replace("https://", `https://pat:${token}@`);
+  }
+  return normalizedUrl.replace("https://", `https://x-access-token:${token}@`);
+}
+
+export async function pushBranch(
+  repoPath: string,
+  branch: string,
+  token?: string,
+  provider: AuthProvider = "github"
+): Promise<void> {
   const git = simpleGit(repoPath);
-  
+
   if (token) {
     // Set up credentials for this push
     const remoteUrl = (await git.remote(["get-url", "origin"])) ?? "";
     const normalizedUrl = normalizeGitUrl(remoteUrl);
     if (normalizedUrl.startsWith("https://")) {
-      const authedUrl = normalizedUrl.replace("https://", `https://x-access-token:${token}@`);
+      const authedUrl = buildAuthedUrl(normalizedUrl, token, provider);
       await git.remote(["set-url", "origin", authedUrl]);
       try {
         await git.push(["-u", "origin", branch]);
+      } catch (err) {
+        // Strip embedded credentials from error messages to avoid leaking tokens
+        const sanitized =
+          err instanceof Error
+            ? new Error(err.message.replace(/https:\/\/[^@]+@/g, "https://***@"))
+            : err;
+        throw sanitized;
       } finally {
         // Restore original URL to avoid leaking token
         await git.remote(["set-url", "origin", normalizedUrl]);
@@ -96,6 +128,6 @@ export async function pushBranch(repoPath: string, branch: string, token?: strin
       return;
     }
   }
-  
+
   await git.push(["-u", "origin", branch]);
 }

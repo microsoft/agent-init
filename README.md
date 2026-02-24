@@ -2,290 +2,229 @@
 
 > Prime your repositories for AI-assisted development.
 
-Primer is a CLI tool that analyzes your codebase and generates `.github/copilot-instructions.md` files to help AI coding assistants understand your project better. It supports single repos, batch processing across organizations, and includes an evaluation framework to measure instruction effectiveness.
+[![CI](https://github.com/pierceboggan/primer/actions/workflows/ci.yml/badge.svg)](https://github.com/pierceboggan/primer/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-![Primer](primer.png)
+Primer is a CLI and VS Code extension that helps teams prepare repositories for AI-assisted development. It generates custom instructions, assesses AI readiness across a maturity model, and supports batch processing across organizations.
 
-## Features
+## Quick Start
 
-- **Repository Analysis** - Detects languages, frameworks, and package managers
-- **AI-Powered Generation** - Uses the Copilot SDK to analyze your codebase and generate context-aware instructions
-- **Batch Processing** - Process multiple repos across organizations with a single command
-- **Evaluation Framework** - Test and measure how well your instructions improve AI responses
-- **GitHub Integration** - Clone repos, create branches, and open PRs automatically
-- **Interactive TUI** - Beautiful terminal interface built with Ink
-- **Config Generation** - Generate MCP and VS Code configurations
+```bash
+# Run directly (no install needed)
+npx github:pierceboggan/primer readiness
+```
+
+`npx github:<owner>/primer ...` installs from the Git repository and runs the package `prepare` script, which builds the CLI before first use.
+
+Or install locally:
+
+```bash
+git clone https://github.com/pierceboggan/primer.git
+cd primer && npm install && npm run build && npm link
+
+# 1. Check how AI-ready your repo is
+primer readiness
+
+# 2. Generate AI instructions
+primer instructions
+
+# 3. Generate MCP and VS Code configs
+primer generate mcp
+primer generate vscode
+
+# Or do everything interactively
+primer init
+```
 
 ## Prerequisites
 
-1. **Node.js 18+**
-2. **GitHub Copilot CLI** - Installed via VS Code's Copilot Chat extension
-3. **Copilot CLI Authentication** - Run `copilot` then `/login` to authenticate
-4. **GitHub CLI (optional)** - For batch processing and PR creation: `brew install gh && gh auth login`
+| Requirement                       | Notes                                                            |
+| --------------------------------- | ---------------------------------------------------------------- |
+| **Node.js 20+**                   | Runtime                                                          |
+| **GitHub Copilot CLI**            | Bundled with the VS Code Copilot Chat extension                  |
+| **Copilot authentication**        | Run `copilot` → `/login`                                         |
+| **GitHub CLI** _(optional)_       | For batch processing and PRs: `brew install gh && gh auth login` |
+| **Azure DevOps PAT** _(optional)_ | Set `AZURE_DEVOPS_PAT` for Azure DevOps workflows                |
 
-## Installation
+## Commands
 
-```bash
-# Clone and install
-git clone https://github.com/pierceboggan/primer.git
-cd primer
-npm install
-```
+### `primer analyze` — Inspect Repository Structure
 
-## Usage
-
-### Quick Start (Init)
-
-The easiest way to get started is with the `init` command:
+Detects languages, frameworks, monorepo/workspace structure, and area mappings:
 
 ```bash
-# Interactive setup for current directory
-npx tsx src/index.ts init
-
-# Accept defaults and generate instructions automatically
-npx tsx src/index.ts init --yes
-
-# Work with a GitHub repository
-npx tsx src/index.ts init --github
+primer analyze                                # terminal summary
+primer analyze --json                         # machine-readable analysis
+primer analyze --output analysis.json         # save JSON report
+primer analyze --output analysis.md           # save Markdown report
+primer analyze --output analysis.json --force # overwrite existing report
 ```
 
-### Interactive Mode (TUI)
+### `primer readiness` — Assess AI Readiness
+
+Score a repo across 9 pillars grouped into **Repo Health** and **AI Setup**:
 
 ```bash
-# Run TUI in current directory
-npx tsx src/index.ts tui
-
-# Run on a specific repo
-npx tsx src/index.ts tui --repo /path/to/repo
-
-# Skip the animated intro
-npx tsx src/index.ts tui --no-animation
+primer readiness                        # terminal summary
+primer readiness --visual               # GitHub-themed HTML report
+primer readiness --per-area             # include per-area breakdown
+primer readiness --output readiness.json # save JSON report
+primer readiness --output readiness.md   # save Markdown report
+primer readiness --output readiness.html # save HTML report
+primer readiness --policy ./examples/policies/strict.json # apply a custom policy
+primer readiness --json                 # machine-readable JSON
+primer readiness --fail-level 3         # CI gate: exit 1 if below level 3
 ```
 
-**Keys:**
-- `[A]` Analyze - Detect languages, frameworks, and package manager
-- `[G]` Generate - Generate copilot-instructions.md using Copilot SDK
-- `[S]` Save - Save generated instructions (in preview mode)
-- `[D]` Discard - Discard generated instructions (in preview mode)
-- `[Q]` Quit
+**Maturity levels:**
 
-### Generate Instructions
+| Level | Name         | What it means                                       |
+| ----- | ------------ | --------------------------------------------------- |
+| 1     | Functional   | Builds, tests, basic tooling in place               |
+| 2     | Documented   | README, CONTRIBUTING, custom AI instructions exist  |
+| 3     | Standardized | CI/CD, security policies, CODEOWNERS, observability |
+| 4     | Optimized    | MCP servers, custom agents, AI skills configured    |
+| 5     | Autonomous   | Full AI-native development with minimal oversight   |
+
+### `primer instructions` — Generate Instructions
+
+Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK:
 
 ```bash
-# Generate instructions for current directory
-npx tsx src/index.ts instructions
-
-# Generate for specific repo with custom output
-npx tsx src/index.ts instructions --repo /path/to/repo --output ./instructions.md
-
-# Use a specific model
-npx tsx src/index.ts instructions --model gpt-5
+primer instructions                      # copilot-instructions.md (default)
+primer instructions --format agents-md   # AGENTS.md
+primer instructions --per-app            # per-app in monorepos
+primer instructions --areas              # root + all detected areas
+primer instructions --area frontend      # single area
+primer instructions --model claude-sonnet-4.5
 ```
 
-### Batch Processing
+### `primer eval` — Evaluate Instructions
 
-Process multiple repositories across organizations:
+Measure how instructions improve AI responses with a judge model:
 
 ```bash
-# Launch batch TUI
-npx tsx src/index.ts batch
-
-# Save results to file
-npx tsx src/index.ts batch --output results.json
+primer eval --init                       # scaffold eval config from codebase
+primer eval primer.eval.json             # run evaluation
+primer eval --model gpt-4.1 --judge-model claude-sonnet-4.5
+primer eval --fail-level 80              # CI gate: exit 1 if pass rate < 80%
 ```
 
-**Batch TUI Keys:**
-- `[Space]` Toggle selection
-- `[A]` Select all repos
-- `[Enter]` Confirm selection
-- `[Y/N]` Confirm/cancel processing
-- `[Q]` Quit
-
-### Analyze Repository
+### `primer generate` — Generate Configs
 
 ```bash
-# Analyze current directory
-npx tsx src/index.ts analyze
-
-# Analyze specific path with JSON output
-npx tsx src/index.ts analyze /path/to/repo --json
+primer generate mcp                      # .vscode/mcp.json
+primer generate vscode --force           # .vscode/settings.json (overwrite)
 ```
 
-### Generate Configs
-
-Generate configuration files for your repo:
+### `primer batch` / `primer pr` — Batch & PRs
 
 ```bash
-# Generate MCP config
-npx tsx src/index.ts generate mcp
-
-# Generate VS Code settings
-npx tsx src/index.ts generate vscode --force
-
-# Generate custom prompts
-npx tsx src/index.ts generate prompts
-
-# Generate agent configs
-npx tsx src/index.ts generate agents
-
-# Generate .aiignore file
-npx tsx src/index.ts generate aiignore
+primer batch                             # interactive TUI (GitHub)
+primer batch --provider azure            # Azure DevOps
+primer batch owner/repo1 owner/repo2 --json
+primer batch-readiness --output team.html
+primer pr owner/repo-name                # clone → generate → open PR
 ```
 
-### Manage Templates
-
-View available instruction templates:
+### `primer tui` — Interactive Mode
 
 ```bash
-npx tsx src/index.ts templates
+primer tui
 ```
 
-### Configuration
+### `primer init` — Guided Setup
 
-View and manage Primer configuration:
+Interactive or headless repo onboarding — detects your stack and walks through readiness, instructions, and config generation.
+
+### Global Options
+
+All commands support `--json` (structured JSON to stdout) and `--quiet` (suppress stderr). JSON output uses a `CommandResult<T>` envelope:
+
+```json
+{ "ok": true, "status": "success", "data": { ... } }
+```
+
+### Readiness Policies
+
+Policies customize scoring criteria, override metadata, and tune thresholds:
 
 ```bash
-npx tsx src/index.ts config
+primer readiness --policy ./examples/policies/strict.json
+primer readiness --policy ./examples/policies/strict.json,./my-overrides.json  # chain multiple
 ```
 
-### Update
-
-Check for and apply updates:
-
-```bash
-npx tsx src/index.ts update
-```
-
-### Create Pull Requests
-
-Automatically create a PR to add Primer configs to a repository:
-
-```bash
-# Create PR for a GitHub repo
-npx tsx src/index.ts pr owner/repo-name
-
-# Use custom branch name
-npx tsx src/index.ts pr owner/repo-name --branch primer/custom-branch
-```
-
-### Evaluation Framework
-
-Test how well your instructions improve AI responses:
-
-```bash
-# Create a starter eval config
-npx tsx src/index.ts eval --init
-
-# Run evaluation
-npx tsx src/index.ts eval primer.eval.json --repo /path/to/repo
-
-# Save results and use specific models
-npx tsx src/index.ts eval --output results.json --model gpt-5 --judge-model gpt-5
-```
-
-Example `primer.eval.json`:
 ```json
 {
-  "instructionFile": ".github/copilot-instructions.md",
-  "cases": [
-    {
-      "id": "project-overview",
-      "prompt": "Summarize what this project does and list the main entry points.",
-      "expectation": "Should mention the primary purpose and key files/directories."
-    }
-  ]
+  "name": "my-org-policy",
+  "criteria": {
+    "disable": ["lint-config"],
+    "override": { "readme": { "impact": "high", "level": 2 } }
+  },
+  "extras": { "disable": ["pre-commit"] },
+  "thresholds": { "passRate": 0.9 }
 }
 ```
 
-## How It Works
+Policies can also be set in `primer.config.json` (`{ "policies": ["./my-policy.json"] }`).
 
-1. **Analysis** - Scans the repository for:
-   - Language files (`.ts`, `.js`, `.py`, `.go`, etc.)
-   - Framework indicators (`package.json`, `tsconfig.json`, etc.)
-   - Package manager lock files
+> **Security:** Config-sourced policies are restricted to JSON files only — JS/TS module policies must be passed via `--policy`.
 
-2. **Generation** - Uses the Copilot SDK to:
-   - Start a Copilot CLI session
-   - Let the AI agent explore your codebase using tools (`glob`, `view`, `grep`)
-   - Generate concise, project-specific instructions
-
-3. **Batch Processing** - For multiple repos:
-   - Select organizations and repositories via TUI
-   - Clone, branch, generate, commit, push, and create PRs
-   - Track success/failure for each repository
-
-4. **Evaluation** - Measure instruction quality:
-   - Run prompts with and without instructions
-   - Use a judge model to score responses
-   - Generate comparison reports
-
-## Project Structure
-
-```
-primer/
-├── src/
-│   ├── index.ts              # Entry point
-│   ├── cli.ts                # Commander CLI setup
-│   ├── commands/             # CLI commands
-│   │   ├── analyze.ts        # Repository analysis
-│   │   ├── batch.tsx         # Batch processing
-│   │   ├── config.ts         # Config management
-│   │   ├── eval.ts           # Evaluation framework
-│   │   ├── generate.ts       # Config generation
-│   │   ├── init.ts           # Interactive setup
-│   │   ├── instructions.tsx  # Instructions generation
-│   │   ├── pr.ts             # PR creation
-│   │   ├── templates.ts      # Template management
-│   │   ├── tui.tsx           # TUI launcher
-│   │   └── update.ts         # Update command
-│   ├── services/             # Core business logic
-│   │   ├── analyzer.ts       # Repository analysis
-│   │   ├── evaluator.ts      # Eval runner
-│   │   ├── generator.ts      # Config generation
-│   │   ├── git.ts            # Git operations
-│   │   ├── github.ts         # GitHub API
-│   │   └── instructions.ts   # Copilot SDK integration
-│   ├── ui/                   # Terminal UI
-│   │   ├── AnimatedBanner.tsx
-│   │   ├── BatchTui.tsx      # Batch processing UI
-│   │   └── tui.tsx           # Main TUI
-│   └── utils/                # Helpers
-│       ├── fs.ts
-│       └── logger.ts
-├── package.json
-├── tsconfig.json
-├── primer.eval.json          # Example eval config
-└── PLAN.md                   # Project roadmap
-```
+See [docs/plugins.md](docs/plugins.md) for the full plugin authoring guide, including imperative TypeScript plugins, lifecycle hooks, and the trust model.
 
 ## Development
 
 ```bash
-# Type check
-npx tsc -p tsconfig.json --noEmit
+npm run typecheck        # type check
+npm run lint             # ESLint (flat config + Prettier)
+npm run test             # Vitest tests
+npm run test:coverage    # with coverage
+npm run build            # production build via tsup
+npx tsx src/index.ts --help  # run from source
+```
 
-# Run in dev mode
-npx tsx src/index.ts
+### VS Code Extension
+
+```bash
+cd vscode-extension
+npm install && npm run build
+# Press F5 to launch Extension Development Host
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and code style guidelines.
+
+## Project Structure
+
+```
+src/
+├── cli.ts                # Commander CLI wiring
+├── commands/             # CLI subcommands (thin orchestrators)
+├── services/             # Core logic
+│   ├── readiness.ts       # 9-pillar scoring engine with pillar groups
+│   ├── visualReport.ts    # HTML report generator
+│   ├── instructions.ts    # Copilot SDK integration
+│   ├── analyzer.ts        # Repo scanning (languages, frameworks, monorepos)
+│   ├── evaluator.ts       # Eval runner + trajectory viewer
+│   ├── generator.ts       # MCP/VS Code config generation
+│   ├── policy.ts          # Readiness policy loading and chain resolution
+│   ├── policy/            # Plugin engine (types, compiler, loader, adapter, shadow)
+│   ├── git.ts             # Git operations (clone, branch, push)
+│   ├── github.ts          # GitHub API (Octokit)
+│   └── azureDevops.ts     # Azure DevOps API
+├── ui/                   # Ink/React terminal UI
+└── utils/                # Shared utilities (fs, logger, output)
+
+vscode-extension/         # VS Code extension (commands, tree views, webview)
 ```
 
 ## Troubleshooting
 
-### "Copilot CLI not found"
-Install the GitHub Copilot Chat extension in VS Code. The CLI is bundled with it.
+**"Copilot CLI not found"** — Install the GitHub Copilot Chat extension in VS Code. The CLI is bundled with it.
 
-### "Copilot CLI not logged in"
-Run `copilot` in your terminal, then type `/login` to authenticate.
+**"Copilot CLI not logged in"** — Run `copilot` in your terminal, then `/login` to authenticate.
 
-### "GitHub authentication required" (batch/PR commands)
-Install GitHub CLI and authenticate: `brew install gh && gh auth login`
-
-Or set a token: `export GITHUB_TOKEN=<your-token>`
-
-### Generation hangs or times out
-- Ensure you're authenticated with the Copilot CLI
-- Check your network connection
-- Try a smaller repository first
+**"GitHub authentication required"** — Install GitHub CLI (`brew install gh && gh auth login`) or set `GITHUB_TOKEN` / `GH_TOKEN`.
 
 ## License
 
-MIT
+[MIT](LICENSE)

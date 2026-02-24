@@ -1,0 +1,13 @@
+{
+  "name": "strict",
+  "thresholds": {
+    "passRate": 1.0
+  },
+  "criteria": {
+    "override": {
+      "env-example": { "impact": "high" },
+      "format-config": { "impact": "high" },
+      "contributing": { "impact": "high" }
+    }
+  }
+}

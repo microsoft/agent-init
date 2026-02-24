@@ -1,10 +1,36 @@
 {
   "instructionFile": ".github/copilot-instructions.md",
+  "systemMessage": "You are answering questions about the Primer repository. Scope your answers to this repo's architecture, usage, configuration, and workflows. Do not provide generic Copilot CLI details unless specifically asked.",
   "cases": [
     {
-      "id": "overview",
-      "prompt": "Summarize what this application does and list the main entrypoints.",
-      "expectation": "Mentions the CLI entrypoint in src/index.ts and that this is the Primer CLI."
+      "id": "case-1",
+      "prompt": "What is Primer's architecture and how are its layers organized?",
+      "expectation": "Primer is a TypeScript CLI tool for priming repositories for AI-assisted development. It follows a layered architecture: src/index.ts is the entrypoint which defaults to the interactive TUI when no command is given, otherwise delegates to runCli in src/cli.ts. Commander wires subcommands (in src/commands/) to service functions (in src/services/), with shared utilities in src/utils/ and Ink/React TUI components in src/ui/. The CLI layer handles option parsing and output formatting, services contain all core logic (analyzer, instructions, readiness, evaluator, batch, git, github, azureDevops, etc.), and utils provide cross-cutting concerns like safe file I/O, structured output, and working directory management."
+    },
+    {
+      "id": "case-2",
+      "prompt": "What is the local development workflow and how does building for distribution differ?",
+      "expectation": "For local development, run commands directly with npx tsx src/index.ts (or npm run dev) — tsx executes TypeScript without a build step. Linting uses eslint (npm run lint), formatting uses prettier (npm run format / format:check), type checking uses tsc --noEmit (npm run typecheck), and tests run with vitest using v8 coverage (npm run test / test:coverage). Husky and lint-staged enforce linting on pre-commit. For distribution, tsup bundles src/index.ts into ESM-only output targeting Node 20+, with a shebang banner, sourcemaps, and external dependencies not bundled."
+    },
+    {
+      "id": "case-3",
+      "prompt": "What patterns and conventions should I follow when adding new functionality to this codebase?",
+      "expectation": "Place new CLI commands in src/commands/, core logic in src/services/, and TUI components in src/ui/. All commands must support --json and --quiet flags via the withGlobalOpts wrapper in cli.ts, and return structured results using the CommandResult<T> type from utils/output.ts. Use outputResult() for dual JSON/human output and shouldLog() to gate stderr progress. File writes must use safeWriteFile() which prevents accidental overwrites unless --force is passed. ESM syntax is required everywhere, TypeScript is strict (ES2022 target, ESNext module). Area-specific instructions go in .github/instructions/{name}.instructions.md with YAML frontmatter. The default model for Copilot SDK operations is claude-sonnet-4.5."
+    },
+    {
+      "id": "case-4",
+      "prompt": "How does the AI readiness assessment work, and how can it be customized with policies?",
+      "expectation": "The readiness service in src/services/readiness.ts evaluates repositories across 9 pillars (style-validation, build-system, testing, documentation, dev-environment, code-quality, observability, security, ai-tooling) and assigns a maturity level from 1 (Functional) to 5 (Autonomous). Each criterion has a scope — repo, app, or area — determining whether it runs once, per monorepo app, or per detected area. buildCriteria() returns 20+ built-in checks and buildExtras() adds optional ones. Policies loaded via src/services/policy.ts can customize the assessment: loadPolicy() reads JSON/TS/JS configs, and resolveChain() merges a chain of policies that can disable, override, or add criteria and set pass-rate thresholds. Results can be rendered as an interactive HTML report by src/services/visualReport.ts with dark/light theme toggle and expandable per-pillar details."
+    },
+    {
+      "id": "case-5",
+      "prompt": "How does Primer generate Copilot instructions, including for monorepos with multiple areas?",
+      "expectation": "The instruction generation pipeline starts with the analyzer (src/services/analyzer.ts) which scans the repo to detect languages, frameworks, monorepo apps, and logical areas (frontend, backend, etc.) with glob patterns. For root-level instructions, generateCopilotInstructions() in src/services/instructions.ts creates a Copilot SDK session that explores the codebase using tools (glob, view, grep) and produces .github/copilot-instructions.md. For area-specific instructions, generateAreaInstructions() generates focused content per area, and buildAreaFrontmatter() creates YAML frontmatter with applyTo glob patterns so VS Code scopes them to the right files. These are written to .github/instructions/{sanitized-name}.instructions.md via writeAreaInstruction(). The instructions command supports --areas to generate all area instructions, --areas-only to skip the root file, and --area <name> for a single area."
+    },
+    {
+      "id": "case-6",
+      "prompt": "What safety and security patterns does the codebase use for file operations and CLI output?",
+      "expectation": "For file safety, src/utils/fs.ts provides safeWriteFile() which checks for existing files and only overwrites with an explicit force flag, validateCachePath() which rejects paths containing .. or symlinks to prevent path traversal, and fileExists() with symlink rejection. The repo.ts validators use regexes (GITHUB_REPO_RE, AZURE_REPO_RE) that reject traversal patterns in repo identifiers. For credential safety, git.ts and batch.ts use sanitizeError() to strip tokens from error messages before surfacing them. For structured output, utils/output.ts defines the CommandResult<T> type with ok/status/data fields, outputResult() writes JSON to stdout or human text to stderr based on --json/--quiet flags, and shouldLog() gates progress output. This dual-mode pattern ensures all commands work both interactively and in headless automation pipelines."
     }
   ]
 }

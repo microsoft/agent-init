@@ -1,0 +1,16 @@
+{
+  "instructionFile": ".github/copilot-instructions.md",
+  "systemMessage": "You are answering questions about this repository. Use tools to inspect the repo and cite its files. Avoid generic Copilot CLI details unless the prompt explicitly asks for them.",
+  "cases": [
+    {
+      "id": "project-overview",
+      "prompt": "Summarize what this project does and list the main entry points.",
+      "expectation": "Should mention the primary purpose and key files/directories."
+    },
+    {
+      "id": "build-commands",
+      "prompt": "How do I build and test this project?",
+      "expectation": "Should provide the correct build and test commands from package.json or equivalent."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "release-type": "node",
+  "packages": {
+    ".": {
+      "package-name": "primer",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

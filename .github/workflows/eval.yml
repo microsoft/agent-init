@@ -1,0 +1,190 @@
+name: Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model for responses (default: repo config)"
+        required: false
+      judge-model:
+        description: "Model for judging (default: repo config)"
+        required: false
+      fail-threshold:
+        description: "Fail if pass rate (%) is below this value"
+        required: false
+        default: "50"
+  push:
+    branches: [main]
+    paths:
+      - ".github/copilot-instructions.md"
+      - ".github/**/*.instructions.md"
+      - "primer.eval.json"
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - ".github/copilot-instructions.md"
+      - ".github/**/*.instructions.md"
+      - "primer.eval.json"
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  eval:
+    name: Run Evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+
+      - name: Verify Copilot CLI
+        run: copilot --version
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+
+      - name: Run evals
+        id: eval
+        continue-on-error: true
+        run: |
+          mkdir -p .primer/evals
+
+          ARGS="--json --output .primer/evals/results.json"
+
+          if [ -n "${{ inputs.model }}" ]; then
+            ARGS="$ARGS --model ${{ inputs.model }}"
+          fi
+          if [ -n "${{ inputs.judge-model }}" ]; then
+            ARGS="$ARGS --judge-model ${{ inputs.judge-model }}"
+          fi
+
+          THRESHOLD="${{ inputs.fail-threshold || '50' }}"
+          ARGS="$ARGS --fail-level $THRESHOLD"
+
+          node dist/index.js eval $ARGS 2>&1 | tee .primer/evals/eval.log
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: .primer/evals/
+          if-no-files-found: warn
+
+      - name: Report eval results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let summary = '';
+            let isPR = context.eventName === 'pull_request';
+
+            try {
+              const raw = fs.readFileSync('.primer/evals/results.json', 'utf8');
+              const data = JSON.parse(raw);
+              const results = data.results || [];
+              const total = results.length;
+              const passed = results.filter(r => r.verdict === 'pass').length;
+              const failed = results.filter(r => r.verdict === 'fail').length;
+              const unknown = results.filter(r => r.verdict === 'unknown').length;
+              const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+              const duration = data.runMetrics?.durationMs
+                ? `${(data.runMetrics.durationMs / 1000).toFixed(1)}s`
+                : 'N/A';
+
+              const icon = passed === total ? '✅' : failed > 0 ? '❌' : '⚠️';
+              summary += `## ${icon} Primer Eval: ${passed}/${total} pass (${passRate}%)\n\n`;
+              summary += `> **${duration}** · model \`${data.model}\` · judge \`${data.judgeModel}\`\n\n`;
+
+              summary += `| Case | Verdict | Score | Rationale |\n`;
+              summary += `|------|---------|-------|-----------|\n`;
+              for (const r of results) {
+                const vIcon = r.verdict === 'pass' ? '✅' : r.verdict === 'fail' ? '❌' : '⚠️';
+                const rationale = (r.rationale || '').replace(/\|/g, '\\|').replace(/\n/g, ' ').slice(0, 200);
+                summary += `| \`${r.id}\` | ${vIcon} ${r.verdict || 'unknown'} | ${r.score ?? '-'} | ${rationale} |\n`;
+              }
+
+              // Per-case response details in collapsed sections
+              summary += '\n### Details\n\n';
+              for (const r of results) {
+                const m = r.metrics || {};
+                const wi = m.withInstructions || {};
+                const wo = m.withoutInstructions || {};
+                const fmtMs = ms => ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`;
+                const fmtTok = n => n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n || 0);
+
+                summary += `<details><summary><code>${r.id}</code> · ${r.verdict === 'pass' ? '✅' : '❌'} ${r.score ?? 0}/100</summary>\n\n`;
+                summary += `**Prompt:** ${r.prompt}\n\n`;
+                summary += `**Expected:** ${r.expectation}\n\n`;
+                if (r.rationale) summary += `**Judge:** ${r.rationale}\n\n`;
+
+                summary += `| Metric | Without instructions | With instructions |\n`;
+                summary += `|--------|---------------------|-------------------|\n`;
+                summary += `| Time | ${fmtMs(wo.durationMs || 0)} | ${fmtMs(wi.durationMs || 0)} |\n`;
+                summary += `| Tokens | ${fmtTok(wo.tokenUsage?.totalTokens)} | ${fmtTok(wi.tokenUsage?.totalTokens)} |\n`;
+                summary += `| Tool calls | ${wo.toolCalls?.count || 0} | ${wi.toolCalls?.count || 0} |\n`;
+                summary += `\n</details>\n\n`;
+              }
+            } catch (err) {
+              summary += `## ⚠️ Primer Eval\n\nCould not read eval results: ${err.message}\n`;
+            }
+
+            // Write to Actions job summary (visible in run UI and PR checks tab)
+            await core.summary.addRaw(summary).write();
+
+            // Also post/update as PR comment
+            if (isPR) {
+              const marker = '<!-- primer-eval-results -->';
+              const body = marker + '\n' + summary;
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              const existing = comments.find(c => c.body?.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body,
+                });
+              }
+            }
+
+      - name: Fail on threshold
+        if: steps.eval.outcome == 'failure'
+        run: |
+          echo "::error::Eval pass rate fell below threshold"
+          exit 1

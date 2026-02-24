@@ -1,0 +1,8 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Beaker / flask shape representing "Primer" -->
+  <path d="M9 2h6v2H9V2z" fill="#C5C5C5"/>
+  <path d="M10 4v6.5L5.5 18a2 2 0 001.7 3h9.6a2 2 0 001.7-3L14 10.5V4h-4z" stroke="#C5C5C5" stroke-width="1.5" fill="none"/>
+  <path d="M7.5 16h9" stroke="#C5C5C5" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="10" cy="18" r="1" fill="#C5C5C5"/>
+  <circle cx="14" cy="17.5" r="0.75" fill="#C5C5C5"/>
+</svg>

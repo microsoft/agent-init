@@ -1,6 +1,17 @@
 import path from "path";
-import { RepoAnalysis } from "./analyzer";
+
 import { ensureDir, safeWriteFile } from "../utils/fs";
+
+import type { RepoAnalysis } from "./analyzer";
+
+export type FileAction = {
+  path: string;
+  action: "wrote" | "skipped";
+};
+
+export type GenerateResult = {
+  files: FileAction[];
+};
 
 export type GenerateOptions = {
   repoPath: string;
@@ -9,30 +20,33 @@ export type GenerateOptions = {
   force: boolean;
 };
 
-export async function generateConfigs(options: GenerateOptions): Promise<{ summary: string }>
-{
+export async function generateConfigs(options: GenerateOptions): Promise<GenerateResult> {
   const { repoPath, analysis, selections, force } = options;
-  const actions: string[] = [];
+  const files: FileAction[] = [];
 
   if (selections.includes("mcp")) {
     const filePath = path.join(repoPath, ".vscode", "mcp.json");
     await ensureDir(path.dirname(filePath));
     const content = renderMcp();
-    const result = await safeWriteFile(filePath, content, force);
-    actions.push(result);
+    const { wrote } = await safeWriteFile(filePath, content, force);
+    files.push({
+      path: path.relative(process.cwd(), filePath),
+      action: wrote ? "wrote" : "skipped"
+    });
   }
 
   if (selections.includes("vscode")) {
     const filePath = path.join(repoPath, ".vscode", "settings.json");
     await ensureDir(path.dirname(filePath));
     const content = renderVscodeSettings(analysis);
-    const result = await safeWriteFile(filePath, content, force);
-    actions.push(result);
+    const { wrote } = await safeWriteFile(filePath, content, force);
+    files.push({
+      path: path.relative(process.cwd(), filePath),
+      action: wrote ? "wrote" : "skipped"
+    });
   }
 
-
-  const summary = actions.length ? `\n${actions.join("\n")}` : "No changes made.";
-  return { summary };
+  return { files };
 }
 
 function renderMcp(): string {
@@ -74,9 +88,7 @@ function renderVscodeSettings(analysis: RepoAnalysis): string {
       "github.copilot.chat.codeGeneration.instructions": [
         { file: ".github/copilot-instructions.md" }
       ],
-      "github.copilot.chat.reviewSelection.instructions": [
-        { text: reviewFocus }
-      ],
+      "github.copilot.chat.reviewSelection.instructions": [{ text: reviewFocus }],
       "chat.promptFiles": true,
       "chat.mcp.enabled": true
     },

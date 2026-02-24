@@ -3,6 +3,8 @@ node_modules/
 
 # Build output
 dist/
+out/
+coverage/
 
 # IDE
 .vscode/
@@ -25,3 +27,8 @@ npm-debug.log*
 
 # Primer cache
 .primer-cache/
+
+# Primer outputs
+.primer/
+readiness-report.html
+*.vsix

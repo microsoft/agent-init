@@ -1,6 +1,7 @@
-import { Octokit } from "@octokit/rest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+
+import { Octokit } from "@octokit/rest";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,7 +46,7 @@ export function createGitHubClient(token: string): Octokit {
 
 export async function listAccessibleRepos(token: string, limit = 100): Promise<GitHubRepo[]> {
   const client = createGitHubClient(token);
-  
+
   // Fetch only first page - avoids timeout for users with many repos
   const repos = await client.rest.repos.listForAuthenticatedUser({
     visibility: "all",
@@ -113,13 +114,13 @@ export async function listUserOrgs(token: string): Promise<GitHubOrg[]> {
 
   return orgs.map((org) => ({
     login: org.login,
-    name: org.name ?? null
+    name: org.description ?? null
   }));
 }
 
 export async function listOrgRepos(token: string, org: string, limit = 100): Promise<GitHubRepo[]> {
   const client = createGitHubClient(token);
-  
+
   // Fetch only the first page(s) up to limit - avoids timeout on huge orgs
   const repos = await client.rest.repos.listForOrg({
     org,
@@ -141,7 +142,11 @@ export async function listOrgRepos(token: string, org: string, limit = 100): Pro
 /**
  * Check if a repo has .github/copilot-instructions.md
  */
-export async function checkRepoHasInstructions(token: string, owner: string, repo: string): Promise<boolean> {
+export async function checkRepoHasInstructions(
+  token: string,
+  owner: string,
+  repo: string
+): Promise<boolean> {
   const client = createGitHubClient(token);
   try {
     await client.rest.repos.getContent({
@@ -150,8 +155,16 @@ export async function checkRepoHasInstructions(token: string, owner: string, rep
       path: ".github/copilot-instructions.md"
     });
     return true;
-  } catch {
-    return false;
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "status" in error &&
+      (error as { status: number }).status === 404
+    ) {
+      return false;
+    }
+    throw error;
   }
 }
 
@@ -159,8 +172,8 @@ export async function checkRepoHasInstructions(token: string, owner: string, rep
  * Check multiple repos for instructions in parallel (with concurrency limit)
  */
 export async function checkReposForInstructions(
-  token: string, 
-  repos: GitHubRepo[], 
+  token: string,
+  repos: GitHubRepo[],
   onProgress?: (checked: number, total: number) => void
 ): Promise<GitHubRepo[]> {
   const concurrency = 10;

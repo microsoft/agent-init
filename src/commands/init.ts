@@ -1,35 +1,74 @@
 import path from "path";
-import fs from "fs/promises";
+
 import { checkbox, select } from "@inquirer/prompts";
+
 import { analyzeRepo } from "../services/analyzer";
+import type { AzureDevOpsOrg, AzureDevOpsProject, AzureDevOpsRepo } from "../services/azureDevops";
+import {
+  getAzureDevOpsToken,
+  listOrganizations,
+  listProjects,
+  listRepos
+} from "../services/azureDevops";
+import type { FileAction } from "../services/generator";
 import { generateConfigs } from "../services/generator";
-import { GitHubRepo, listAccessibleRepos } from "../services/github";
-import { cloneRepo, isGitRepo } from "../services/git";
+import { buildAuthedUrl, cloneRepo, isGitRepo, setRemoteUrl } from "../services/git";
+import type { GitHubRepo } from "../services/github";
+import { getGitHubToken, listAccessibleRepos } from "../services/github";
 import { generateCopilotInstructions } from "../services/instructions";
-import { ensureDir } from "../utils/fs";
+import { ensureDir, safeWriteFile, validateCachePath } from "../utils/fs";
 import { prettyPrintSummary } from "../utils/logger";
+import type { CommandResult } from "../utils/output";
+import { outputResult, outputError, deriveFileStatus, shouldLog } from "../utils/output";
 
 type InitOptions = {
   github?: boolean;
+  provider?: string;
   yes?: boolean;
   force?: boolean;
+  model?: string;
+  json?: boolean;
+  quiet?: boolean;
 };
 
-export async function initCommand(repoPathArg: string | undefined, options: InitOptions): Promise<void> {
+export async function initCommand(
+  repoPathArg: string | undefined,
+  options: InitOptions
+): Promise<void> {
   let repoPath = path.resolve(repoPathArg ?? process.cwd());
+  const provider = options.provider ?? (options.github ? "github" : undefined);
 
-  if (options.github) {
-    const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  if (provider && provider !== "github" && provider !== "azure") {
+    outputError("Invalid provider. Use github or azure.", Boolean(options.json));
+    return;
+  }
+
+  if (options.json && !options.yes) {
+    outputError("--json requires --yes to skip interactive prompts.", true);
+    return;
+  }
+
+  if (options.json && provider) {
+    outputError(
+      "--json with --provider is not supported. Use 'primer pr' for non-interactive provider workflows.",
+      true
+    );
+    return;
+  }
+
+  if (provider === "github") {
+    const token = await getGitHubToken();
     if (!token) {
-      console.error("Set GITHUB_TOKEN or GH_TOKEN to use GitHub mode.");
-      process.exitCode = 1;
+      outputError(
+        "Set GITHUB_TOKEN or GH_TOKEN, or authenticate with GitHub CLI.",
+        Boolean(options.json)
+      );
       return;
     }
 
     const repos = await listAccessibleRepos(token);
     if (repos.length === 0) {
-      console.error("No accessible repositories found.");
-      process.exitCode = 1;
+      outputError("No accessible repositories found.", Boolean(options.json));
       return;
     }
 
@@ -42,7 +81,7 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
     });
 
     const cacheRoot = path.join(process.cwd(), ".primer-cache");
-    repoPath = path.join(cacheRoot, selection.owner, selection.name);
+    repoPath = validateCachePath(cacheRoot, selection.owner, selection.name);
     await ensureDir(repoPath);
 
     const hasGit = await isGitRepo(repoPath);
@@ -50,11 +89,91 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
       await cloneRepo(selection.cloneUrl, repoPath);
     }
   }
-  const analysis = await analyzeRepo(repoPath);
-  prettyPrintSummary(analysis);
+
+  if (provider === "azure") {
+    const token = getAzureDevOpsToken();
+    if (!token) {
+      outputError(
+        "Set AZURE_DEVOPS_PAT (or AZDO_PAT) to use Azure DevOps mode.",
+        Boolean(options.json)
+      );
+      return;
+    }
+
+    const orgs = await listOrganizations(token);
+    if (orgs.length === 0) {
+      outputError("No Azure DevOps organizations found.", Boolean(options.json));
+      return;
+    }
+
+    const orgSelection = await select<AzureDevOpsOrg>({
+      message: "Choose an Azure DevOps organization",
+      choices: orgs.map((org) => ({
+        name: org.name,
+        value: org
+      }))
+    });
+
+    const projects = await listProjects(token, orgSelection.name);
+    if (projects.length === 0) {
+      outputError("No Azure DevOps projects found.", Boolean(options.json));
+      return;
+    }
+
+    const projectSelection = await select<AzureDevOpsProject>({
+      message: "Choose an Azure DevOps project",
+      choices: projects.map((project) => ({
+        name: project.name,
+        value: project
+      }))
+    });
+
+    const repos = await listRepos(token, orgSelection.name, projectSelection.name);
+    if (repos.length === 0) {
+      outputError("No Azure DevOps repositories found.", Boolean(options.json));
+      return;
+    }
+
+    const repoSelection = await select<AzureDevOpsRepo>({
+      message: "Choose a repository",
+      choices: repos.map((repo) => ({
+        name: `${repo.name}${repo.isPrivate ? " (private)" : ""}`,
+        value: repo
+      }))
+    });
+
+    const cacheRoot = path.join(process.cwd(), ".primer-cache");
+    repoPath = validateCachePath(
+      cacheRoot,
+      orgSelection.name,
+      projectSelection.name,
+      repoSelection.name
+    );
+    await ensureDir(repoPath);
+
+    const hasGit = await isGitRepo(repoPath);
+    if (!hasGit) {
+      const authedUrl = buildAuthedUrl(repoSelection.cloneUrl, token, "azure");
+      await cloneRepo(authedUrl, repoPath);
+      await setRemoteUrl(repoPath, repoSelection.cloneUrl);
+    }
+  }
+  let analysis;
+  try {
+    analysis = await analyzeRepo(repoPath);
+  } catch (error) {
+    outputError(
+      `Failed to analyze repo: ${error instanceof Error ? error.message : String(error)}`,
+      Boolean(options.json)
+    );
+    return;
+  }
+  if (shouldLog(options)) {
+    prettyPrintSummary(analysis);
+  }
 
   const selections = options.yes
-    ? ["instructions"]
+    ? ["instructions", "mcp", "vscode"]
     : await checkbox({
         message: "What would you like to generate?",
         choices: [
@@ -65,20 +184,69 @@ export async function initCommand(repoPathArg: string | undefined, options: Init
         required: true
       });
 
+  const allFiles: FileAction[] = [];
+
   if (selections.includes("instructions")) {
     const outputPath = path.join(repoPath, ".github", "copilot-instructions.md");
     await ensureDir(path.dirname(outputPath));
-    const content = await generateCopilotInstructions({ repoPath });
-    await fs.writeFile(outputPath, content, "utf8");
-    console.log(`Updated ${path.relative(process.cwd(), outputPath)}`);
+    try {
+      const content = await generateCopilotInstructions({ repoPath, model: options.model });
+      const { wrote } = await safeWriteFile(outputPath, content, Boolean(options.force));
+      allFiles.push({
+        path: path.relative(process.cwd(), outputPath),
+        action: wrote ? "wrote" : "skipped"
+      });
+      if (shouldLog(options)) {
+        const rel = path.relative(process.cwd(), outputPath);
+        process.stderr.write((wrote ? `Wrote ${rel}` : `Skipped ${rel} (exists)`) + "\n");
+      }
+    } catch (error) {
+      outputError(
+        `Failed to generate instructions: ${error instanceof Error ? error.message : String(error)}`,
+        Boolean(options.json)
+      );
+      return;
+    }
   }
 
-  const result = await generateConfigs({
-    repoPath,
-    analysis,
-    selections: selections.filter((item) => item !== "instructions"),
-    force: Boolean(options.force)
-  });
+  let genResult;
+  try {
+    genResult = await generateConfigs({
+      repoPath,
+      analysis,
+      selections: selections.filter((item) => item !== "instructions"),
+      force: Boolean(options.force)
+    });
+  } catch (error) {
+    outputError(
+      `Failed to generate configs: ${error instanceof Error ? error.message : String(error)}`,
+      Boolean(options.json)
+    );
+    return;
+  }
+  allFiles.push(...genResult.files);
 
-  console.log(result.summary);
+  if (options.json) {
+    const { ok, status } = deriveFileStatus(allFiles);
+    const result: CommandResult<{
+      selections: string[];
+      files: FileAction[];
+      analysis: typeof analysis;
+    }> = {
+      ok,
+      status,
+      data: { selections, files: allFiles, analysis }
+    };
+    outputResult(result, true);
+  } else if (shouldLog(options)) {
+    for (const file of genResult.files) {
+      process.stderr.write(`${file.action === "wrote" ? "Wrote" : "Skipped"} ${file.path}\n`);
+    }
+    process.stderr.write("\nNext steps:\n");
+    process.stderr.write("  primer readiness             Check AI readiness across 9 pillars\n");
+    if (analysis.areas && analysis.areas.length > 0) {
+      process.stderr.write("  primer instructions --areas   Generate per-area instructions\n");
+    }
+    process.stderr.write("  primer eval --init            Scaffold evaluation test cases\n");
+  }
 }
