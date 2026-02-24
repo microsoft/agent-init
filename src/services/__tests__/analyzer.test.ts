@@ -225,6 +225,32 @@ describe("analyzeRepo", () => {
     expect(result.apps?.[0].ecosystem).toBe("dotnet");
   });
 
+  it("detects .NET solution with .slnx format (monorepo)", async () => {
+    const repoPath = await makeTmpDir();
+    const slnxContent = [
+      "<Solution>",
+      '  <Folder Name="/src/">',
+      '    <Project Path="src/WebApp/WebApp.csproj" />',
+      '    <Project Path="src/CoreLib/CoreLib.csproj" Type="{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}" />',
+      "  </Folder>",
+      "</Solution>"
+    ].join("\n");
+    await fs.writeFile(path.join(repoPath, "MySolution.slnx"), slnxContent);
+    await fs.mkdir(path.join(repoPath, "src", "WebApp"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "src", "WebApp", "WebApp.csproj"), "<Project/>");
+    await fs.mkdir(path.join(repoPath, "src", "CoreLib"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "src", "CoreLib", "CoreLib.csproj"), "<Project/>");
+
+    const result = await analyzeRepo(repoPath);
+    expect(result.languages).toContain("C#");
+    expect(result.isMonorepo).toBe(true);
+    expect(result.workspaceType).toBe("dotnet");
+    expect(result.apps?.length).toBe(2);
+    expect(result.apps?.map((a) => a.name).sort()).toEqual(["CoreLib", "WebApp"]);
+    expect(result.apps?.[0].ecosystem).toBe("dotnet");
+    expect(result.packageManager).toBe("nuget");
+  });
+
   it("detects Gradle multi-project", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(

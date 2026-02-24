@@ -75,7 +75,9 @@ export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
   const hasRequirements = files.includes("requirements.txt");
   const hasGoMod = files.includes("go.mod");
   const hasCargo = files.includes("Cargo.toml");
-  const hasCsproj = files.some((f) => f.endsWith(".csproj") || f.endsWith(".sln"));
+  const hasCsproj = files.some(
+    (f) => f.endsWith(".csproj") || f.endsWith(".sln") || f.endsWith(".slnx")
+  );
   const hasPomXml = files.includes("pom.xml");
   const hasBuildGradle = files.includes("build.gradle") || files.includes("build.gradle.kts");
   const hasGemfile = files.includes("Gemfile");
@@ -159,10 +161,13 @@ async function detectPackageManager(
 
   if (files.includes("package.json")) return "npm";
   if (files.includes("pyproject.toml")) return "pip";
+  if (files.includes("Cargo.toml")) return "cargo";
+  if (files.includes("go.mod")) return "go";
   if (files.includes("pom.xml")) return "maven";
   if (files.includes("build.gradle") || files.includes("build.gradle.kts")) return "gradle";
   if (files.includes("Gemfile")) return "bundler";
   if (files.includes("composer.json")) return "composer";
+  if (files.some((f) => f.endsWith(".sln") || f.endsWith(".slnx"))) return "nuget";
   if (
     files.includes("MODULE.bazel") ||
     files.includes("WORKSPACE") ||
@@ -462,6 +467,12 @@ async function detectGoWorkspace(repoPath: string): Promise<RepoApp[]> {
 }
 
 async function detectDotnetSolution(repoPath: string, files: string[]): Promise<RepoApp[]> {
+  // Prefer .slnx (newer XML format) over .sln (legacy text format)
+  const slnxFile = files.find((f) => f.endsWith(".slnx"));
+  if (slnxFile) {
+    return detectSlnxProjects(repoPath, slnxFile);
+  }
+
   const slnFile = files.find((f) => f.endsWith(".sln"));
   if (!slnFile) return [];
 
@@ -477,6 +488,28 @@ async function detectDotnetSolution(repoPath: string, files: string[]): Promise<
     const projRelPath = match[2].replace(/\\/gu, "/");
     const projPath = path.resolve(repoPath, projRelPath);
     const appDir = path.dirname(projPath);
+
+    if (await fileExists(projPath)) {
+      apps.push(buildNonJsApp(name, appDir, "dotnet", projPath));
+    }
+  }
+
+  return apps;
+}
+
+async function detectSlnxProjects(repoPath: string, slnxFile: string): Promise<RepoApp[]> {
+  const content = await safeReadFile(path.join(repoPath, slnxFile));
+  if (!content) return [];
+
+  // Match: <Project Path="path/to/Project.csproj" /> (with optional extra attributes)
+  const projectRegex = /<Project\s[^>]*Path="([^"]+\.(?:cs|fs|vb)proj)"[^>]*\/>/giu;
+  const apps: RepoApp[] = [];
+
+  for (const match of content.matchAll(projectRegex)) {
+    const projRelPath = match[1].replace(/\\/gu, "/");
+    const projPath = path.resolve(repoPath, projRelPath);
+    const appDir = path.dirname(projPath);
+    const name = path.basename(appDir);
 
     if (await fileExists(projPath)) {
       apps.push(buildNonJsApp(name, appDir, "dotnet", projPath));
