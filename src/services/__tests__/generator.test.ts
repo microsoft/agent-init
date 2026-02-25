@@ -11,7 +11,7 @@ describe("generateConfigs", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-gen-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-gen-"));
   });
 
   afterEach(async () => {

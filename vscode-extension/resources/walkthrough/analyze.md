@@ -1,6 +1,6 @@
 ## Discover Your Repository
 
-Primer scans your codebase to detect **languages**, **frameworks**, **package managers**, and **monorepo structure**.
+AgentRC scans your codebase to detect **languages**, **frameworks**, **package managers**, and **monorepo structure**.
 
 This analysis powers everything else — instructions are tailored to your stack, readiness checks know what to look for, and configs match your tooling.
 
@@ -13,6 +13,6 @@ This analysis powers everything else — instructions are tailored to your stack
 
 ### Try it
 
-Click the button below, or use `Primer: Analyze Repository` from the Command Palette.
+Click the button below, or use `AgentRC: Analyze Repository` from the Command Palette.
 
-The results appear in the **Primer** sidebar — expand each category to explore.
+The results appear in the **AgentRC** sidebar — expand each category to explore.

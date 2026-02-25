@@ -88,7 +88,7 @@ export async function runEval(
   const progress = options.onProgress ?? (() => {});
   const defaultOutputPath = path.resolve(
     options.repoPath,
-    ".primer",
+    ".agentrc",
     "evals",
     buildTimestampedName("eval-results")
   );
@@ -624,7 +624,7 @@ function buildTrajectoryViewerHtml(data: Record<string, unknown>): string {
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Primer Eval Results</title>
+<title>AgentRC Eval Results</title>
 <style>
   :root { --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --border: #30363d; --text: #e6edf3; --text2: #8b949e; --text3: #6e7681; --accent: #8b5cf6; --accent2: #a78bfa; --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --red: #f85149; --red-bg: rgba(248,81,73,0.1); --yellow: #d29922; --yellow-bg: rgba(210,153,34,0.1); --blue: #58a6ff; --blue-bg: rgba(88,166,255,0.1); }
   [data-theme="light"] { --bg: #ffffff; --surface: #f6f8fa; --surface2: #eaeef2; --border: #d0d7de; --text: #1f2328; --text2: #656d76; --text3: #8b949e; --accent: #8b5cf6; --accent2: #7c3aed; --green: #1a7f37; --green-bg: rgba(26,127,55,0.1); --red: #cf222e; --red-bg: rgba(207,34,46,0.1); --yellow: #9a6700; --yellow-bg: rgba(154,103,0,0.1); --blue: #0969da; --blue-bg: rgba(9,105,218,0.1); }

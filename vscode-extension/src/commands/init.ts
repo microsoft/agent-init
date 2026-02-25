@@ -13,13 +13,13 @@ export async function initCommand(): Promise<void> {
   const workspacePath = getWorkspacePath();
   if (!workspacePath) return;
 
-  const config = vscode.workspace.getConfiguration("primer");
+  const config = vscode.workspace.getConfiguration("agentrc");
   const model = config.get<string>("model");
 
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Primer: Initializing repository…",
+      title: "AgentRC: Initializing repository…",
       cancellable: false
     },
     async (progress) => {
@@ -68,7 +68,7 @@ export async function initCommand(): Promise<void> {
           reporter.succeed("All files already exist.");
           const overwrite = "Overwrite";
           const action = await vscode.window.showWarningMessage(
-            `Primer: All ${skipped.length} files already exist.`,
+            `AgentRC: All ${skipped.length} files already exist.`,
             overwrite
           );
           if (action === overwrite) {
@@ -100,10 +100,10 @@ export async function initCommand(): Promise<void> {
                 // File may not exist if generation was skipped
               }
 
-              vscode.window.showInformationMessage(`Primer: ${skipped.length} files overwritten.`);
+              vscode.window.showInformationMessage(`AgentRC: ${skipped.length} files overwritten.`);
             } catch (err) {
               vscode.window.showErrorMessage(
-                `Primer: Config overwrite failed — ${err instanceof Error ? err.message : String(err)}`
+                `AgentRC: Config overwrite failed — ${err instanceof Error ? err.message : String(err)}`
               );
             }
           }
@@ -125,10 +125,10 @@ export async function initCommand(): Promise<void> {
           // File may not exist if generation was skipped
         }
 
-        vscode.window.showInformationMessage(`Primer: ${parts.join(", ") || "Done."}`);
+        vscode.window.showInformationMessage(`AgentRC: ${parts.join(", ") || "Done."}`);
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: Initialization failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: Initialization failed — ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }

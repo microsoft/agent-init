@@ -25,7 +25,7 @@ import { outputResult, outputError, createProgressReporter, shouldLog } from "..
 import { buildFullPrBody } from "../utils/pr";
 import { GITHUB_REPO_RE, AZURE_REPO_RE } from "../utils/repo";
 
-const DEFAULT_PR_BRANCH = "primer/add-ai-config";
+const DEFAULT_PR_BRANCH = "agentrc/add-ai-config";
 
 type PrOptions = {
   branch?: string;
@@ -72,7 +72,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
     try {
       progress.update("Fetching repo info...");
       const repoInfo = await getAzureRepo(token, organization, project, name);
-      const cacheRoot = path.join(process.cwd(), ".primer-cache");
+      const cacheRoot = path.join(process.cwd(), ".agentrc-cache");
       const repoPath = validateCachePath(cacheRoot, organization, project, name);
       await ensureDir(repoPath);
 
@@ -109,7 +109,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
       });
 
       progress.update("Committing...");
-      await commitAll(repoPath, "chore: add AI configurations via Primer");
+      await commitAll(repoPath, "chore: add AI configurations via AgentRC");
       progress.update("Pushing...");
       await pushBranch(repoPath, branch, token, "azure");
 
@@ -165,7 +165,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
   try {
     progress.update("Fetching repo info...");
     const repoInfo = await getRepo(token, owner, name);
-    const cacheRoot = path.join(process.cwd(), ".primer-cache");
+    const cacheRoot = path.join(process.cwd(), ".agentrc-cache");
     const repoPath = validateCachePath(cacheRoot, owner, name);
     await ensureDir(repoPath);
 
@@ -200,7 +200,7 @@ export async function prCommand(repo: string | undefined, options: PrOptions): P
     });
 
     progress.update("Committing...");
-    await commitAll(repoPath, "chore: add AI configurations via Primer");
+    await commitAll(repoPath, "chore: add AI configurations via AgentRC");
     progress.update("Pushing...");
     await pushBranch(repoPath, branch, token, "github");
 

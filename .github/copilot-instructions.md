@@ -1,6 +1,6 @@
 # Copilot Instructions for This Repository
 
-**Primer** is a TypeScript CLI + VS Code extension for priming repositories for AI-assisted development. See `README.md` for full architecture, command reference, and service details.
+**AgentRC** is a TypeScript CLI + VS Code extension for priming repositories for AI-assisted development. See `README.md` for full architecture, command reference, and service details.
 
 ## Development Checklist
 
@@ -37,7 +37,7 @@ VS Code extension: `node esbuild.mjs` from `vscode-extension/`; typecheck with `
 - **Services** (`src/services/`) contain all business logic. Commands never access APIs or filesystem directly.
 - **UI** (`src/ui/`) — Ink/React 19 components for interactive TUI. Use Ink 6 APIs.
 - **Utils** (`src/utils/`) — `output.ts`, `fs.ts`, `logger.ts`, `repo.ts`, `pr.ts`.
-- **VS Code Extension** (`vscode-extension/`) — companion extension; imports CLI services via path alias `primer/*`. See extension-specific instructions for details.
+- **VS Code Extension** (`vscode-extension/`) — companion extension; imports CLI services via path alias `agentrc/*`. See extension-specific instructions for details.
 
 ## Conventions
 
@@ -51,7 +51,7 @@ VS Code extension: `node esbuild.mjs` from `vscode-extension/`; typecheck with `
 ### File Safety
 
 - Use `safeWriteFile()` from `src/utils/fs.ts` for all user-path file writes. It rejects symlinks and skips existing files unless `--force`.
-- Use `validateCachePath()` to prevent traversal attacks in `.primer-cache/`.
+- Use `validateCachePath()` to prevent traversal attacks in `.agentrc-cache/`.
 
 ### Error Handling
 

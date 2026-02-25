@@ -10,7 +10,7 @@ describe("runReadinessReport", () => {
   let repoPath: string;
 
   beforeEach(async () => {
-    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "primer-readiness-"));
+    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-readiness-"));
   });
 
   afterEach(async () => {
@@ -718,7 +718,7 @@ describe("runReadinessReport", () => {
       expect(report.policies!.chain).toEqual(["strict"]);
     });
 
-    it("falls back to primer.config.json policies", async () => {
+    it("falls back to agentrc.config.json policies", async () => {
       await writePackageJson({ name: "test-repo" });
       // Write a policy file using absolute path
       const policyPath = path.join(repoPath, "config-policy.json");
@@ -727,8 +727,8 @@ describe("runReadinessReport", () => {
         JSON.stringify({ name: "from-config", criteria: { disable: ["readme"] } }),
         "utf8"
       );
-      // Reference it from primer.config.json with absolute path
-      await writeFile("primer.config.json", JSON.stringify({ policies: [policyPath] }));
+      // Reference it from agentrc.config.json with absolute path
+      await writeFile("agentrc.config.json", JSON.stringify({ policies: [policyPath] }));
 
       const report = await runReadinessReport({ repoPath });
 
@@ -736,12 +736,12 @@ describe("runReadinessReport", () => {
       expect(report.criteria.find((c) => c.id === "readme")).toBeUndefined();
     });
 
-    it("rejects module policies from primer.config.json", async () => {
+    it("rejects module policies from agentrc.config.json", async () => {
       await writePackageJson({ name: "test-repo" });
-      await writeFile("primer.config.json", JSON.stringify({ policies: ["./my-policy.ts"] }));
+      await writeFile("agentrc.config.json", JSON.stringify({ policies: ["./my-policy.ts"] }));
 
       await expect(runReadinessReport({ repoPath })).rejects.toThrow(
-        "only JSON policies are allowed from primer.config.json"
+        "only JSON policies are allowed from agentrc.config.json"
       );
     });
   });

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { validateCachePath } from "../../utils/fs";
 
-const cacheRoot = path.join(os.tmpdir(), "primer-cache");
+const cacheRoot = path.join(os.tmpdir(), "agentrc-cache");
 
 describe("validateCachePath", () => {
   it("returns resolved path for normal segments", () => {

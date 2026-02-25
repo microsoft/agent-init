@@ -4,7 +4,7 @@ import path from "path";
 import { fileExists, safeReadDir, readJson } from "../utils/fs";
 
 import type { RepoApp, RepoAnalysis, Area } from "./analyzer";
-import { analyzeRepo, sanitizeAreaName, loadPrimerConfig } from "./analyzer";
+import { analyzeRepo, sanitizeAreaName, loadAgentrcConfig } from "./analyzer";
 import type { ExtraDefinition, PolicyConfig } from "./policy";
 import { loadPolicy, resolveChain } from "./policy";
 import { executePlugins } from "./policy/engine";
@@ -205,10 +205,10 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
   // Used to restrict config-sourced policies to JSON-only, preventing dynamic import() calls.
   let isConfigSourced = false;
   if (!policySources?.length) {
-    // Check primer.config.json for policy config
-    const primerConfig = await loadPrimerConfig(repoPath);
-    if (primerConfig?.policies?.length) {
-      policySources = primerConfig.policies;
+    // Check agentrc.config.json for policy config
+    const agentrcConfig = await loadAgentrcConfig(repoPath);
+    if (agentrcConfig?.policies?.length) {
+      policySources = agentrcConfig.policies;
       isConfigSourced = true;
     }
   }
@@ -713,7 +713,7 @@ export function buildCriteria(): ReadinessCriterion[] {
           if (fileBasedInstructions.length === 0) {
             return {
               status: "pass",
-              reason: `Root instructions found, but no file-based instructions for ${areas.length} detected areas. Run \`primer instructions --areas\` to generate.`,
+              reason: `Root instructions found, but no file-based instructions for ${areas.length} detected areas. Run \`agentrc instructions --areas\` to generate.`,
               evidence: [...rootFound, ...areas.map((a) => `${a.name}: missing .instructions.md`)]
             };
           }

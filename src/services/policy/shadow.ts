@@ -7,7 +7,7 @@
  *
  * Key design decisions:
  * - Legacy and new engine share the same `ReadinessContext` (no duplicate I/O).
- * - Discrepancies are logged to `.primer-cache/shadow-mode.log`, not stderr.
+ * - Discrepancies are logged to `.agentrc-cache/shadow-mode.log`, not stderr.
  * - The function returns the legacy result by default; callers opt into
  *   the new engine via `useNewEngine: true`.
  */
@@ -72,7 +72,7 @@ export function compareShadow(
 }
 
 /**
- * Append shadow-mode discrepancies to `.primer-cache/shadow-mode.log`.
+ * Append shadow-mode discrepancies to `.agentrc-cache/shadow-mode.log`.
  */
 export async function writeShadowLog(
   repoPath: string,
@@ -91,7 +91,7 @@ export async function writeShadowLog(
     ""
   ];
 
-  const cacheDir = path.join(repoPath, ".primer-cache");
+  const cacheDir = path.join(repoPath, ".agentrc-cache");
   const logPath = validateCachePath(cacheDir, "shadow-mode.log");
   await fs.mkdir(path.dirname(logPath), { recursive: true });
   await fs.appendFile(logPath, lines.join("\n") + "\n");

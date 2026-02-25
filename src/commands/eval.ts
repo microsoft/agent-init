@@ -64,7 +64,7 @@ export async function evalCommand(
 
   // Handle --init flag
   if (options.init) {
-    const outputPath = path.join(repoPath, "primer.eval.json");
+    const outputPath = path.join(repoPath, "agentrc.eval.json");
     const desiredCount = Math.max(1, Number.parseInt(options.count ?? "5", 10) || 5);
     try {
       const progress = createProgressReporter(!shouldLog(options));
@@ -95,7 +95,7 @@ export async function evalCommand(
       } else if (shouldLog(options)) {
         process.stderr.write(`Created ${outputPath}\n`);
         process.stderr.write(
-          "Edit the file to add your own test cases, then run 'primer eval' to test.\n"
+          "Edit the file to add your own test cases, then run 'agentrc eval' to test.\n"
         );
       }
     } catch (error) {
@@ -107,7 +107,7 @@ export async function evalCommand(
     return;
   }
 
-  const configPath = path.resolve(configPathArg ?? path.join(repoPath, "primer.eval.json"));
+  const configPath = path.resolve(configPathArg ?? path.join(repoPath, "agentrc.eval.json"));
 
   try {
     const progress = createProgressReporter(!shouldLog(options));

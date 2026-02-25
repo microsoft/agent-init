@@ -11,16 +11,16 @@ import { analysisTreeProvider, readinessTreeProvider } from "./views/providers.j
 export function activate(context: vscode.ExtensionContext): void {
   // Status bar — only show after analysis
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-  statusBar.text = "$(beaker) Primer";
-  statusBar.tooltip = "Primer — click to analyze repository";
-  statusBar.command = "primer.analyze";
+  statusBar.text = "$(beaker) AgentRC";
+  statusBar.tooltip = "AgentRC — click to analyze repository";
+  statusBar.command = "agentrc.analyze";
   context.subscriptions.push(statusBar);
 
   // Tree views (createTreeView for description/badge support)
-  const analysisView = vscode.window.createTreeView("primer.analysis", {
+  const analysisView = vscode.window.createTreeView("agentrc.analysis", {
     treeDataProvider: analysisTreeProvider
   });
-  const readinessView = vscode.window.createTreeView("primer.readiness", {
+  const readinessView = vscode.window.createTreeView("agentrc.readiness", {
     treeDataProvider: readinessTreeProvider
   });
   context.subscriptions.push(analysisView, readinessView);
@@ -48,8 +48,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const analysis = getCachedAnalysis();
     if (analysis) {
       const parts = analysis.languages.slice(0, 2);
-      statusBar.text = `$(beaker) ${parts.join(", ") || "Primer"}`;
-      statusBar.tooltip = `Primer — ${analysis.languages.join(", ")}${analysis.isMonorepo ? " | monorepo" : ""}`;
+      statusBar.text = `$(beaker) ${parts.join(", ") || "AgentRC"}`;
+      statusBar.tooltip = `AgentRC — ${analysis.languages.join(", ")}${analysis.isMonorepo ? " | monorepo" : ""}`;
       statusBar.show();
     } else {
       statusBar.hide();
@@ -58,34 +58,34 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Commands
   context.subscriptions.push(
-    vscode.commands.registerCommand("primer.analyze", async () => {
+    vscode.commands.registerCommand("agentrc.analyze", async () => {
       await analyzeCommand();
       analysisTreeProvider.refresh();
       updateAnalysisView();
       updateStatusBar();
-      vscode.commands.executeCommand("primer.analysis.focus");
+      vscode.commands.executeCommand("agentrc.analysis.focus");
     }),
-    vscode.commands.registerCommand("primer.generate", generateCommand),
-    vscode.commands.registerCommand("primer.instructions", instructionsCommand),
-    vscode.commands.registerCommand("primer.readiness", async () => {
+    vscode.commands.registerCommand("agentrc.generate", generateCommand),
+    vscode.commands.registerCommand("agentrc.instructions", instructionsCommand),
+    vscode.commands.registerCommand("agentrc.readiness", async () => {
       await readinessCommand();
       updateReadinessView();
       updateStatusBar();
     }),
-    vscode.commands.registerCommand("primer.eval", evalCommand),
-    vscode.commands.registerCommand("primer.evalInit", evalInitCommand),
-    vscode.commands.registerCommand("primer.init", async () => {
+    vscode.commands.registerCommand("agentrc.eval", evalCommand),
+    vscode.commands.registerCommand("agentrc.evalInit", evalInitCommand),
+    vscode.commands.registerCommand("agentrc.init", async () => {
       await initCommand();
       analysisTreeProvider.refresh();
       updateAnalysisView();
       updateStatusBar();
-      vscode.commands.executeCommand("primer.analysis.focus");
+      vscode.commands.executeCommand("agentrc.analysis.focus");
     }),
-    vscode.commands.registerCommand("primer.pr", prCommand)
+    vscode.commands.registerCommand("agentrc.pr", prCommand)
   );
 
   // Auto-analyze on activation if configured
-  const config = vscode.workspace.getConfiguration("primer");
+  const config = vscode.workspace.getConfiguration("agentrc");
   if (config.get<boolean>("autoAnalyze") && vscode.workspace.workspaceFolders?.length) {
     analyzeCommand()
       .then(() => {
@@ -93,7 +93,7 @@ export function activate(context: vscode.ExtensionContext): void {
         updateAnalysisView();
         updateStatusBar();
       })
-      .catch((err) => console.error("Primer auto-analyze failed:", err));
+      .catch((err) => console.error("AgentRC auto-analyze failed:", err));
   }
 }
 

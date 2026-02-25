@@ -1,6 +1,6 @@
 ---
 name: Feature request
-description: Suggest an enhancement for Primer
+description: Suggest an enhancement for AgentRC
 labels: [enhancement]
 ---
 

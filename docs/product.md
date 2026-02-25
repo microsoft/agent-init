@@ -1,4 +1,4 @@
-# Primer — Product Brief
+# AgentRC — Product Brief
 
 ## The Problem
 
@@ -12,9 +12,9 @@ This gap widens at scale. An organization with hundreds of repos can't manually 
 - **Individual developers** who want their AI agent to understand their repo's stack, conventions, and architecture from day one.
 - **Engineering leadership** evaluating AI readiness across portfolios, with quantifiable maturity levels and policy-driven compliance.
 
-## What Primer Does
+## What AgentRC Does
 
-Primer automates the preparation work that makes AI coding agents effective:
+AgentRC automates the preparation work that makes AI coding agents effective:
 
 1. **Assess** — Score any repo against a 9-pillar readiness model spanning repo health (style, build, testing, docs, dev environment, code quality, observability, security) and AI setup (instructions, MCP, agents, skills). Get a maturity level from 1–5.
 
@@ -28,7 +28,7 @@ Primer automates the preparation work that makes AI coding agents effective:
 
 ## Maturity Model
 
-Primer's readiness assessment maps repos to a 5-level maturity model:
+AgentRC's readiness assessment maps repos to a 5-level maturity model:
 
 | Level | Name         | What it means                                       |
 | ----- | ------------ | --------------------------------------------------- |
@@ -49,7 +49,7 @@ Organizations can define **readiness policies** to customize which criteria are 
 
 ## Key Design Decisions
 
-- **Instructions are generated, not templated.** Primer uses the Copilot SDK to analyze actual repo content — no generic boilerplate.
+- **Instructions are generated, not templated.** AgentRC uses the Copilot SDK to analyze actual repo content — no generic boilerplate.
 - **Readiness is measurable.** The 9-pillar model produces a numeric score and maturity level, making it possible to set org-wide baselines and CI gates.
 - **Evaluation closes the loop.** Teams can prove that instructions actually improve AI output, with configurable pass-rate thresholds.
 - **Policy-driven compliance.** Policies are composable JSON files that can be checked into repos or distributed org-wide.

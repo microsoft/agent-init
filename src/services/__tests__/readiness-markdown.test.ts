@@ -160,9 +160,9 @@ describe("formatReadinessMarkdown", () => {
     expect(md).toContain("❌ Area README present");
   });
 
-  it("includes primer footer with timestamp", () => {
+  it("includes agentrc footer with timestamp", () => {
     const md = formatReadinessMarkdown(makeReport(), "my-repo");
-    expect(md).toContain("Primer");
+    expect(md).toContain("AgentRC");
     expect(md).toContain("2026-01-01");
   });
 

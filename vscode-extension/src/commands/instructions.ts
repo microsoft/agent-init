@@ -29,7 +29,7 @@ export async function instructionsCommand(): Promise<void> {
   const workspacePath = getWorkspacePath();
   if (!workspacePath) return;
 
-  const model = vscode.workspace.getConfiguration("primer").get<string>("model");
+  const model = vscode.workspace.getConfiguration("agentrc").get<string>("model");
 
   // Pick format
   const formatPick = await vscode.window.showQuickPick(FORMAT_OPTIONS, {
@@ -41,7 +41,7 @@ export async function instructionsCommand(): Promise<void> {
   let analysis = getCachedAnalysis();
   if (!analysis) {
     await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: "Primer: Analyzing repository…" },
+      { location: vscode.ProgressLocation.Notification, title: "AgentRC: Analyzing repository…" },
       async () => {
         analysis = await analyzeRepo(workspacePath);
         setCachedAnalysis(analysis!);
@@ -67,7 +67,7 @@ export async function instructionsCommand(): Promise<void> {
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `Primer: Generating ${formatPick.relativePath}…`,
+      title: `AgentRC: Generating ${formatPick.relativePath}…`,
       cancellable: false
     },
     async (progress) => {
@@ -118,7 +118,7 @@ export async function instructionsCommand(): Promise<void> {
           reporter.succeed("All instruction files already exist.");
           const overwrite = "Overwrite";
           const action = await vscode.window.showWarningMessage(
-            `Primer: All ${totalSkipped} instruction files already exist.`,
+            `AgentRC: All ${totalSkipped} instruction files already exist.`,
             overwrite
           );
           if (action === overwrite) {
@@ -138,7 +138,7 @@ export async function instructionsCommand(): Promise<void> {
               reporter.succeed("Instructions overwritten.");
             } catch (err) {
               vscode.window.showErrorMessage(
-                `Primer: Instruction overwrite failed — ${err instanceof Error ? err.message : String(err)}`
+                `AgentRC: Instruction overwrite failed — ${err instanceof Error ? err.message : String(err)}`
               );
             }
           }
@@ -155,7 +155,7 @@ export async function instructionsCommand(): Promise<void> {
         }
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: Instruction generation failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: Instruction generation failed — ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }

@@ -1,12 +1,12 @@
-# Primer — AI Repository Setup
+# AgentRC — AI Repository Setup
 
 Prime your repositories for AI-assisted development, right from VS Code.
 
 ## Getting Started
 
-Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for **Primer** — or click the **Primer** icon in the Activity Bar to start from the sidebar.
+Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for **AgentRC** — or click the **AgentRC** icon in the Activity Bar to start from the sidebar.
 
-First time? Run **Primer: Get Started** (or open the walkthrough from the Welcome tab) for a guided 5-step setup.
+First time? Run **AgentRC: Get Started** (or open the walkthrough from the Welcome tab) for a guided 5-step setup.
 
 ## Features
 
@@ -14,7 +14,7 @@ First time? Run **Primer: Get Started** (or open the walkthrough from the Welcom
 
 Detect languages, frameworks, package managers, and monorepo structure. Results populate the **Analysis** tree view in the sidebar.
 
-`Primer: Analyze Repository`
+`AgentRC: Analyze Repository`
 
 ### AI Readiness Assessment
 
@@ -24,7 +24,7 @@ Score your repo across **9 pillars** grouped into **Repo Health** and **AI Setup
 - Drill-down into criteria in the **Readiness** tree view
 - Pass/fail icons with evidence for each criterion
 
-`Primer: AI Readiness Report`
+`AgentRC: AI Readiness Report`
 
 ### Generate Instructions
 
@@ -35,35 +35,35 @@ Create AI instruction files using the Copilot SDK. Choose your format:
 
 For monorepos, pick specific areas to generate per-area instruction files with `applyTo` scoping.
 
-`Primer: Generate Copilot Instructions`
+`AgentRC: Generate Copilot Instructions`
 
 ### Generate Configs
 
 Set up MCP servers (`.vscode/mcp.json`) and VS Code settings (`.vscode/settings.json`) tuned to your project.
 
-`Primer: Generate Configs`
+`AgentRC: Generate Configs`
 
 ### Evaluate Instructions
 
 Measure how much your instructions improve AI responses by comparing with/without using a judge model. Results display in an interactive viewer inside VS Code.
 
-`Primer: Run Eval` · `Primer: Scaffold Eval Config`
+`AgentRC: Run Eval` · `AgentRC: Scaffold Eval Config`
 
 ### Initialize Repository
 
 One command to analyze, generate instructions, and create configs:
 
-`Primer: Initialize Repository`
+`AgentRC: Initialize Repository`
 
 ### Create Pull Request
 
-Commit Primer-generated files and open a PR directly from VS Code. Supports both **GitHub** and **Azure DevOps** repositories — the platform is detected automatically from your git remote.
+Commit AgentRC-generated files and open a PR directly from VS Code. Supports both **GitHub** and **Azure DevOps** repositories — the platform is detected automatically from your git remote.
 
-`Primer: Create Pull Request`
+`AgentRC: Create Pull Request`
 
 ## Sidebar Views
 
-The **Primer** Activity Bar icon opens two tree views:
+The **AgentRC** Activity Bar icon opens two tree views:
 
 | View          | Contents                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------- |
@@ -74,10 +74,10 @@ Both views show welcome screens with action buttons when no data is loaded yet.
 
 ## Settings
 
-| Setting              | Default             | Description                                        |
-| -------------------- | ------------------- | -------------------------------------------------- |
-| `primer.model`       | `claude-sonnet-4.5` | Default Copilot model for generation               |
-| `primer.autoAnalyze` | `false`             | Automatically analyze repository on workspace open |
+| Setting               | Default             | Description                                        |
+| --------------------- | ------------------- | -------------------------------------------------- |
+| `agentrc.model`       | `claude-sonnet-4.5` | Default Copilot model for generation               |
+| `agentrc.autoAnalyze` | `false`             | Automatically analyze repository on workspace open |
 
 ## Requirements
 
@@ -89,6 +89,6 @@ Both views show welcome screens with action buttons when no data is loaded yet.
 
 ## Links
 
-- [Primer CLI on GitHub](https://github.com/microsoft/agent-init)
-- [Contributing Guide](https://github.com/microsoft/agent-init/blob/main/CONTRIBUTING.md)
-- [License (MIT)](https://github.com/microsoft/agent-init/blob/main/LICENSE)
+- [AgentRC CLI on GitHub](https://github.com/microsoft/agentrc)
+- [Contributing Guide](https://github.com/microsoft/agentrc/blob/main/CONTRIBUTING.md)
+- [License (MIT)](https://github.com/microsoft/agentrc/blob/main/LICENSE)

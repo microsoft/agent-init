@@ -1,3 +1,3 @@
-Primer TUI components live here.
+AgentRC TUI components live here.
 
-Run the TUI with `primer tui`.
+Run the TUI with `agentrc tui`.

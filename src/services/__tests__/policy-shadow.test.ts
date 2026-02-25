@@ -342,7 +342,7 @@ describe("writeShadowLog", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-shadow-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-shadow-"));
   });
 
   afterEach(async () => {
@@ -351,7 +351,7 @@ describe("writeShadowLog", () => {
 
   it("is a no-op when discrepancies array is empty", async () => {
     await writeShadowLog(tmpDir, []);
-    const logPath = path.join(tmpDir, ".primer-cache", "shadow-mode.log");
+    const logPath = path.join(tmpDir, ".agentrc-cache", "shadow-mode.log");
     let exists = false;
     try {
       await fs.access(logPath);
@@ -367,7 +367,7 @@ describe("writeShadowLog", () => {
       { criterionId: "readme", field: "status", legacyValue: "pass", newValue: "fail" }
     ];
     await writeShadowLog(tmpDir, discrepancies);
-    const logPath = path.join(tmpDir, ".primer-cache", "shadow-mode.log");
+    const logPath = path.join(tmpDir, ".agentrc-cache", "shadow-mode.log");
     const content = await fs.readFile(logPath, "utf-8");
     expect(content).toContain('["readme"] status');
     expect(content).toContain('"pass"');
@@ -378,14 +378,14 @@ describe("writeShadowLog", () => {
     const d = [{ criterionId: "readme", field: "status", legacyValue: "pass", newValue: "fail" }];
     await writeShadowLog(tmpDir, d);
     await writeShadowLog(tmpDir, d);
-    const logPath = path.join(tmpDir, ".primer-cache", "shadow-mode.log");
+    const logPath = path.join(tmpDir, ".agentrc-cache", "shadow-mode.log");
     const content = await fs.readFile(logPath, "utf-8");
     const matches = content.match(/\["readme"\] status/g) ?? [];
     expect(matches).toHaveLength(2);
   });
 
-  it("creates the .primer-cache directory if it does not exist", async () => {
-    // No .primer-cache dir created — writeShadowLog must mkdir it
+  it("creates the .agentrc-cache directory if it does not exist", async () => {
+    // No .agentrc-cache dir created — writeShadowLog must mkdir it
     const discrepancies = [
       {
         criterionId: "codeowners",
@@ -395,7 +395,7 @@ describe("writeShadowLog", () => {
       }
     ];
     await writeShadowLog(tmpDir, discrepancies);
-    const logPath = path.join(tmpDir, ".primer-cache", "shadow-mode.log");
+    const logPath = path.join(tmpDir, ".agentrc-cache", "shadow-mode.log");
     const stat = await fs.stat(logPath);
     expect(stat.isFile()).toBe(true);
   });

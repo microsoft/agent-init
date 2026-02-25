@@ -2,11 +2,11 @@
   "release-type": "node",
   "packages": {
     ".": {
-      "package-name": "primer",
+      "package-name": "@microsoft/agentrc",
       "changelog-path": "CHANGELOG.md"
     },
     "vscode-extension": {
-      "package-name": "primer-vscode",
+      "package-name": "@microsoft/agentrc-vscode",
       "changelog-path": "CHANGELOG.md"
     }
   }

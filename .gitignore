@@ -25,10 +25,12 @@ npm-debug.log*
 # TypeScript cache
 *.tsbuildinfo
 
-# Primer cache
+# AgentRC cache
+.agentrc-cache/
 .primer-cache/
 
-# Primer outputs
+# AgentRC outputs
+.agentrc/
 .primer/
 readiness-report.html
 *.vsix

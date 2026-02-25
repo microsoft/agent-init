@@ -50,7 +50,7 @@ export async function initCommand(
 
   if (options.json && provider) {
     outputError(
-      "--json with --provider is not supported. Use 'primer pr' for non-interactive provider workflows.",
+      "--json with --provider is not supported. Use 'agentrc pr' for non-interactive provider workflows.",
       true
     );
     return;
@@ -80,7 +80,7 @@ export async function initCommand(
       }))
     });
 
-    const cacheRoot = path.join(process.cwd(), ".primer-cache");
+    const cacheRoot = path.join(process.cwd(), ".agentrc-cache");
     repoPath = validateCachePath(cacheRoot, selection.owner, selection.name);
     await ensureDir(repoPath);
 
@@ -142,7 +142,7 @@ export async function initCommand(
       }))
     });
 
-    const cacheRoot = path.join(process.cwd(), ".primer-cache");
+    const cacheRoot = path.join(process.cwd(), ".agentrc-cache");
     repoPath = validateCachePath(
       cacheRoot,
       orgSelection.name,
@@ -243,10 +243,10 @@ export async function initCommand(
       process.stderr.write(`${file.action === "wrote" ? "Wrote" : "Skipped"} ${file.path}\n`);
     }
     process.stderr.write("\nNext steps:\n");
-    process.stderr.write("  primer readiness             Check AI readiness across 9 pillars\n");
+    process.stderr.write("  agentrc readiness             Check AI readiness across 9 pillars\n");
     if (analysis.areas && analysis.areas.length > 0) {
-      process.stderr.write("  primer instructions --areas   Generate per-area instructions\n");
+      process.stderr.write("  agentrc instructions --areas   Generate per-area instructions\n");
     }
-    process.stderr.write("  primer eval --init            Scaffold evaluation test cases\n");
+    process.stderr.write("  agentrc eval --init            Scaffold evaluation test cases\n");
   }
 }

@@ -1,4 +1,4 @@
-# Primer Plugin System
+# AgentRC Plugin System
 
 The unified plugin policy system allows both imperative (code) plugins and declarative (JSON) policies to run through the same engine.
 
@@ -90,7 +90,7 @@ There are two authoring APIs:
 
 ```typescript
 // my-policy.ts
-import type { PolicyConfig } from "primer/services/policy";
+import type { PolicyConfig } from "agentrc/services/policy";
 
 const policy: PolicyConfig = {
   name: "my-custom-policy",
@@ -143,18 +143,18 @@ export default policy;
 
 ```bash
 # Single policy
-primer readiness --policy ./my-policy.json
+agentrc readiness --policy ./my-policy.json
 
 # Multiple policies (comma-separated)
-primer readiness --policy ./base.json,./strict.json
+agentrc readiness --policy ./base.json,./strict.json
 
 # npm package policy
-primer readiness --policy @org/primer-policy-strict
+agentrc readiness --policy @org/agentrc-policy-strict
 ```
 
 ### Configuration File
 
-In `primer.config.json`:
+In `agentrc.config.json`:
 
 ```json
 {
@@ -175,12 +175,12 @@ The engine computes a score from final recommendations:
 
 ## Shadow Mode
 
-> **Status: In development.** Shadow mode infrastructure (`compareShadow`, `writeShadowLog`) is implemented but not yet wired into the production readiness path. The `.primer-cache/shadow-mode.log` file is **not** written during normal `primer readiness` runs.
+> **Status: In development.** Shadow mode infrastructure (`compareShadow`, `writeShadowLog`) is implemented but not yet wired into the production readiness path. The `.agentrc-cache/shadow-mode.log` file is **not** written during normal `agentrc readiness` runs.
 
 Shadow mode is designed to validate the new plugin engine against the legacy system before switching it on by default. When wired in, it will run both paths in parallel and log discrepancies:
 
 ```typescript
-import { compareShadow, writeShadowLog } from "primer/services/policy/shadow";
+import { compareShadow, writeShadowLog } from "agentrc/services/policy/shadow";
 
 // Compare legacy ReadinessReport against a new EngineReport
 const result = compareShadow(legacyReport, engineReport, {
@@ -188,7 +188,7 @@ const result = compareShadow(legacyReport, engineReport, {
   useNewEngine: false // Use legacy output by default
 });
 
-// Write any discrepancies to .primer-cache/shadow-mode.log
+// Write any discrepancies to .agentrc-cache/shadow-mode.log
 if (result.discrepancies.length > 0) {
   await writeShadowLog(repoPath, result.discrepancies);
 }

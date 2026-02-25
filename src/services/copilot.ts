@@ -7,11 +7,11 @@ import fg from "fast-glob";
 
 const execFileAsync = promisify(execFile);
 
-const COPILOT_DEBUG_ENABLED = /^(1|true|yes|on)$/iu.test(process.env.PRIMER_DEBUG_COPILOT ?? "");
+const COPILOT_DEBUG_ENABLED = /^(1|true|yes|on)$/iu.test(process.env.AGENTRC_DEBUG_COPILOT ?? "");
 
 export function logCopilotDebug(message: string): void {
   if (!COPILOT_DEBUG_ENABLED) return;
-  process.stderr.write(`[primer:copilot] ${message}\n`);
+  process.stderr.write(`[agentrc:copilot] ${message}\n`);
 }
 
 export type CopilotCliConfig = {
@@ -79,16 +79,16 @@ async function findCopilotCliConfig(): Promise<CopilotCliConfig> {
     return cachedCliConfig;
   }
 
-  const overrideCliPath = process.env.PRIMER_COPILOT_CLI_PATH;
+  const overrideCliPath = process.env.AGENTRC_COPILOT_CLI_PATH;
   if (overrideCliPath) {
     const overrideConfig = { cliPath: overrideCliPath };
-    logCopilotDebug(`trying override PRIMER_COPILOT_CLI_PATH=${overrideCliPath}`);
+    logCopilotDebug(`trying override AGENTRC_COPILOT_CLI_PATH=${overrideCliPath}`);
     if (await isHeadlessCompatible(overrideConfig)) {
       logCopilotDebug("override CLI is compatible");
       return cacheConfig(overrideConfig);
     }
     throw new Error(
-      `PRIMER_COPILOT_CLI_PATH points to an incompatible CLI (${overrideCliPath}). ` +
+      `AGENTRC_COPILOT_CLI_PATH points to an incompatible CLI (${overrideCliPath}). ` +
         "It must support '--headless --version'."
     );
   }
@@ -200,8 +200,8 @@ async function findCopilotCliConfig(): Promise<CopilotCliConfig> {
       : first.config.cliPath;
     throw new Error(
       `Found Copilot CLI candidate from ${first.source} (${desc}) but it does not support '--headless'. ` +
-        "Primer requires a Copilot CLI build compatible with SDK server mode. " +
-        "Install/update GitHub Copilot Chat in VS Code, or point PRIMER_COPILOT_CLI_PATH to a compatible CLI binary."
+        "AgentRC requires a Copilot CLI build compatible with SDK server mode. " +
+        "Install/update GitHub Copilot Chat in VS Code, or point AGENTRC_COPILOT_CLI_PATH to a compatible CLI binary."
     );
   }
 

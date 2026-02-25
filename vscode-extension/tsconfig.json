@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "rootDir": "..",
     "paths": {
-      "primer/*": ["../src/*"]
+      "agentrc/*": ["../src/*"]
     }
   },
   "include": ["src"],

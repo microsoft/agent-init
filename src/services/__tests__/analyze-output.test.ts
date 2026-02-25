@@ -73,9 +73,9 @@ describe("formatAnalysisMarkdown", () => {
     expect(md).toContain("| Frameworks | None detected |");
   });
 
-  it("includes primer footer", () => {
+  it("includes agentrc footer", () => {
     const md = formatAnalysisMarkdown(makeAnalysis());
-    expect(md).toContain("Primer");
+    expect(md).toContain("AgentRC");
   });
 });
 

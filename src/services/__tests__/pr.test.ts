@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildInstructionsPrBody,
   buildFullPrBody,
-  isPrimerFile,
-  PRIMER_FILE_PATTERNS
+  isAgentrcFile,
+  AGENTRC_FILE_PATTERNS
 } from "../../utils/pr";
 
 describe("buildInstructionsPrBody", () => {
@@ -24,7 +24,7 @@ describe("buildInstructionsPrBody", () => {
   it("includes project link", () => {
     const body = buildInstructionsPrBody();
 
-    expect(body).toContain("Primer");
+    expect(body).toContain("AgentRC");
     expect(body).toContain("github.com");
   });
 });
@@ -60,46 +60,46 @@ describe("buildFullPrBody", () => {
   });
 });
 
-describe("isPrimerFile", () => {
-  it.each([...PRIMER_FILE_PATTERNS])("matches exact pattern: %s", (pattern) => {
-    expect(isPrimerFile(pattern)).toBe(true);
+describe("isAgentrcFile", () => {
+  it.each([...AGENTRC_FILE_PATTERNS])("matches exact pattern: %s", (pattern) => {
+    expect(isAgentrcFile(pattern)).toBe(true);
   });
 
   it("matches .instructions.md suffix", () => {
-    expect(isPrimerFile("src/api/.instructions.md")).toBe(true);
-    expect(isPrimerFile(".instructions.md")).toBe(true);
-    expect(isPrimerFile("deep/nested/path/.instructions.md")).toBe(true);
+    expect(isAgentrcFile("src/api/.instructions.md")).toBe(true);
+    expect(isAgentrcFile(".instructions.md")).toBe(true);
+    expect(isAgentrcFile("deep/nested/path/.instructions.md")).toBe(true);
   });
 
   it("rejects unrelated files", () => {
-    expect(isPrimerFile("package.json")).toBe(false);
-    expect(isPrimerFile("src/index.ts")).toBe(false);
-    expect(isPrimerFile("README.md")).toBe(false);
-    expect(isPrimerFile(".gitignore")).toBe(false);
+    expect(isAgentrcFile("package.json")).toBe(false);
+    expect(isAgentrcFile("src/index.ts")).toBe(false);
+    expect(isAgentrcFile("README.md")).toBe(false);
+    expect(isAgentrcFile(".gitignore")).toBe(false);
   });
 
   it("rejects partial matches", () => {
-    expect(isPrimerFile("copilot-instructions.md")).toBe(false);
-    expect(isPrimerFile("mcp.json")).toBe(false);
-    expect(isPrimerFile("settings.json")).toBe(false);
-    expect(isPrimerFile(".vscode/extensions.json")).toBe(false);
+    expect(isAgentrcFile("copilot-instructions.md")).toBe(false);
+    expect(isAgentrcFile("mcp.json")).toBe(false);
+    expect(isAgentrcFile("settings.json")).toBe(false);
+    expect(isAgentrcFile(".vscode/extensions.json")).toBe(false);
   });
 
   it("rejects files that contain pattern as substring", () => {
-    expect(isPrimerFile("old/.github/copilot-instructions.md.bak")).toBe(false);
-    expect(isPrimerFile("backup/AGENTS.md")).toBe(false);
-    expect(isPrimerFile("other/.vscode/mcp.json")).toBe(false);
+    expect(isAgentrcFile("old/.github/copilot-instructions.md.bak")).toBe(false);
+    expect(isAgentrcFile("backup/AGENTS.md")).toBe(false);
+    expect(isAgentrcFile("other/.vscode/mcp.json")).toBe(false);
   });
 
   it("rejects instructions.md without dot prefix", () => {
-    expect(isPrimerFile("instructions.md")).toBe(false);
-    expect(isPrimerFile("src/instructions.md")).toBe(false);
+    expect(isAgentrcFile("instructions.md")).toBe(false);
+    expect(isAgentrcFile("src/instructions.md")).toBe(false);
   });
 
   it("matches Windows-style backslash paths", () => {
-    expect(isPrimerFile(".github\\copilot-instructions.md")).toBe(true);
-    expect(isPrimerFile(".vscode\\mcp.json")).toBe(true);
-    expect(isPrimerFile(".vscode\\settings.json")).toBe(true);
-    expect(isPrimerFile("src\\api\\.instructions.md")).toBe(true);
+    expect(isAgentrcFile(".github\\copilot-instructions.md")).toBe(true);
+    expect(isAgentrcFile(".vscode\\mcp.json")).toBe(true);
+    expect(isAgentrcFile(".vscode\\settings.json")).toBe(true);
+    expect(isAgentrcFile("src\\api\\.instructions.md")).toBe(true);
   });
 });

@@ -18,13 +18,13 @@ on:
     paths:
       - ".github/copilot-instructions.md"
       - ".github/**/*.instructions.md"
-      - "primer.eval.json"
+      - "agentrc.eval.json"
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     paths:
       - ".github/copilot-instructions.md"
       - ".github/**/*.instructions.md"
-      - "primer.eval.json"
+      - "agentrc.eval.json"
 
 concurrency:
   group: eval-${{ github.ref }}
@@ -65,9 +65,9 @@ jobs:
         id: eval
         continue-on-error: true
         run: |
-          mkdir -p .primer/evals
+          mkdir -p .agentrc/evals
 
-          ARGS="--json --output .primer/evals/results.json"
+          ARGS="--json --output .agentrc/evals/results.json"
 
           if [ -n "${{ inputs.model }}" ]; then
             ARGS="$ARGS --model ${{ inputs.model }}"
@@ -79,7 +79,7 @@ jobs:
           THRESHOLD="${{ inputs.fail-threshold || '50' }}"
           ARGS="$ARGS --fail-level $THRESHOLD"
 
-          node dist/index.js eval $ARGS 2>&1 | tee .primer/evals/eval.log
+          node dist/index.js eval $ARGS 2>&1 | tee .agentrc/evals/eval.log
         env:
           GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
 
@@ -88,7 +88,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: eval-results
-          path: .primer/evals/
+          path: .agentrc/evals/
           if-no-files-found: warn
 
       - name: Report eval results
@@ -102,7 +102,7 @@ jobs:
             let isPR = context.eventName === 'pull_request';
 
             try {
-              const raw = fs.readFileSync('.primer/evals/results.json', 'utf8');
+              const raw = fs.readFileSync('.agentrc/evals/results.json', 'utf8');
               const data = JSON.parse(raw);
               const results = data.results || [];
               const total = results.length;
@@ -115,7 +115,7 @@ jobs:
                 : 'N/A';
 
               const icon = passed === total ? '✅' : failed > 0 ? '❌' : '⚠️';
-              summary += `## ${icon} Primer Eval: ${passed}/${total} pass (${passRate}%)\n\n`;
+              summary += `## ${icon} AgentRC Eval: ${passed}/${total} pass (${passRate}%)\n\n`;
               summary += `> **${duration}** · model \`${data.model}\` · judge \`${data.judgeModel}\`\n\n`;
 
               summary += `| Case | Verdict | Score | Rationale |\n`;
@@ -148,7 +148,7 @@ jobs:
                 summary += `\n</details>\n\n`;
               }
             } catch (err) {
-              summary += `## ⚠️ Primer Eval\n\nCould not read eval results: ${err.message}\n`;
+              summary += `## ⚠️ AgentRC Eval\n\nCould not read eval results: ${err.message}\n`;
             }
 
             // Write to Actions job summary (visible in run UI and PR checks tab)
@@ -156,7 +156,7 @@ jobs:
 
             // Also post/update as PR comment
             if (isPR) {
-              const marker = '<!-- primer-eval-results -->';
+              const marker = '<!-- agentrc-eval-results -->';
               const body = marker + '\n' + summary;
 
               const { data: comments } = await github.rest.issues.listComments({

@@ -5,7 +5,7 @@ applyTo: "vscode-extension/**"
 
 # VS Code Extension Development
 
-The extension lives in `vscode-extension/` and surfaces Primer CLI commands in VS Code.
+The extension lives in `vscode-extension/` and surfaces AgentRC CLI commands in VS Code.
 
 ## Build
 
@@ -20,14 +20,14 @@ Output is CommonJS (not ESM like the CLI). Bundled with esbuild, not tsup.
 
 ## Service Reuse via Path Alias
 
-The extension imports CLI services through a `primer/*` path alias:
+The extension imports CLI services through a `agentrc/*` path alias:
 
 ```typescript
 // vscode-extension/src/services.ts — re-export layer
-export { analyzeRepo } from "primer/services/analyzer.js";
+export { analyzeRepo } from "agentrc/services/analyzer.js";
 ```
 
-This works because `tsconfig.json` maps `"primer/*": ["../src/*"]` and esbuild resolves it at bundle time. Never duplicate CLI service logic in the extension.
+This works because `tsconfig.json` maps `"agentrc/*": ["../src/*"]` and esbuild resolves it at bundle time. Never duplicate CLI service logic in the extension.
 
 ## Git Integration
 

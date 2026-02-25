@@ -1,24 +1,24 @@
-export { analyzeRepo } from "primer/services/analyzer.js";
-export { generateConfigs } from "primer/services/generator.js";
+export { analyzeRepo } from "agentrc/services/analyzer.js";
+export { generateConfigs } from "agentrc/services/generator.js";
 export {
   generateCopilotInstructions,
   generateAreaInstructions,
   writeAreaInstruction
-} from "primer/services/instructions.js";
-export { runEval } from "primer/services/evaluator.js";
-export { generateEvalScaffold } from "primer/services/evalScaffold.js";
+} from "agentrc/services/instructions.js";
+export { runEval } from "agentrc/services/evaluator.js";
+export { generateEvalScaffold } from "agentrc/services/evalScaffold.js";
 export {
   runReadinessReport,
   groupPillars,
   getLevelName,
   getLevelDescription
-} from "primer/services/readiness.js";
-export { generateVisualReport } from "primer/services/visualReport.js";
-export { createPullRequest } from "primer/services/github.js";
+} from "agentrc/services/readiness.js";
+export { generateVisualReport } from "agentrc/services/visualReport.js";
+export { createPullRequest } from "agentrc/services/github.js";
 export {
   createPullRequest as createAzurePullRequest,
   getRepo as getAzureDevOpsRepo
-} from "primer/services/azureDevops.js";
-export { isPrimerFile } from "primer/utils/pr.js";
-export { safeWriteFile } from "primer/utils/fs.js";
-export { DEFAULT_MODEL } from "primer/config.js";
+} from "agentrc/services/azureDevops.js";
+export { isAgentrcFile } from "agentrc/utils/pr.js";
+export { safeWriteFile } from "agentrc/utils/fs.js";
+export { DEFAULT_MODEL } from "agentrc/config.js";

@@ -116,7 +116,7 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
     setStatus("processing");
     const selectedRepos = Array.from(selectedRepoIndices).map((i) => repos[i]);
     const results: ProcessResult[] = [];
-    const tmpDir = path.join(os.tmpdir(), `primer-batch-readiness-${Date.now()}`);
+    const tmpDir = path.join(os.tmpdir(), `agentrc-batch-readiness-${Date.now()}`);
 
     try {
       await ensureDir(tmpDir);

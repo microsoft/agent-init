@@ -1,11 +1,11 @@
 {
   "instructionFile": ".github/copilot-instructions.md",
-  "systemMessage": "You are answering questions about the Primer repository. Scope your answers to this repo's architecture, usage, configuration, and workflows. Do not provide generic Copilot CLI details unless specifically asked.",
+  "systemMessage": "You are answering questions about the AgentRC repository. Scope your answers to this repo's architecture, usage, configuration, and workflows. Do not provide generic Copilot CLI details unless specifically asked.",
   "cases": [
     {
       "id": "case-1",
-      "prompt": "What is Primer's architecture and how are its layers organized?",
-      "expectation": "Primer is a TypeScript CLI tool for priming repositories for AI-assisted development. It follows a layered architecture: src/index.ts is the entrypoint which defaults to the interactive TUI when no command is given, otherwise delegates to runCli in src/cli.ts. Commander wires subcommands (in src/commands/) to service functions (in src/services/), with shared utilities in src/utils/ and Ink/React TUI components in src/ui/. The CLI layer handles option parsing and output formatting, services contain all core logic (analyzer, instructions, readiness, evaluator, batch, git, github, azureDevops, etc.), and utils provide cross-cutting concerns like safe file I/O, structured output, and working directory management."
+      "prompt": "What is AgentRC's architecture and how are its layers organized?",
+      "expectation": "AgentRC is a TypeScript CLI tool for priming repositories for AI-assisted development. It follows a layered architecture: src/index.ts is the entrypoint which defaults to the interactive TUI when no command is given, otherwise delegates to runCli in src/cli.ts. Commander wires subcommands (in src/commands/) to service functions (in src/services/), with shared utilities in src/utils/ and Ink/React TUI components in src/ui/. The CLI layer handles option parsing and output formatting, services contain all core logic (analyzer, instructions, readiness, evaluator, batch, git, github, azureDevops, etc.), and utils provide cross-cutting concerns like safe file I/O, structured output, and working directory management."
     },
     {
       "id": "case-2",
@@ -24,7 +24,7 @@
     },
     {
       "id": "case-5",
-      "prompt": "How does Primer generate Copilot instructions, including for monorepos with multiple areas?",
+      "prompt": "How does AgentRC generate Copilot instructions, including for monorepos with multiple areas?",
       "expectation": "The instruction generation pipeline starts with the analyzer (src/services/analyzer.ts) which scans the repo to detect languages, frameworks, monorepo apps, and logical areas (frontend, backend, etc.) with glob patterns. For root-level instructions, generateCopilotInstructions() in src/services/instructions.ts creates a Copilot SDK session that explores the codebase using tools (glob, view, grep) and produces .github/copilot-instructions.md. For area-specific instructions, generateAreaInstructions() generates focused content per area, and buildAreaFrontmatter() creates YAML frontmatter with applyTo glob patterns so VS Code scopes them to the right files. These are written to .github/instructions/{sanitized-name}.instructions.md via writeAreaInstruction(). The instructions command supports --areas to generate all area instructions, --areas-only to skip the root file, and --area <name> for a single area."
     },
     {

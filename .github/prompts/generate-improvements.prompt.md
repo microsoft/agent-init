@@ -1,8 +1,8 @@
 ---
-description: Suggest improvements to the Primer CLI project across features, bug fixes, security, performance, and engineering quality.
+description: Suggest improvements to the AgentRC CLI project across features, bug fixes, security, performance, and engineering quality.
 ---
 
-You are a senior software engineer reviewing the **Primer** project — a TypeScript CLI tool that primes repositories for AI-assisted development by analyzing codebases, generating Copilot instructions and VS Code configs, running evaluations, and producing AI readiness reports.
+You are a senior software engineer reviewing the **AgentRC** project — a TypeScript CLI tool that primes repositories for AI-assisted development by analyzing codebases, generating Copilot instructions and VS Code configs, running evaluations, and producing AI readiness reports.
 
 ## Architecture Context
 
@@ -29,17 +29,17 @@ You are a senior software engineer reviewing the **Primer** project — a TypeSc
 
 ### CLI Commands
 
-| Command                  | Description                                                   |
-| ------------------------ | ------------------------------------------------------------- |
-| `primer init`            | Interactive setup wizard (instructions + configs)             |
-| `primer generate <type>` | Generate `instructions`, `agents`, `mcp`, or `vscode` configs |
-| `primer instructions`    | Generate copilot-instructions.md via Copilot SDK              |
-| `primer eval`            | Run evaluation cases comparing with/without instructions      |
-| `primer readiness`       | AI readiness assessment with optional visual HTML report      |
-| `primer batch`           | Batch process multiple repos across GitHub/Azure orgs         |
-| `primer batch-readiness` | Batch readiness reports across multiple repos                 |
-| `primer pr`              | Automate branch/PR creation for generated configs             |
-| `primer tui`             | Interactive Ink-based terminal UI                             |
+| Command                   | Description                                                   |
+| ------------------------- | ------------------------------------------------------------- |
+| `agentrc init`            | Interactive setup wizard (instructions + configs)             |
+| `agentrc generate <type>` | Generate `instructions`, `agents`, `mcp`, or `vscode` configs |
+| `agentrc instructions`    | Generate copilot-instructions.md via Copilot SDK              |
+| `agentrc eval`            | Run evaluation cases comparing with/without instructions      |
+| `agentrc readiness`       | AI readiness assessment with optional visual HTML report      |
+| `agentrc batch`           | Batch process multiple repos across GitHub/Azure orgs         |
+| `agentrc batch-readiness` | Batch readiness reports across multiple repos                 |
+| `agentrc pr`              | Automate branch/PR creation for generated configs             |
+| `agentrc tui`             | Interactive Ink-based terminal UI                             |
 
 ### Key Patterns
 
@@ -67,10 +67,10 @@ Analyze the full codebase and generate a prioritized list of **concrete, actiona
 
 - Are there CLI commands or flags referenced in README/help text that aren't fully implemented?
 - Could `analyzeRepo` detect more languages, frameworks, or package managers (e.g., Gradle, Maven, .NET, Ruby)?
-- Does `primer init --yes` skip useful defaults (currently only selects instructions, not MCP/VS Code configs)?
-- Could `primer readiness` support more output formats (e.g., CSV, PDF) or comparison over time?
+- Does `agentrc init --yes` skip useful defaults (currently only selects instructions, not MCP/VS Code configs)?
+- Could `agentrc readiness` support more output formats (e.g., CSV, PDF) or comparison over time?
 - Are there opportunities to improve the batch processing UX (progress, retries, parallel execution)?
-- Could `primer eval` scaffold richer default eval cases or support custom grading rubrics?
+- Could `agentrc eval` scaffold richer default eval cases or support custom grading rubrics?
 
 ### Bug Fixes & Correctness
 
@@ -109,7 +109,7 @@ Analyze the full codebase and generate a prioritized list of **concrete, actiona
 - What is the current test coverage? Only `analyzer.test.ts`, `fs.test.ts`, `readiness.test.ts`, and `visualReport.test.ts` exist — many services and commands are untested.
 - Are there tests for the Copilot SDK integration paths (even with mocked SDK)?
 - Are edge cases in `readPnpmWorkspace`, `detectWorkspace`, and `resolveWorkspaceApps` covered?
-- Are there integration tests for the full `primer init` or `primer generate` flows?
+- Are there integration tests for the full `agentrc init` or `agentrc generate` flows?
 - Is the GitHub/Azure DevOps API integration tested with mocked HTTP responses?
 
 ### Developer Experience

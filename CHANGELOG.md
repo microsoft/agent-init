@@ -6,21 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ### Complete Rewrite
 
-Primer vNext is a complete rewrite as a TypeScript CLI tool (ESM, strict, ES2022) for priming repositories for AI-assisted development and evaluation.
+AgentRC vNext is a complete rewrite as a TypeScript CLI tool (ESM, strict, ES2022) for priming repositories for AI-assisted development and evaluation.
 
 ### New Commands
 
-- **`primer readiness`** — AI readiness report scoring repos across 9 pillars (style, build, testing, docs, dev-env, code-quality, observability, security, AI tooling) with a 5-level maturity model (Functional → Autonomous).
-- **`primer readiness --visual`** — GitHub-themed HTML report with light/dark toggle, expandable pillar details, and maturity model descriptions.
-- **`primer readiness --per-area`** — Per-area readiness scoring for monorepos with area-scoped criteria and aggregate thresholds.
-- **`primer readiness --policy`** — Customizable readiness policies (disable/override criteria, tune thresholds) via JSON, JS/TS, or npm packages; chainable with last-wins semantics.
-- **`primer batch-readiness`** — Consolidated visual readiness report across multiple repositories, with `--policy` support.
-- **`primer generate instructions`** — Generate `copilot-instructions.md` via Copilot SDK, with `--per-app` support for monorepos.
-- **`primer generate agents`** — Generate `AGENTS.md` guidance files.
-- **`primer instructions --areas`** — Generate file-based `.instructions.md` files scoped to detected areas with `applyTo` glob patterns.
-- **`primer eval --init`** — AI-powered eval scaffold generation that analyzes codebases and produces cross-cutting, area-aware eval cases.
-- **`primer eval --list-models`** — List available Copilot CLI models.
-- **`primer analyze`** — Standalone repo analysis command with structured `--json` output.
+- **`agentrc readiness`** — AI readiness report scoring repos across 9 pillars (style, build, testing, docs, dev-env, code-quality, observability, security, AI tooling) with a 5-level maturity model (Functional → Autonomous).
+- **`agentrc readiness --visual`** — GitHub-themed HTML report with light/dark toggle, expandable pillar details, and maturity model descriptions.
+- **`agentrc readiness --per-area`** — Per-area readiness scoring for monorepos with area-scoped criteria and aggregate thresholds.
+- **`agentrc readiness --policy`** — Customizable readiness policies (disable/override criteria, tune thresholds) via JSON, JS/TS, or npm packages; chainable with last-wins semantics.
+- **`agentrc batch-readiness`** — Consolidated visual readiness report across multiple repositories, with `--policy` support.
+- **`agentrc generate instructions`** — Generate `copilot-instructions.md` via Copilot SDK, with `--per-app` support for monorepos.
+- **`agentrc generate agents`** — Generate `AGENTS.md` guidance files.
+- **`agentrc instructions --areas`** — Generate file-based `.instructions.md` files scoped to detected areas with `applyTo` glob patterns.
+- **`agentrc eval --init`** — AI-powered eval scaffold generation that analyzes codebases and produces cross-cutting, area-aware eval cases.
+- **`agentrc eval --list-models`** — List available Copilot CLI models.
+- **`agentrc analyze`** — Standalone repo analysis command with structured `--json` output.
 
 ### VS Code Extension
 
@@ -48,7 +48,7 @@ Primer vNext is a complete rewrite as a TypeScript CLI tool (ESM, strict, ES2022
 ### Improvements
 
 - All file write paths now use `safeWriteFile()` — instructions, agents, and area files all reject symlinks and respect `--force`.
-- Unified `primer pr` command: both GitHub and Azure DevOps generate all three artifacts (instructions + MCP + VS Code configs) with consistent branch naming.
+- Unified `agentrc pr` command: both GitHub and Azure DevOps generate all three artifacts (instructions + MCP + VS Code configs) with consistent branch naming.
 - `CommandResult<T>` output envelope with structured JSON to stdout; human-readable output to stderr.
 - `ProgressReporter` interface for silent or human-readable progress across CLI and headless modes.
 - Symlink-safe directory scanning via `isScannableDirectory()` with `lstat` + `realpath` containment checks.
@@ -69,7 +69,7 @@ Primer vNext is a complete rewrite as a TypeScript CLI tool (ESM, strict, ES2022
 - Vitest test framework with 267 tests across 13 test files covering analyzer, generator, git, readiness, visual report, fs utilities, cache path validation, policies, boundaries, CLI, output utilities, and PR helpers.
 - ESLint flat config with TypeScript, import ordering, and Prettier integration.
 - CI workflow with lint, typecheck, tests (Node 20/22, Ubuntu/macOS/Windows), build verification, and extension typecheck.
-- CI dogfooding: runs `primer analyze --json` and `primer readiness --json` on the repo itself.
+- CI dogfooding: runs `agentrc analyze --json` and `agentrc readiness --json` on the repo itself.
 - Release automation via release-please with VSIX packaging for the VS Code extension.
 - Code coverage via `@vitest/coverage-v8`.
 

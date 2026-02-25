@@ -47,7 +47,7 @@ describe("checkInstructionConsistency", () => {
   let repoPath: string;
 
   beforeEach(async () => {
-    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "primer-consist-"));
+    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-consist-"));
   });
 
   afterEach(async () => {

@@ -1,39 +1,39 @@
-# Primer
+# AgentRC
 
 > Prime your repositories for AI-assisted development.
 
-[![CI](https://github.com/microsoft/agent-init/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/agent-init/actions/workflows/ci.yml)
+[![CI](https://github.com/microsoft/agentrc/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/agentrc/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Primer is a CLI and VS Code extension that helps teams prepare repositories for AI-assisted development. It generates custom instructions, assesses AI readiness across a maturity model, and supports batch processing across organizations.
+AgentRC is a CLI and VS Code extension that helps teams prepare repositories for AI-assisted development. It generates custom instructions, assesses AI readiness across a maturity model, and supports batch processing across organizations.
 
 ## Quick Start
 
 ```bash
 # Run directly (no install needed)
-npx github:microsoft/agent-init readiness
+npx github:microsoft/agentrc readiness
 ```
 
-`npx github:<owner>/primer ...` installs from the Git repository and runs the package `prepare` script, which builds the CLI before first use.
+`npx github:<owner>/agentrc ...` installs from the Git repository and runs the package `prepare` script, which builds the CLI before first use.
 
 Or install locally:
 
 ```bash
-git clone https://github.com/microsoft/agent-init.git
-cd primer && npm install && npm run build && npm link
+git clone https://github.com/microsoft/agentrc.git
+cd agentrc && npm install && npm run build && npm link
 
 # 1. Check how AI-ready your repo is
-primer readiness
+agentrc readiness
 
 # 2. Generate AI instructions
-primer instructions
+agentrc instructions
 
 # 3. Generate MCP and VS Code configs
-primer generate mcp
-primer generate vscode
+agentrc generate mcp
+agentrc generate vscode
 
 # Or do everything interactively
-primer init
+agentrc init
 ```
 
 ## Prerequisites
@@ -48,32 +48,32 @@ primer init
 
 ## Commands
 
-### `primer analyze` — Inspect Repository Structure
+### `agentrc analyze` — Inspect Repository Structure
 
 Detects languages, frameworks, monorepo/workspace structure, and area mappings:
 
 ```bash
-primer analyze                                # terminal summary
-primer analyze --json                         # machine-readable analysis
-primer analyze --output analysis.json         # save JSON report
-primer analyze --output analysis.md           # save Markdown report
-primer analyze --output analysis.json --force # overwrite existing report
+agentrc analyze                                # terminal summary
+agentrc analyze --json                         # machine-readable analysis
+agentrc analyze --output analysis.json         # save JSON report
+agentrc analyze --output analysis.md           # save Markdown report
+agentrc analyze --output analysis.json --force # overwrite existing report
 ```
 
-### `primer readiness` — Assess AI Readiness
+### `agentrc readiness` — Assess AI Readiness
 
 Score a repo across 9 pillars grouped into **Repo Health** and **AI Setup**:
 
 ```bash
-primer readiness                        # terminal summary
-primer readiness --visual               # GitHub-themed HTML report
-primer readiness --per-area             # include per-area breakdown
-primer readiness --output readiness.json # save JSON report
-primer readiness --output readiness.md   # save Markdown report
-primer readiness --output readiness.html # save HTML report
-primer readiness --policy ./examples/policies/strict.json # apply a custom policy
-primer readiness --json                 # machine-readable JSON
-primer readiness --fail-level 3         # CI gate: exit 1 if below level 3
+agentrc readiness                        # terminal summary
+agentrc readiness --visual               # GitHub-themed HTML report
+agentrc readiness --per-area             # include per-area breakdown
+agentrc readiness --output readiness.json # save JSON report
+agentrc readiness --output readiness.md   # save Markdown report
+agentrc readiness --output readiness.html # save HTML report
+agentrc readiness --policy ./examples/policies/strict.json # apply a custom policy
+agentrc readiness --json                 # machine-readable JSON
+agentrc readiness --fail-level 3         # CI gate: exit 1 if below level 3
 ```
 
 **Maturity levels:**
@@ -83,60 +83,60 @@ primer readiness --fail-level 3         # CI gate: exit 1 if below level 3
 | 1     | Functional | Builds, tests, basic tooling in place              |
 | 2     | Documented | README, CONTRIBUTING, custom AI instructions exist |
 
-At Level 2, Primer also checks **instruction consistency** — when a repo has multiple AI instruction files (e.g. `copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`), it detects whether they diverge. Symlinked or identical files pass; diverging files fail with a similarity score and a suggestion to consolidate.
+At Level 2, AgentRC also checks **instruction consistency** — when a repo has multiple AI instruction files (e.g. `copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`), it detects whether they diverge. Symlinked or identical files pass; diverging files fail with a similarity score and a suggestion to consolidate.
 
 | 3 | Standardized | CI/CD, security policies, CODEOWNERS, observability |
 | 4 | Optimized | MCP servers, custom agents, AI skills configured |
 | 5 | Autonomous | Full AI-native development with minimal oversight |
 
-### `primer instructions` — Generate Instructions
+### `agentrc instructions` — Generate Instructions
 
 Generate `copilot-instructions.md` or `AGENTS.md` using the Copilot SDK:
 
 ```bash
-primer instructions                      # copilot-instructions.md (default)
-primer instructions --format agents-md   # AGENTS.md
-primer instructions --per-app            # per-app in monorepos
-primer instructions --areas              # root + all detected areas
-primer instructions --area frontend      # single area
-primer instructions --model claude-sonnet-4.5
+agentrc instructions                      # copilot-instructions.md (default)
+agentrc instructions --format agents-md   # AGENTS.md
+agentrc instructions --per-app            # per-app in monorepos
+agentrc instructions --areas              # root + all detected areas
+agentrc instructions --area frontend      # single area
+agentrc instructions --model claude-sonnet-4.5
 ```
 
-### `primer eval` — Evaluate Instructions
+### `agentrc eval` — Evaluate Instructions
 
 Measure how instructions improve AI responses with a judge model:
 
 ```bash
-primer eval --init                       # scaffold eval config from codebase
-primer eval primer.eval.json             # run evaluation
-primer eval --model gpt-4.1 --judge-model claude-sonnet-4.5
-primer eval --fail-level 80              # CI gate: exit 1 if pass rate < 80%
+agentrc eval --init                       # scaffold eval config from codebase
+agentrc eval agentrc.eval.json             # run evaluation
+agentrc eval --model gpt-4.1 --judge-model claude-sonnet-4.5
+agentrc eval --fail-level 80              # CI gate: exit 1 if pass rate < 80%
 ```
 
-### `primer generate` — Generate Configs
+### `agentrc generate` — Generate Configs
 
 ```bash
-primer generate mcp                      # .vscode/mcp.json
-primer generate vscode --force           # .vscode/settings.json (overwrite)
+agentrc generate mcp                      # .vscode/mcp.json
+agentrc generate vscode --force           # .vscode/settings.json (overwrite)
 ```
 
-### `primer batch` / `primer pr` — Batch & PRs
+### `agentrc batch` / `agentrc pr` — Batch & PRs
 
 ```bash
-primer batch                             # interactive TUI (GitHub)
-primer batch --provider azure            # Azure DevOps
-primer batch owner/repo1 owner/repo2 --json
-primer batch-readiness --output team.html
-primer pr owner/repo-name                # clone → generate → open PR
+agentrc batch                             # interactive TUI (GitHub)
+agentrc batch --provider azure            # Azure DevOps
+agentrc batch owner/repo1 owner/repo2 --json
+agentrc batch-readiness --output team.html
+agentrc pr owner/repo-name                # clone → generate → open PR
 ```
 
-### `primer tui` — Interactive Mode
+### `agentrc tui` — Interactive Mode
 
 ```bash
-primer tui
+agentrc tui
 ```
 
-### `primer init` — Guided Setup
+### `agentrc init` — Guided Setup
 
 Interactive or headless repo onboarding — detects your stack and walks through readiness, instructions, and config generation.
 
@@ -153,8 +153,8 @@ All commands support `--json` (structured JSON to stdout) and `--quiet` (suppres
 Policies customize scoring criteria, override metadata, and tune thresholds:
 
 ```bash
-primer readiness --policy ./examples/policies/strict.json
-primer readiness --policy ./examples/policies/strict.json,./my-overrides.json  # chain multiple
+agentrc readiness --policy ./examples/policies/strict.json
+agentrc readiness --policy ./examples/policies/strict.json,./my-overrides.json  # chain multiple
 ```
 
 ```json
@@ -169,7 +169,7 @@ primer readiness --policy ./examples/policies/strict.json,./my-overrides.json  #
 }
 ```
 
-Policies can also be set in `primer.config.json` (`{ "policies": ["./my-policy.json"] }`).
+Policies can also be set in `agentrc.config.json` (`{ "policies": ["./my-policy.json"] }`).
 
 > **Security:** Config-sourced policies are restricted to JSON files only — JS/TS module policies must be passed via `--policy`.
 

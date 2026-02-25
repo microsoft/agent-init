@@ -82,11 +82,11 @@ async function replaceFileWindows(targetPath: string, content: string): Promise<
   const parentDir = path.dirname(targetPath);
   const tempPath = path.join(
     parentDir,
-    `.primer-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.agentrc-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
   const backupPath = path.join(
     parentDir,
-    `.primer-backup-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.agentrc-backup-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
 
   const tempHandle = await fs.open(

@@ -1,8 +1,8 @@
 import type * as vscode from "vscode";
-import type { ProgressReporter } from "primer/utils/output.js";
+import type { ProgressReporter } from "agentrc/utils/output.js";
 
 /**
- * Adapts VS Code's `Progress<{ message, increment }>` to Primer's `ProgressReporter` interface.
+ * Adapts VS Code's `Progress<{ message, increment }>` to AgentRC's `ProgressReporter` interface.
  */
 export class VscodeProgressReporter implements ProgressReporter {
   constructor(

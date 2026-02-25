@@ -11,7 +11,7 @@ describe("ensureDir", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-fs-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-fs-"));
   });
 
   afterEach(async () => {
@@ -37,7 +37,7 @@ describe("safeWriteFile", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-fs-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-fs-"));
   });
 
   afterEach(async () => {
@@ -361,8 +361,8 @@ describe("safeWriteFile", () => {
       expect(content).toBe("original");
 
       const files = await fs.readdir(canonicalTmpDir);
-      expect(files.some((file) => file.startsWith(".primer-backup-"))).toBe(false);
-      expect(files.some((file) => file.startsWith(".primer-tmp-"))).toBe(false);
+      expect(files.some((file) => file.startsWith(".agentrc-backup-"))).toBe(false);
+      expect(files.some((file) => file.startsWith(".agentrc-tmp-"))).toBe(false);
     } finally {
       renameSpy.mockRestore();
       Object.defineProperty(process, "platform", originalPlatformDescriptor);

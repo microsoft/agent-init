@@ -69,7 +69,7 @@ describe("loadPluginChain with JSON policy file", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-loader-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-loader-"));
   });
 
   afterEach(async () => {

@@ -1,6 +1,6 @@
 ## How AI-Ready Is Your Repo?
 
-Primer evaluates your repository across **9 pillars** organized into two groups:
+AgentRC evaluates your repository across **9 pillars** organized into two groups:
 
 ### Repo Health
 

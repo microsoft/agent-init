@@ -1,13 +1,13 @@
 {
-  "name": "primer-vscode",
-  "displayName": "Primer — AI Repository Setup",
+  "name": "@microsoft/agentrc-vscode",
+  "displayName": "AgentRC — AI Repository Setup",
   "description": "Prime repositories for AI-assisted development: generate Copilot instructions, VS Code configs, MCP configs, and evaluate AI agent effectiveness.",
   "version": "0.0.2",
-  "publisher": "digitarald",
+  "publisher": "microsoft",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/agent-init.git"
+    "url": "https://github.com/microsoft/agentrc.git"
   },
   "engines": {
     "vscode": "^1.109.0"
@@ -29,251 +29,251 @@
   "contributes": {
     "commands": [
       {
-        "command": "primer.analyze",
+        "command": "agentrc.analyze",
         "title": "Analyze Repository",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(search)"
       },
       {
-        "command": "primer.generate",
+        "command": "agentrc.generate",
         "title": "Generate Configs",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(file-code)"
       },
       {
-        "command": "primer.instructions",
+        "command": "agentrc.instructions",
         "title": "Generate Copilot Instructions",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(edit)"
       },
       {
-        "command": "primer.readiness",
+        "command": "agentrc.readiness",
         "title": "AI Readiness Report",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(shield)"
       },
       {
-        "command": "primer.eval",
+        "command": "agentrc.eval",
         "title": "Run Eval",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(beaker)"
       },
       {
-        "command": "primer.evalInit",
+        "command": "agentrc.evalInit",
         "title": "Scaffold Eval Config",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(new-file)"
       },
       {
-        "command": "primer.init",
+        "command": "agentrc.init",
         "title": "Initialize Repository",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(rocket)"
       },
       {
-        "command": "primer.pr",
+        "command": "agentrc.pr",
         "title": "Create Pull Request",
-        "category": "Primer",
+        "category": "AgentRC",
         "icon": "$(git-pull-request)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "primer",
-          "title": "Primer",
-          "icon": "resources/primer.svg"
+          "id": "agentrc",
+          "title": "AgentRC",
+          "icon": "resources/agentrc.svg"
         }
       ]
     },
     "views": {
-      "primer": [
+      "agentrc": [
         {
-          "id": "primer.analysis",
+          "id": "agentrc.analysis",
           "name": "Analysis",
-          "contextualTitle": "Primer"
+          "contextualTitle": "AgentRC"
         },
         {
-          "id": "primer.readiness",
+          "id": "agentrc.readiness",
           "name": "Readiness",
-          "contextualTitle": "Primer"
+          "contextualTitle": "AgentRC"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "primer.analysis",
-        "contents": "Discover languages, frameworks, and project structure in your repository.\n[$(search) Analyze Repository](command:primer.analyze)\nNew to Primer? [Get Started](command:workbench.action.openWalkthrough?%5B%22digitarald.primer-vscode%23primer.gettingStarted%22%5D)",
+        "view": "agentrc.analysis",
+        "contents": "Discover languages, frameworks, and project structure in your repository.\n[$(search) Analyze Repository](command:agentrc.analyze)\nNew to AgentRC? [Get Started](command:workbench.action.openWalkthrough?%5B%22microsoft.agentrc-vscode%23agentrc.gettingStarted%22%5D)",
         "when": "workspaceFolderCount > 0"
       },
       {
-        "view": "primer.analysis",
+        "view": "agentrc.analysis",
         "contents": "Open a folder to get started.\n[$(folder-opened) Open Folder](command:vscode.openFolder)",
         "when": "workspaceFolderCount == 0"
       },
       {
-        "view": "primer.readiness",
-        "contents": "Score your repo across 9 AI-readiness pillars — from build systems to custom instructions.\n[$(shield) Run Assessment](command:primer.readiness)",
+        "view": "agentrc.readiness",
+        "contents": "Score your repo across 9 AI-readiness pillars — from build systems to custom instructions.\n[$(shield) Run Assessment](command:agentrc.readiness)",
         "when": "workspaceFolderCount > 0"
       },
       {
-        "view": "primer.readiness",
+        "view": "agentrc.readiness",
         "contents": "Open a folder to get started.\n[$(folder-opened) Open Folder](command:vscode.openFolder)",
         "when": "workspaceFolderCount == 0"
       }
     ],
     "walkthroughs": [
       {
-        "id": "primer.gettingStarted",
-        "title": "Get Started with Primer",
+        "id": "agentrc.gettingStarted",
+        "title": "Get Started with AgentRC",
         "description": "Prime your repository for AI-assisted development in 5 steps.",
         "steps": [
           {
             "id": "analyze",
             "title": "Analyze Your Repository",
-            "description": "Discover languages, frameworks, and project structure.\n[$(search) Analyze Repository](command:primer.analyze)",
+            "description": "Discover languages, frameworks, and project structure.\n[$(search) Analyze Repository](command:agentrc.analyze)",
             "media": {
               "markdown": "resources/walkthrough/analyze.md"
             },
             "completionEvents": [
-              "onCommand:primer.analyze"
+              "onCommand:agentrc.analyze"
             ]
           },
           {
             "id": "instructions",
             "title": "Generate AI Instructions",
-            "description": "Create custom instructions that teach AI about your codebase.\n[$(edit) Generate Instructions](command:primer.instructions)",
+            "description": "Create custom instructions that teach AI about your codebase.\n[$(edit) Generate Instructions](command:agentrc.instructions)",
             "media": {
               "markdown": "resources/walkthrough/instructions.md"
             },
             "completionEvents": [
-              "onCommand:primer.instructions"
+              "onCommand:agentrc.instructions"
             ]
           },
           {
             "id": "configs",
             "title": "Generate Configs",
-            "description": "Set up MCP servers and VS Code settings for AI workflows.\n[$(file-code) Generate Configs](command:primer.generate)",
+            "description": "Set up MCP servers and VS Code settings for AI workflows.\n[$(file-code) Generate Configs](command:agentrc.generate)",
             "media": {
               "markdown": "resources/walkthrough/configs.md"
             },
             "completionEvents": [
-              "onCommand:primer.generate"
+              "onCommand:agentrc.generate"
             ]
           },
           {
             "id": "readiness",
             "title": "Check AI Readiness",
-            "description": "Score your repo across 9 pillars with a visual maturity report.\n[$(shield) Run Assessment](command:primer.readiness)",
+            "description": "Score your repo across 9 pillars with a visual maturity report.\n[$(shield) Run Assessment](command:agentrc.readiness)",
             "media": {
               "markdown": "resources/walkthrough/readiness.md"
             },
             "completionEvents": [
-              "onCommand:primer.readiness"
+              "onCommand:agentrc.readiness"
             ]
           },
           {
             "id": "eval",
             "title": "Evaluate Effectiveness",
-            "description": "Measure how much your instructions improve AI responses.\n[$(new-file) Scaffold Eval Config](command:primer.evalInit)\n[$(beaker) Run Eval](command:primer.eval)",
+            "description": "Measure how much your instructions improve AI responses.\n[$(new-file) Scaffold Eval Config](command:agentrc.evalInit)\n[$(beaker) Run Eval](command:agentrc.eval)",
             "media": {
               "markdown": "resources/walkthrough/eval.md"
             },
             "completionEvents": [
-              "onCommand:primer.evalInit"
+              "onCommand:agentrc.evalInit"
             ]
           }
         ]
       }
     ],
     "configuration": {
-      "title": "Primer",
+      "title": "AgentRC",
       "properties": {
-        "primer.model": {
+        "agentrc.model": {
           "type": "string",
           "default": "claude-sonnet-4.5",
           "description": "Default Copilot model to use for generation."
         },
-        "primer.autoAnalyze": {
+        "agentrc.autoAnalyze": {
           "type": "boolean",
           "default": false,
           "description": "Automatically analyze repository on workspace open."
         },
-        "primer.judgeModel": {
+        "agentrc.judgeModel": {
           "type": "string",
-          "description": "Copilot model to use for judging eval responses (defaults to primer.model if unset)."
+          "description": "Copilot model to use for judging eval responses (defaults to agentrc.model if unset)."
         }
       }
     },
     "menus": {
       "commandPalette": [
         {
-          "command": "primer.analyze",
+          "command": "agentrc.analyze",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.generate",
+          "command": "agentrc.generate",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.instructions",
+          "command": "agentrc.instructions",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.readiness",
+          "command": "agentrc.readiness",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.eval",
+          "command": "agentrc.eval",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.evalInit",
+          "command": "agentrc.evalInit",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.init",
+          "command": "agentrc.init",
           "when": "workspaceFolderCount > 0"
         },
         {
-          "command": "primer.pr",
+          "command": "agentrc.pr",
           "when": "workspaceFolderCount > 0"
         }
       ],
       "view/title": [
         {
-          "command": "primer.analyze",
-          "when": "view == primer.analysis",
+          "command": "agentrc.analyze",
+          "when": "view == agentrc.analysis",
           "group": "navigation@1"
         },
         {
-          "command": "primer.instructions",
-          "when": "view == primer.analysis && primer.hasAnalysis",
+          "command": "agentrc.instructions",
+          "when": "view == agentrc.analysis && agentrc.hasAnalysis",
           "group": "navigation@2"
         },
         {
-          "command": "primer.generate",
-          "when": "view == primer.analysis && primer.hasAnalysis",
+          "command": "agentrc.generate",
+          "when": "view == agentrc.analysis && agentrc.hasAnalysis",
           "group": "1_actions"
         },
         {
-          "command": "primer.init",
-          "when": "view == primer.analysis",
+          "command": "agentrc.init",
+          "when": "view == agentrc.analysis",
           "group": "2_setup"
         },
         {
-          "command": "primer.readiness",
-          "when": "view == primer.readiness",
+          "command": "agentrc.readiness",
+          "when": "view == agentrc.readiness",
           "group": "navigation@1"
         },
         {
-          "command": "primer.eval",
-          "when": "view == primer.readiness",
+          "command": "agentrc.eval",
+          "when": "view == agentrc.readiness",
           "group": "1_eval@1"
         },
         {
-          "command": "primer.evalInit",
-          "when": "view == primer.readiness",
+          "command": "agentrc.evalInit",
+          "when": "view == agentrc.readiness",
           "group": "1_eval@2"
         }
       ]

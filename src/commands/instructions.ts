@@ -104,7 +104,7 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
 
       if (areas.length === 0) {
         if (shouldLog(options)) {
-          progress.update("No areas detected. Use primer.config.json to define custom areas.");
+          progress.update("No areas detected. Use agentrc.config.json to define custom areas.");
         }
         return;
       }
@@ -175,9 +175,9 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
 
     if (!wantAreas && shouldLog(options) && !options.json) {
       process.stderr.write("\nNext steps:\n");
-      process.stderr.write("  primer eval --init      Scaffold evaluation test cases\n");
-      process.stderr.write("  primer generate mcp     Generate MCP configuration\n");
-      process.stderr.write("  primer generate vscode  Generate VS Code settings\n");
+      process.stderr.write("  agentrc eval --init      Scaffold evaluation test cases\n");
+      process.stderr.write("  agentrc generate mcp     Generate MCP configuration\n");
+      process.stderr.write("  agentrc generate vscode  Generate VS Code settings\n");
     }
   } catch (error) {
     outputError(

@@ -8,7 +8,7 @@ const watch = process.argv.includes("--watch");
  * esbuild plugin: neutralise the SDK's getBundledCliPath() which calls
  * import.meta.resolve("@github/copilot/sdk"). In CJS bundles esbuild replaces
  * import.meta with {}, making .resolve undefined and crashing at runtime.
- * Primer always passes an explicit cliPath so this function is dead code, but
+ * AgentRC always passes an explicit cliPath so this function is dead code, but
  * the SDK constructor still evaluates it as a default value.
  */
 const shimSdkImportMeta = {
@@ -41,8 +41,8 @@ const buildOptions = {
   minify: production,
   plugins: [shimSdkImportMeta],
   alias: {
-    // Resolve Primer source imports via the parent src/ directory
-    primer: "../src"
+    // Resolve AgentRC source imports via the parent src/ directory
+    agentrc: "../src"
   }
 };
 

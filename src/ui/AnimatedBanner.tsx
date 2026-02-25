@@ -2,19 +2,19 @@ import { Box, Text } from "ink";
 import React, { useState, useEffect } from "react";
 
 /**
- * Animation frames for the PRIMER banner fly-in effect.
+ * Animation frames for the AGENTRC banner fly-in effect.
  * Uses frame-based architecture from GitHub Copilot CLI patterns.
  * ~75ms per frame = ~13fps (optimal for terminal rendering).
  */
 
 // The final banner text
 const FULL_BANNER = [
-  "██████╗ ██████╗ ██╗███╗   ███╗███████╗██████╗ ",
-  "██╔══██╗██╔══██╗██║████╗ ████║██╔════╝██╔══██╗",
-  "██████╔╝██████╔╝██║██╔████╔██║█████╗  ██████╔╝",
-  "██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝  ██╔══██╗",
-  "██║     ██║  ██║██║██║ ╚═╝ ██║███████╗██║  ██║",
-  "╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝"
+  " █████╗  ██████╗ ███████╗███╗   ██╗████████╗██████╗  ██████╗",
+  "██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝██╔══██╗██╔════╝",
+  "███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   ██████╔╝██║     ",
+  "██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   ██╔══██╗██║     ",
+  "██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   ██║  ██║╚██████╗",
+  "╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝"
 ];
 
 // Animation frames - slide in from right with progressive reveal

@@ -1,11 +1,11 @@
 /**
- * Re-export Primer CLI types for use in the extension.
+ * Re-export AgentRC CLI types for use in the extension.
  */
-export type { RepoAnalysis } from "primer/services/analyzer.js";
+export type { RepoAnalysis } from "agentrc/services/analyzer.js";
 
 export type {
   ReadinessReport,
   ReadinessPillarSummary,
   ReadinessCriterionResult,
   ReadinessLevelSummary
-} from "primer/services/readiness.js";
+} from "agentrc/services/readiness.js";

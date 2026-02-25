@@ -34,8 +34,8 @@ export function runCli(argv: string[]): void {
   const program = new Command();
 
   program
-    .name("primer")
-    .description("Prime repositories for AI-assisted development")
+    .name("agentrc")
+    .description("Set up repositories for AI-assisted development")
     .version("1.0.0")
     .option("--json", "Output machine-readable JSON to stdout")
     .option("--quiet", "Suppress stderr progress output");
@@ -94,7 +94,7 @@ export function runCli(argv: string[]): void {
     .option("--judge-model <name>", "Model for judging", DEFAULT_JUDGE_MODEL)
     .option("--list-models", "List Copilot CLI models and exit")
     .option("--output <path>", "Write results JSON to file")
-    .option("--init", "Create a starter primer.eval.json file")
+    .option("--init", "Create a starter agentrc.eval.json file")
     .option("--count <number>", "Number of eval cases to generate (with --init)")
     .option("--fail-level <number>", "Exit with error if pass rate (%) falls below threshold")
     .action(withGlobalOpts(evalCommand));

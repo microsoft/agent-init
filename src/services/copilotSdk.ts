@@ -21,7 +21,7 @@ function normalizeSdkLoadError(error: unknown): Error {
   return new Error(
     "Copilot SDK package '@github/copilot-sdk' could not be loaded. " +
       "Run `npm install` in this repository. " +
-      "If this is running inside the Primer VS Code extension, rebuild and reinstall the extension so the SDK is bundled (`cd vscode-extension && npm run build`)."
+      "If this is running inside the AgentRC VS Code extension, rebuild and reinstall the extension so the SDK is bundled (`cd vscode-extension && npm run build`)."
   );
 }
 

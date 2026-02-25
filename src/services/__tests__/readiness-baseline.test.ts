@@ -20,7 +20,7 @@ describe("ReadinessReport shape baseline", () => {
   let repoPath: string;
 
   beforeEach(async () => {
-    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "primer-baseline-"));
+    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-baseline-"));
     await fs.writeFile(
       path.join(repoPath, "package.json"),
       JSON.stringify({ name: "baseline-repo", scripts: { build: "tsc", test: "vitest" } })
@@ -124,7 +124,7 @@ describe("ReadinessReport shape baseline", () => {
 
 describe("countStatus baseline", () => {
   it("excludes skip items from total and passed counts", async () => {
-    const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "primer-cs-"));
+    const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-cs-"));
     await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify({ name: "count-repo" }));
 
     try {
@@ -143,7 +143,7 @@ describe("countStatus baseline", () => {
 
 describe("groupPillars baseline", () => {
   it("groups pillars into repo-health and ai-setup", async () => {
-    const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "primer-gp-"));
+    const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-gp-"));
     await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify({ name: "group-repo" }));
 
     try {

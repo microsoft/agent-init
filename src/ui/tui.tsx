@@ -154,7 +154,7 @@ function pickBestModel(available: string[], fallback: string): string {
   return available[0] || fallback;
 }
 
-export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
+export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
   const terminalColumns = useTerminalColumns();
   const [status, setStatus] = useState<Status>(skipAnimation ? "idle" : "intro");
@@ -208,7 +208,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
 
   // Check for eval config and repo structure on mount
   useEffect(() => {
-    const configPath = path.join(repoPath, "primer.eval.json");
+    const configPath = path.join(repoPath, "agentrc.eval.json");
     fs.access(configPath)
       .then(() => setHasEvalConfig(true))
       .catch(() => setHasEvalConfig(false));
@@ -282,7 +282,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
 
   useEffect(() => {
     let active = true;
-    const configPath = path.join(repoPath, "primer.eval.json");
+    const configPath = path.join(repoPath, "agentrc.eval.json");
     fs.readFile(configPath, "utf8")
       .then((raw) => {
         if (!active) return;
@@ -300,7 +300,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
   }, [repoPath]);
 
   const bootstrapEvalConfig = async (count: number, force: boolean): Promise<void> => {
-    const configPath = path.join(repoPath, "primer.eval.json");
+    const configPath = path.join(repoPath, "agentrc.eval.json");
     try {
       setStatus("bootstrapping");
       setMessage("Generating eval cases with Copilot SDK...");
@@ -314,7 +314,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
       await safeWriteFile(configPath, JSON.stringify(config, null, 2), force);
       setHasEvalConfig(true);
       setStatus("idle");
-      const msg = `Generated primer.eval.json with ${config.cases.length} cases.`;
+      const msg = `Generated agentrc.eval.json with ${config.cases.length} cases.`;
       setMessage(msg);
       addLog(msg, "success");
     } catch (error) {
@@ -387,12 +387,12 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
                 return;
               }
 
-              const configPath = path.join(repoPath, "primer.eval.json");
+              const configPath = path.join(repoPath, "agentrc.eval.json");
               setEvalBootstrapCount(count);
               try {
                 await fs.access(configPath);
                 setStatus("bootstrapEvalConfirm");
-                setMessage("primer.eval.json exists. Overwrite? (Y/N)");
+                setMessage("agentrc.eval.json exists. Overwrite? (Y/N)");
               } catch {
                 await bootstrapEvalConfig(count, false);
               }
@@ -472,7 +472,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             }
             if (input.toLowerCase() === "f") {
               if (repoAreas.length === 0) {
-                setMessage("No areas detected. Add primer.config.json to define areas.");
+                setMessage("No areas detected. Add agentrc.config.json to define areas.");
                 return;
               }
               setAreaCursor(0);
@@ -670,10 +670,10 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
           if (status === "eval-pick") {
             if (input.toLowerCase() === "r") {
               // Run eval
-              const configPath = path.join(repoPath, "primer.eval.json");
+              const configPath = path.join(repoPath, "agentrc.eval.json");
               const outputPath = path.join(
                 repoPath,
-                ".primer",
+                ".agentrc",
                 "evals",
                 buildTimestampedName("eval-results")
               );
@@ -681,7 +681,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
                 await fs.access(configPath);
               } catch {
                 setStatus("error");
-                const msg = "No primer.eval.json found. Press [E] then [I] to create one.";
+                const msg = "No agentrc.eval.json found. Press [E] then [I] to create one.";
                 setMessage(msg);
                 addLog(msg, "error");
                 return;
@@ -795,7 +795,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             if (input.toLowerCase() === "m") {
               if (hideModelPicker) {
                 setMessage(
-                  'Model picker hidden. Set ui.modelPicker to "visible" in primer.eval.json.'
+                  'Model picker hidden. Set ui.modelPicker to "visible" in agentrc.eval.json.'
                 );
                 return;
               }
@@ -810,7 +810,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
             if (input.toLowerCase() === "j") {
               if (hideModelPicker) {
                 setMessage(
-                  'Model picker hidden. Set ui.modelPicker to "visible" in primer.eval.json.'
+                  'Model picker hidden. Set ui.modelPicker to "visible" in agentrc.eval.json.'
                 );
                 return;
               }
@@ -945,7 +945,7 @@ export function PrimerTui({ repoPath, skipAnimation = false }: Props): React.JSX
               checking...
             </Text>
           ) : hasEvalConfig ? (
-            <Text color="green">primer.eval.json found</Text>
+            <Text color="green">agentrc.eval.json found</Text>
           ) : (
             <Text color="yellow">no eval config — press [I] to create</Text>
           )}

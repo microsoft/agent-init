@@ -2,7 +2,7 @@
  * Vendored subset of VS Code's built-in git extension API types.
  * Source: https://github.com/microsoft/vscode/blob/main/extensions/git/src/api/git.d.ts
  *
- * Only the interfaces used by the Primer extension are included.
+ * Only the interfaces used by the AgentRC extension are included.
  */
 
 import { Uri } from "vscode";

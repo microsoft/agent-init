@@ -1,6 +1,6 @@
 ---
 name: Bug report
-description: Report a problem with Primer
+description: Report a problem with AgentRC
 labels: [bug]
 ---
 
@@ -20,4 +20,4 @@ labels: [bug]
 
 - OS:
 - Node version:
-- Primer version:
+- AgentRC version:

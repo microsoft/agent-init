@@ -12,7 +12,7 @@ export async function readinessCommand(): Promise<void> {
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Primer: Running readiness assessment…",
+      title: "AgentRC: Running readiness assessment…",
       cancellable: false
     },
     async (progress) => {
@@ -36,12 +36,12 @@ export async function readinessCommand(): Promise<void> {
           title: `${repoName} — AI Readiness`
         });
 
-        createWebviewPanel("primer.readinessReport", "AI Readiness Report", html);
+        createWebviewPanel("agentrc.readinessReport", "AI Readiness Report", html);
         readinessTreeProvider.setReport(report);
         reporter.succeed(`Readiness: Level ${report.achievedLevel} achieved.`);
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: Readiness assessment failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: Readiness assessment failed — ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }

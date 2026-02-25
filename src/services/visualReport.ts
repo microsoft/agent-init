@@ -610,7 +610,7 @@ export function generateVisualReport(options: VisualReportOptions): string {
     }
 
     <div class="footer">
-      <p>Generated with <a href="https://github.com/microsoft/agent-init">Primer</a> &middot; AI Readiness Tool</p>
+      <p>Generated with <a href="https://github.com/microsoft/agentrc">AgentRC</a> &middot; AI Readiness Tool</p>
     </div>
   </div>
   <script>
@@ -618,7 +618,7 @@ export function generateVisualReport(options: VisualReportOptions): string {
       // In VS Code webviews, body classes are injected automatically
       if (document.body.classList.contains('vscode-light') || document.body.classList.contains('vscode-high-contrast-light')) return 'light';
       if (document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')) return 'dark';
-      const stored = localStorage.getItem('primer-report-theme');
+      const stored = localStorage.getItem('agentrc-report-theme');
       if (stored) return stored;
       return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     }
@@ -632,7 +632,7 @@ export function generateVisualReport(options: VisualReportOptions): string {
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme') || 'dark';
       const next = current === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('primer-report-theme', next);
+      localStorage.setItem('agentrc-report-theme', next);
       applyTheme(next);
     }
     applyTheme(getPreferredTheme());

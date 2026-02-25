@@ -3,7 +3,7 @@ import path from "path";
 import { render } from "ink";
 import React from "react";
 
-import { PrimerTui } from "../ui/tui";
+import { AgentRCTui } from "../ui/tui";
 import { outputError } from "../utils/output";
 
 type TuiOptions = {
@@ -18,7 +18,7 @@ export async function tuiCommand(options: TuiOptions): Promise<void> {
   const skipAnimation = options.animation === false;
   try {
     const { waitUntilExit } = render(
-      <PrimerTui repoPath={repoPath} skipAnimation={skipAnimation} />
+      <AgentRCTui repoPath={repoPath} skipAnimation={skipAnimation} />
     );
     await waitUntilExit();
   } catch (error) {

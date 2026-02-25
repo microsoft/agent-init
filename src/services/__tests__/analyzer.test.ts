@@ -4,7 +4,7 @@ import path from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { analyzeRepo, loadPrimerConfig, sanitizeAreaName, type Area } from "../analyzer";
+import { analyzeRepo, loadAgentrcConfig, sanitizeAreaName, type Area } from "../analyzer";
 import {
   buildAreaFrontmatter,
   buildAreaInstructionContent,
@@ -16,7 +16,7 @@ describe("analyzeRepo", () => {
   const tmpDirs: string[] = [];
 
   async function makeTmpDir(): Promise<string> {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-test-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-test-"));
     tmpDirs.push(dir);
     return dir;
   }
@@ -398,7 +398,7 @@ describe("analyzeRepo", () => {
 
     // Config overrides "frontend" with different applyTo
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({
         areas: [{ name: "Frontend", applyTo: "src/frontend/**", description: "UI layer" }]
       })
@@ -478,7 +478,7 @@ describe("analyzeRepo", () => {
   it("rejects config areas with path traversal", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({
         areas: [
           { name: "escape", applyTo: "../../etc/**" },
@@ -501,7 +501,7 @@ describe("analyzeRepo", () => {
     );
     await fs.writeFile(path.join(repoPath, "api", "tsconfig.json"), "{}");
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({ areas: [{ name: "API", applyTo: "api/**" }] })
     );
     const result = await analyzeRepo(repoPath);
@@ -769,11 +769,11 @@ describe("analyzeRepo", () => {
   });
 });
 
-describe("loadPrimerConfig", () => {
+describe("loadAgentrcConfig", () => {
   const tmpDirs: string[] = [];
 
   async function makeTmpDir(): Promise<string> {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-config-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-config-"));
     tmpDirs.push(dir);
     return dir;
   }
@@ -787,16 +787,16 @@ describe("loadPrimerConfig", () => {
 
   it("returns undefined when no config exists", async () => {
     const repoPath = await makeTmpDir();
-    expect(await loadPrimerConfig(repoPath)).toBeUndefined();
+    expect(await loadAgentrcConfig(repoPath)).toBeUndefined();
   });
 
   it("loads config from repo root", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({ areas: [{ name: "api", applyTo: "src/api/**" }] })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.areas?.length).toBe(1);
     expect(config?.areas?.[0].name).toBe("api");
   });
@@ -805,17 +805,17 @@ describe("loadPrimerConfig", () => {
     const repoPath = await makeTmpDir();
     await fs.mkdir(path.join(repoPath, ".github"), { recursive: true });
     await fs.writeFile(
-      path.join(repoPath, ".github", "primer.config.json"),
+      path.join(repoPath, ".github", "agentrc.config.json"),
       JSON.stringify({ areas: [{ name: "web", applyTo: ["web/**"] }] })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.areas?.length).toBe(1);
   });
 
   it("ignores malformed areas (missing name or applyTo)", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({
         areas: [
           { name: "good", applyTo: "src/**" },
@@ -825,7 +825,7 @@ describe("loadPrimerConfig", () => {
         ]
       })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.areas?.length).toBe(1);
     expect(config?.areas?.[0].name).toBe("good");
   });
@@ -833,7 +833,7 @@ describe("loadPrimerConfig", () => {
   it("rejects applyTo patterns with path traversal segments", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({
         areas: [
           { name: "escape", applyTo: "../../etc/**" },
@@ -841,7 +841,7 @@ describe("loadPrimerConfig", () => {
         ]
       })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.areas?.length).toBe(1);
     expect(config?.areas?.[0].name).toBe("good");
   });
@@ -849,23 +849,23 @@ describe("loadPrimerConfig", () => {
   it("returns undefined for non-array areas", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({ areas: "oops" })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config).toBeUndefined();
   });
 
   it("parses policies array from config", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({
         areas: [{ name: "api", applyTo: "src/api/**" }],
         policies: ["./custom-policy.json", "@org/policy-pkg"]
       })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.policies).toEqual(["./custom-policy.json", "@org/policy-pkg"]);
     expect(config?.areas).toHaveLength(1);
   });
@@ -873,22 +873,22 @@ describe("loadPrimerConfig", () => {
   it("filters out non-string and empty policy entries", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({
         policies: ["valid", 42, "", "  ", null, "also-valid"]
       })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.policies).toEqual(["valid", "also-valid"]);
   });
 
   it("returns undefined policies when field is absent", async () => {
     const repoPath = await makeTmpDir();
     await fs.writeFile(
-      path.join(repoPath, "primer.config.json"),
+      path.join(repoPath, "agentrc.config.json"),
       JSON.stringify({ areas: [{ name: "web", applyTo: "web/**" }] })
     );
-    const config = await loadPrimerConfig(repoPath);
+    const config = await loadAgentrcConfig(repoPath);
     expect(config?.policies).toBeUndefined();
   });
 });
@@ -1027,7 +1027,7 @@ describe("writeAreaInstruction", () => {
   const tmpDirs: string[] = [];
 
   async function makeTmpDir(): Promise<string> {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-write-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-write-"));
     tmpDirs.push(dir);
     return dir;
   }

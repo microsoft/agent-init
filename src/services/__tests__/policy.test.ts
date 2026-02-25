@@ -222,7 +222,7 @@ describe("loadPolicy", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-policy-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-policy-"));
   });
 
   afterEach(async () => {
@@ -319,7 +319,9 @@ describe("loadPolicy", () => {
   });
 
   it("throws for non-existent npm package", async () => {
-    await expect(loadPolicy("@primer/nonexistent-policy-pkg-12345")).rejects.toThrow("npm install");
+    await expect(loadPolicy("@agentrc/nonexistent-policy-pkg-12345")).rejects.toThrow(
+      "npm install"
+    );
   });
 
   it("throws for non-object criteria", async () => {
@@ -443,7 +445,7 @@ describe("loadPolicy jsonOnly", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-policy-jsononly-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-policy-jsononly-"));
   });
 
   afterEach(async () => {
@@ -459,31 +461,31 @@ describe("loadPolicy jsonOnly", () => {
 
   it("rejects .ts module policies when jsonOnly is true", async () => {
     await expect(loadPolicy("./my-policy.ts", { jsonOnly: true })).rejects.toThrow(
-      "only JSON policies are allowed from primer.config.json"
+      "only JSON policies are allowed from agentrc.config.json"
     );
   });
 
   it("rejects .js module policies when jsonOnly is true", async () => {
     await expect(loadPolicy("./my-policy.js", { jsonOnly: true })).rejects.toThrow(
-      "only JSON policies are allowed from primer.config.json"
+      "only JSON policies are allowed from agentrc.config.json"
     );
   });
 
   it("rejects npm package policies when jsonOnly is true", async () => {
     await expect(loadPolicy("@org/policy-pkg", { jsonOnly: true })).rejects.toThrow(
-      "only JSON file policies are allowed from primer.config.json"
+      "only JSON file policies are allowed from agentrc.config.json"
     );
   });
 
   it("rejects .mjs module policies when jsonOnly is true", async () => {
     await expect(loadPolicy("./my-policy.mjs", { jsonOnly: true })).rejects.toThrow(
-      "only JSON policies are allowed from primer.config.json"
+      "only JSON policies are allowed from agentrc.config.json"
     );
   });
 
   it("rejects .cjs module policies when jsonOnly is true", async () => {
     await expect(loadPolicy("./my-policy.cjs", { jsonOnly: true })).rejects.toThrow(
-      "only JSON policies are allowed from primer.config.json"
+      "only JSON policies are allowed from agentrc.config.json"
     );
   });
 });

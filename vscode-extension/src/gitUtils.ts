@@ -5,7 +5,7 @@ import type { API, GitExtension, Repository } from "./git.js";
 export function getGitRepository(workspacePath: string): Repository | undefined {
   const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git");
   if (!gitExtension?.isActive) {
-    vscode.window.showErrorMessage("Primer: Git extension is not available.");
+    vscode.window.showErrorMessage("AgentRC: Git extension is not available.");
     return undefined;
   }
 
@@ -20,7 +20,7 @@ export function getGitRepository(workspacePath: string): Repository | undefined 
     .sort((a, b) => b.rootUri.fsPath.length - a.rootUri.fsPath.length)[0];
 
   if (!repository) {
-    vscode.window.showErrorMessage("Primer: No git repository found in the workspace.");
+    vscode.window.showErrorMessage("AgentRC: No git repository found in the workspace.");
     return undefined;
   }
 

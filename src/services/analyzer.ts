@@ -947,7 +947,7 @@ async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Ar
   }
 
   // Merge with config areas
-  const config = await loadPrimerConfig(repoPath);
+  const config = await loadAgentrcConfig(repoPath);
   if (!config?.areas?.length) return autoAreas;
 
   const resolvedRoot = path.resolve(repoPath);
@@ -1000,24 +1000,24 @@ async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Ar
   return Array.from(autoByName.values());
 }
 
-// ─── Primer config ───
+// ─── AgentRC config ───
 
-export type PrimerConfigArea = {
+export type AgentrcConfigArea = {
   name: string;
   applyTo: string | string[];
   description?: string;
 };
 
-export type PrimerConfig = {
-  areas?: PrimerConfigArea[];
+export type AgentrcConfig = {
+  areas?: AgentrcConfigArea[];
   policies?: string[];
 };
 
-export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig | undefined> {
+export async function loadAgentrcConfig(repoPath: string): Promise<AgentrcConfig | undefined> {
   // Try repo root first, then .github/
   const candidates = [
-    path.join(repoPath, "primer.config.json"),
-    path.join(repoPath, ".github", "primer.config.json")
+    path.join(repoPath, "agentrc.config.json"),
+    path.join(repoPath, ".github", "agentrc.config.json")
   ];
 
   for (const candidate of candidates) {
@@ -1028,7 +1028,7 @@ export async function loadPrimerConfig(repoPath: string): Promise<PrimerConfig |
     if (json.areas !== undefined && !Array.isArray(json.areas)) {
       return undefined;
     }
-    const areas: PrimerConfigArea[] = [];
+    const areas: AgentrcConfigArea[] = [];
     if (Array.isArray(json.areas)) {
       for (const entry of json.areas) {
         if (

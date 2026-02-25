@@ -3,7 +3,7 @@ import {
   createPullRequest,
   createAzurePullRequest,
   getAzureDevOpsRepo,
-  isPrimerFile
+  isAgentrcFile
 } from "../services.js";
 import { getGitHubToken, getAzureDevOpsToken, detectPlatform, type PlatformInfo } from "../auth.js";
 import { getWorkspacePath } from "./analyze.js";
@@ -20,21 +20,21 @@ export async function prCommand(): Promise<void> {
   const origin = repository.state.remotes.find((r) => r.name === "origin");
   const originUrl = origin?.pushUrl ?? origin?.fetchUrl;
   if (!originUrl) {
-    vscode.window.showErrorMessage("Primer: No origin remote found.");
+    vscode.window.showErrorMessage("AgentRC: No origin remote found.");
     return;
   }
 
   const detected = detectPlatform(originUrl);
   if (!detected) {
     vscode.window.showErrorMessage(
-      "Primer: Unsupported remote. GitHub and Azure DevOps are supported."
+      "AgentRC: Unsupported remote. GitHub and Azure DevOps are supported."
     );
     return;
   }
 
   const branch = repository.state.HEAD?.name;
   if (!branch) {
-    vscode.window.showErrorMessage("Primer: Could not determine current branch (detached HEAD?).");
+    vscode.window.showErrorMessage("AgentRC: Could not determine current branch (detached HEAD?).");
     return;
   }
 
@@ -46,22 +46,22 @@ export async function prCommand(): Promise<void> {
 
   if (branch === base) {
     vscode.window.showErrorMessage(
-      "Primer: Cannot create PR from the default branch. Check out a feature branch first."
+      "AgentRC: Cannot create PR from the default branch. Check out a feature branch first."
     );
     return;
   }
 
   const title = await vscode.window.showInputBox({
     prompt: "Pull request title",
-    value: `Add Primer AI configs for ${detected.remote.repo}`
+    value: `Add AgentRC AI configs for ${detected.remote.repo}`
   });
   if (!title) return;
 
   await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: "Primer: Creating pull request…" },
+    { location: vscode.ProgressLocation.Notification, title: "AgentRC: Creating pull request…" },
     async () => {
       try {
-        // Stage, commit, and push Primer files (shared logic for both platforms)
+        // Stage, commit, and push AgentRC files (shared logic for both platforms)
         const aborted = await stageAndPush(repository, branch, title);
         if (aborted) return;
 
@@ -74,7 +74,7 @@ export async function prCommand(): Promise<void> {
           baseRefs[0].commit === headRefs[0].commit
         ) {
           const proceed = await vscode.window.showWarningMessage(
-            "Primer: No new changes detected. The PR may be empty.",
+            "AgentRC: No new changes detected. The PR may be empty.",
             "Continue",
             "Cancel"
           );
@@ -85,7 +85,7 @@ export async function prCommand(): Promise<void> {
 
         const openAction = "Open in Browser";
         const action = await vscode.window.showInformationMessage(
-          `Primer: Pull request created.`,
+          `AgentRC: Pull request created.`,
           openAction
         );
         if (action === openAction && prUrl.startsWith("https://")) {
@@ -93,7 +93,7 @@ export async function prCommand(): Promise<void> {
         }
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: PR creation failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: PR creation failed — ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }
@@ -102,7 +102,7 @@ export async function prCommand(): Promise<void> {
 
 // ── Helpers ──
 
-/** Stage Primer files, commit, and push. Returns true if the user aborted. */
+/** Stage AgentRC files, commit, and push. Returns true if the user aborted. */
 async function stageAndPush(
   repository: NonNullable<ReturnType<typeof getGitRepository>>,
   branch: string,
@@ -117,28 +117,28 @@ async function stageAndPush(
     return true;
   });
   if (changes.length > 0) {
-    const primerChanges = changes.filter((c) =>
-      isPrimerFile(vscode.workspace.asRelativePath(c.uri, false))
+    const agentrcChanges = changes.filter((c) =>
+      isAgentrcFile(vscode.workspace.asRelativePath(c.uri, false))
     );
 
-    if (primerChanges.length === 0) {
-      vscode.window.showWarningMessage("Primer: No Primer-generated files to commit.");
+    if (agentrcChanges.length === 0) {
+      vscode.window.showWarningMessage("AgentRC: No AgentRC-generated files to commit.");
       return true;
     }
 
-    const stagedNonPrimer = repository.state.indexChanges.filter(
-      (c) => !isPrimerFile(vscode.workspace.asRelativePath(c.uri, false))
+    const stagedNonAgentrc = repository.state.indexChanges.filter(
+      (c) => !isAgentrcFile(vscode.workspace.asRelativePath(c.uri, false))
     );
-    if (stagedNonPrimer.length > 0) {
+    if (stagedNonAgentrc.length > 0) {
       const proceed = await vscode.window.showWarningMessage(
-        `Primer: ${stagedNonPrimer.length} non-Primer file(s) are already staged and will be included in the commit.`,
+        `AgentRC: ${stagedNonAgentrc.length} non-AgentRC file(s) are already staged and will be included in the commit.`,
         "Continue",
         "Cancel"
       );
       if (proceed !== "Continue") return true;
     }
 
-    await repository.add(primerChanges.map((c) => c.uri));
+    await repository.add(agentrcChanges.map((c) => c.uri));
     await repository.commit(title);
   }
 
@@ -163,7 +163,7 @@ async function createPR(
       repoId: repoInfo.id,
       repoName: repoInfo.name,
       title,
-      body: "Generated by Primer VS Code extension.",
+      body: "Generated by AgentRC VS Code extension.",
       sourceBranch: branch,
       targetBranch: base,
       authMode: "bearer"
@@ -177,7 +177,7 @@ async function createPR(
     owner,
     repo,
     title,
-    body: "Generated by Primer VS Code extension.",
+    body: "Generated by AgentRC VS Code extension.",
     head: branch,
     base
   });

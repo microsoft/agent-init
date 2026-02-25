@@ -16,10 +16,10 @@ export async function evalCommand(): Promise<void> {
   const workspacePath = getWorkspacePath();
   if (!workspacePath) return;
 
-  const configPath = path.join(workspacePath, "primer.eval.json");
+  const configPath = path.join(workspacePath, "agentrc.eval.json");
   if (!fs.existsSync(configPath)) {
     const action = await vscode.window.showWarningMessage(
-      "Primer: No primer.eval.json found. Create one?",
+      "AgentRC: No agentrc.eval.json found. Create one?",
       "Scaffold",
       "Cancel"
     );
@@ -29,14 +29,14 @@ export async function evalCommand(): Promise<void> {
     return;
   }
 
-  const config = vscode.workspace.getConfiguration("primer");
+  const config = vscode.workspace.getConfiguration("agentrc");
   const model = config.get<string>("model") ?? DEFAULT_MODEL;
   const judgeModel = config.get<string>("judgeModel") ?? model;
 
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Primer: Running eval…",
+      title: "AgentRC: Running eval…",
       cancellable: false
     },
     async (progress) => {
@@ -56,11 +56,11 @@ export async function evalCommand(): Promise<void> {
 
         if (result.viewerPath && fs.existsSync(result.viewerPath)) {
           const html = fs.readFileSync(result.viewerPath, "utf-8");
-          createWebviewPanel("primer.evalResults", "Eval Results", html);
+          createWebviewPanel("agentrc.evalResults", "Eval Results", html);
         }
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: Eval failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: Eval failed — ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }
@@ -71,13 +71,13 @@ export async function evalInitCommand(): Promise<void> {
   const workspacePath = getWorkspacePath();
   if (!workspacePath) return;
 
-  const config = vscode.workspace.getConfiguration("primer");
+  const config = vscode.workspace.getConfiguration("agentrc");
   const model = config.get<string>("model");
 
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Primer: Scaffolding eval config…",
+      title: "AgentRC: Scaffolding eval config…",
       cancellable: false
     },
     async (progress) => {
@@ -100,7 +100,7 @@ export async function evalInitCommand(): Promise<void> {
           onProgress: (msg) => reporter.update(msg)
         });
 
-        const outputPath = path.join(workspacePath, "primer.eval.json");
+        const outputPath = path.join(workspacePath, "agentrc.eval.json");
         await safeWriteFile(outputPath, JSON.stringify(evalConfig, null, 2) + "\n", false);
 
         reporter.succeed("Eval config scaffolded.");
@@ -108,7 +108,7 @@ export async function evalInitCommand(): Promise<void> {
         await vscode.window.showTextDocument(doc);
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: Eval scaffold failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: Eval scaffold failed — ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }

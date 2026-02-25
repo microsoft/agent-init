@@ -7,14 +7,14 @@ Readiness policies customize which criteria are evaluated and how they're scored
 Pass a policy file with `--policy` using a relative `./` path:
 
 ```sh
-primer readiness --policy ./examples/policies/ai-only.json
-primer readiness --policy ./examples/policies/strict.json
+agentrc readiness --policy ./examples/policies/ai-only.json
+agentrc readiness --policy ./examples/policies/strict.json
 ```
 
 Multiple policies can be chained (comma-separated):
 
 ```sh
-primer readiness --policy ./examples/policies/ai-only.json,./my-overrides.json
+agentrc readiness --policy ./examples/policies/ai-only.json,./my-overrides.json
 ```
 
 ## Included Policies

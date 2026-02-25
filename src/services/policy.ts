@@ -178,7 +178,7 @@ export async function loadPolicy(
     if (/\.[mc]?[jt]s$/u.test(resolved)) {
       if (jsonOnly) {
         throw new Error(
-          `Policy "${source}" rejected: only JSON policies are allowed from primer.config.json. Module policies (.ts/.js) must be passed via --policy.`
+          `Policy "${source}" rejected: only JSON policies are allowed from agentrc.config.json. Module policies (.ts/.js) must be passed via --policy.`
         );
       }
       try {
@@ -210,7 +210,7 @@ export async function loadPolicy(
   // npm package (bare specifier or scoped) — blocked when jsonOnly
   if (jsonOnly) {
     throw new Error(
-      `Policy "${source}" rejected: only JSON file policies are allowed from primer.config.json. npm policies must be passed via --policy.`
+      `Policy "${source}" rejected: only JSON file policies are allowed from agentrc.config.json. npm policies must be passed via --policy.`
     );
   }
   try {

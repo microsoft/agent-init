@@ -16,7 +16,7 @@ describe("writeAreaInstruction", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "primer-inst-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-inst-"));
   });
 
   afterEach(async () => {

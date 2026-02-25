@@ -87,7 +87,7 @@ async function processRepo(params: ProcessRepoParams): Promise<ProcessResult> {
 
   try {
     progress?.update(`${label}: Cloning...`);
-    const cacheRoot = path.join(process.cwd(), ".primer-cache");
+    const cacheRoot = path.join(process.cwd(), ".agentrc-cache");
     const repoPath = validateCachePath(cacheRoot, ...cacheParts);
     await ensureDir(repoPath);
 
@@ -127,7 +127,7 @@ async function processRepo(params: ProcessRepoParams): Promise<ProcessResult> {
     }
 
     progress?.update(`${label}: Committing...`);
-    await commitAll(repoPath, "chore: add copilot instructions via Primer");
+    await commitAll(repoPath, "chore: add copilot instructions via AgentRC");
 
     progress?.update(`${label}: Pushing...`);
     await pushBranch(repoPath, branch, token, provider);
@@ -150,7 +150,7 @@ export async function processGitHubRepo(options: ProcessGitHubRepoOptions): Prom
   const {
     repo,
     token,
-    branch = "primer/add-instructions",
+    branch = "agentrc/add-instructions",
     model = DEFAULT_MODEL,
     timeoutMs = 120_000,
     progress
@@ -171,7 +171,7 @@ export async function processGitHubRepo(options: ProcessGitHubRepoOptions): Prom
         token,
         owner: repo.owner,
         repo: repo.name,
-        title: "🤖 Add Copilot instructions via Primer",
+        title: "🤖 Add Copilot instructions via AgentRC",
         body: buildInstructionsPrBody(),
         head: branchName,
         base: repo.defaultBranch
@@ -185,7 +185,7 @@ export async function processAzureRepo(options: ProcessAzureRepoOptions): Promis
   const {
     repo,
     token,
-    branch = "primer/add-instructions",
+    branch = "agentrc/add-instructions",
     model = DEFAULT_MODEL,
     timeoutMs = 120_000,
     progress
@@ -208,7 +208,7 @@ export async function processAzureRepo(options: ProcessAzureRepoOptions): Promis
         project: repo.project,
         repoId: repo.id,
         repoName: repo.name,
-        title: "🤖 Add Copilot instructions via Primer",
+        title: "🤖 Add Copilot instructions via AgentRC",
         body: buildInstructionsPrBody(),
         sourceBranch: branchName,
         targetBranch: repo.defaultBranch

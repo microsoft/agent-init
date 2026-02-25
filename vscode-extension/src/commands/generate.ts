@@ -27,7 +27,7 @@ export async function generateCommand(): Promise<void> {
   const result = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `Primer: Generating ${picked.map((p) => p.label).join(", ")}…`
+      title: `AgentRC: Generating ${picked.map((p) => p.label).join(", ")}…`
     },
     async () => {
       try {
@@ -44,7 +44,7 @@ export async function generateCommand(): Promise<void> {
         });
       } catch (err) {
         vscode.window.showErrorMessage(
-          `Primer: Config generation failed — ${err instanceof Error ? err.message : String(err)}`
+          `AgentRC: Config generation failed — ${err instanceof Error ? err.message : String(err)}`
         );
         return undefined;
       }
@@ -59,7 +59,7 @@ export async function generateCommand(): Promise<void> {
   if (wrote.length > 0) {
     const openAction = "Open File";
     const msg = `Generated ${wrote.map((f) => f.path).join(", ")}${skipped.length ? ` (${skipped.length} skipped)` : ""}`;
-    const action = await vscode.window.showInformationMessage(`Primer: ${msg}`, openAction);
+    const action = await vscode.window.showInformationMessage(`AgentRC: ${msg}`, openAction);
     if (action === openAction && wrote[0]) {
       const doc = await vscode.workspace.openTextDocument(wrote[0].path);
       await vscode.window.showTextDocument(doc);
@@ -67,14 +67,14 @@ export async function generateCommand(): Promise<void> {
   } else if (skipped.length > 0) {
     const overwrite = "Overwrite";
     const action = await vscode.window.showWarningMessage(
-      `Primer: All ${skipped.length} config files already exist.`,
+      `AgentRC: All ${skipped.length} config files already exist.`,
       overwrite
     );
     if (action === overwrite) {
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `Primer: Overwriting configs…`
+          title: `AgentRC: Overwriting configs…`
         },
         async () => {
           try {
@@ -91,7 +91,7 @@ export async function generateCommand(): Promise<void> {
             }
           } catch (err) {
             vscode.window.showErrorMessage(
-              `Primer: Config overwrite failed — ${err instanceof Error ? err.message : String(err)}`
+              `AgentRC: Config overwrite failed — ${err instanceof Error ? err.message : String(err)}`
             );
           }
         }
