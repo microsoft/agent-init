@@ -1,3 +1,4 @@
+import fs from "fs/promises";
 import path from "path";
 
 import { DEFAULT_MODEL } from "../config";
@@ -7,6 +8,98 @@ import type { Area } from "./analyzer";
 import { sanitizeAreaName } from "./analyzer";
 import { assertCopilotCliReady } from "./copilot";
 import { createCopilotClient } from "./copilotSdk";
+
+export type ExistingInstructionsContext = {
+  /** AGENTS.md files found in the repo tree. */
+  agentsMdFiles: string[];
+  /** CLAUDE.md files found in the repo tree. */
+  claudeMdFiles: string[];
+  /** .github/instructions/*.instructions.md files. */
+  instructionMdFiles: string[];
+};
+
+/**
+ * Detect existing AI instruction files in a repository.
+ * Returns context about AGENTS.md, CLAUDE.md, and .instructions.md files
+ * so instruction generation can avoid duplicating content they already cover.
+ */
+export async function detectExistingInstructions(
+  repoPath: string
+): Promise<ExistingInstructionsContext> {
+  const { agentsMdFiles, claudeMdFiles } = await findInstructionMarkerFiles(repoPath);
+  const instructionMdFiles = await findModularInstructionFiles(repoPath);
+  return { agentsMdFiles, claudeMdFiles, instructionMdFiles };
+}
+
+/**
+ * Walk the repo tree to find AGENTS.md and CLAUDE.md files,
+ * excluding directories that cannot contain user-authored content.
+ */
+async function findInstructionMarkerFiles(repoPath: string): Promise<{
+  agentsMdFiles: string[];
+  claudeMdFiles: string[];
+}> {
+  const agentsMdFiles: string[] = [];
+  const claudeMdFiles: string[] = [];
+  const excludeDirs = new Set([".git", "node_modules", "apm_modules", ".apm"]);
+
+  async function walk(dir: string, relPath: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (excludeDirs.has(entry.name)) continue;
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isFile()) {
+        if (entry.name === "AGENTS.md") {
+          agentsMdFiles.push(relPath ? `${relPath}/${entry.name}` : entry.name);
+        } else if (entry.name === "CLAUDE.md") {
+          claudeMdFiles.push(relPath ? `${relPath}/${entry.name}` : entry.name);
+        }
+      } else if (entry.isDirectory()) {
+        await walk(path.join(dir, entry.name), relPath ? `${relPath}/${entry.name}` : entry.name);
+      }
+    }
+  }
+
+  await walk(repoPath, "");
+  return { agentsMdFiles: agentsMdFiles.sort(), claudeMdFiles: claudeMdFiles.sort() };
+}
+
+/**
+ * Find modular .instructions.md files in .github/instructions/.
+ */
+async function findModularInstructionFiles(repoPath: string): Promise<string[]> {
+  const dir = path.join(repoPath, ".github", "instructions");
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  return entries
+    .filter((e) => !e.isSymbolicLink() && e.isFile() && e.name.endsWith(".instructions.md"))
+    .map((e) => `.github/instructions/${e.name}`)
+    .sort();
+}
+
+/**
+ * Build a prompt section listing existing instruction files.
+ * Only emits content when instruction files actually exist,
+ * so the LLM knows what content is already covered.
+ */
+export function buildExistingInstructionsSection(ctx: ExistingInstructionsContext): string {
+  const allFiles = [...ctx.agentsMdFiles, ...ctx.claudeMdFiles, ...ctx.instructionMdFiles];
+  if (allFiles.length === 0) return "";
+
+  const lines: string[] = [
+    "",
+    "## Existing Instruction Files",
+    "This repo already contains instruction files that AI agents load automatically:",
+    ...allFiles.map((f) => `- \`${f}\``),
+    "",
+    "### Output rules",
+    "- Content in the above files is already loaded by AI agents — do not restate it.",
+    "- For topics covered by existing files, use a single markdown link (e.g., `See [AGENTS.md](AGENTS.md)`).",
+    "- Focus only on project-specific conventions not already covered by the above files.",
+    ""
+  ];
+
+  return lines.join("\n");
+}
 
 type GenerateInstructionsOptions = {
   repoPath: string;
@@ -23,19 +116,28 @@ export async function generateCopilotInstructions(
   progress("Checking Copilot CLI...");
   const cliConfig = await assertCopilotCliReady();
 
+  progress("Detecting existing instructions...");
+  const existingCtx = await detectExistingInstructions(repoPath);
+  const existingSection = buildExistingInstructionsSection(existingCtx);
+  const hasExistingInstructions = existingSection.length > 0;
+
   progress("Starting Copilot SDK...");
   const client = await createCopilotClient(cliConfig);
 
   try {
     progress("Creating session...");
     const preferredModel = options.model ?? DEFAULT_MODEL;
+
+    const systemContent = hasExistingInstructions
+      ? "You are an expert codebase analyst. Your task is to generate a concise .github/copilot-instructions.md that complements existing instruction files. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content, no explanations."
+      : "You are an expert codebase analyst. Your task is to generate a concise .github/copilot-instructions.md file. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content, no explanations.";
+
     const session = await client.createSession({
       model: preferredModel,
       streaming: true,
       workingDirectory: repoPath,
       systemMessage: {
-        content:
-          "You are an expert codebase analyst. Your task is to generate a concise .github/copilot-instructions.md file. Use the available tools (glob, view, grep) to explore the codebase. Output ONLY the final markdown content, no explanations."
+        content: systemContent
       },
       infiniteSessions: { enabled: false }
     });
@@ -79,7 +181,7 @@ Generate concise instructions (~20-50 lines) covering:
 - Project-specific conventions
 - Key files/directories
 - Monorepo structure and per-app layout (if this is a monorepo, describe the workspace organization, how apps relate to each other, and any shared libraries)
-
+${existingSection}
 Output ONLY the markdown content for the instructions file, not wrapped in markdown code fences.`;
 
     progress("Analyzing codebase...");
@@ -108,6 +210,11 @@ export async function generateAreaInstructions(
   progress(`Checking Copilot CLI for area "${area.name}"...`);
   const cliConfig = await assertCopilotCliReady();
 
+  progress(`Detecting existing instructions for area "${area.name}"...`);
+  const existingCtx = await detectExistingInstructions(repoPath);
+  const existingSection = buildExistingInstructionsSection(existingCtx);
+  const hasExistingInstructions = existingSection.length > 0;
+
   progress(`Starting Copilot SDK for area "${area.name}"...`);
   const client = await createCopilotClient(cliConfig);
 
@@ -117,12 +224,17 @@ export async function generateAreaInstructions(
 
     progress(`Creating session for area "${area.name}"...`);
     const preferredModel = options.model ?? DEFAULT_MODEL;
+
+    const areaSystemContent = hasExistingInstructions
+      ? `You are an expert codebase analyst. Your task is to generate a concise .instructions.md file for a specific area of a codebase. This file will be used as a file-based custom instruction in VS Code Copilot, automatically applied when working on files matching certain patterns. This file should complement, not duplicate, existing instruction files. Use the Explore subagents and read-only tools to explore the codebase. Output ONLY the final markdown content, not wrapped in markdown code fences.`
+      : `You are an expert codebase analyst. Your task is to generate a concise .instructions.md file for a specific area of a codebase. This file will be used as a file-based custom instruction in VS Code Copilot, automatically applied when working on files matching certain patterns. Use the Explore subagents and read-only tools to explore the codebase. Output ONLY the final markdown content, not wrapped in markdown code fences.`;
+
     const session = await client.createSession({
       model: preferredModel,
       streaming: true,
       workingDirectory: repoPath,
       systemMessage: {
-        content: `You are an expert codebase analyst. Your task is to generate a concise .instructions.md file for a specific area of a codebase. This file will be used as a file-based custom instruction in VS Code Copilot, automatically applied when working on files matching certain patterns. Use the Explore subagents and  read-only tools to explore the codebase. Output ONLY the final markdown content, not wrapped in markdown code fences.`
+        content: areaSystemContent
       },
       infiniteSessions: { enabled: false }
     });
@@ -171,6 +283,7 @@ IMPORTANT:
 - Focus ONLY on this specific area, not the whole repo
 - Do NOT repeat repo-wide information (that goes in the root copilot-instructions.md)
 - Keep it complementary to root instructions
+${existingSection ? `- Do NOT duplicate content already covered by existing instruction files\n${existingSection}` : ""}
 - Output ONLY the markdown content, no YAML frontmatter, no code fences`;
 
     progress(`Analyzing area "${area.name}"...`);
