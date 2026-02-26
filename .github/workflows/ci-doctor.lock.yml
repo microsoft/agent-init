@@ -23,7 +23,7 @@
 #
 # Investigates failed CI workflows to identify root causes and patterns, creating issues with diagnostic information
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"2234028ec5cae35463dff1feb1927db2a111bc461649151e6f618f3941394914","stop_time":"2026-05-26 18:03:19","compiler_version":"v0.50.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"5f986cd74ec5af2854f9857605de27a7d750ab494ad452f2c11c229563527fda","stop_time":"2026-05-26 18:03:19","compiler_version":"v0.50.5"}
 #
 # Effective stop-time: 2026-05-26 18:03:19
 
@@ -50,8 +50,8 @@ jobs:
     needs: pre_activation
     # zizmor: ignore[dangerous-triggers] - workflow_run trigger is secured with role and fork validation
     if: >
-      ((needs.pre_activation.outputs.activated == 'true') && (github.event.workflow_run.conclusion == 'failure')) &&
-      ((github.event_name != 'workflow_run') || ((github.event.workflow_run.repository.id == github.repository_id) &&
+      ((needs.pre_activation.outputs.activated == 'true') && (github.event.workflow_run.conclusion == 'failure' ||
+      github.event.workflow_run.conclusion == 'cancelled')) && ((github.event_name != 'workflow_run') || ((github.event.workflow_run.repository.id == github.repository_id) &&
       (!(github.event.workflow_run.repository.fork))))
     runs-on: ubuntu-slim
     permissions:
@@ -1254,7 +1254,7 @@ jobs:
             await main();
 
   pre_activation:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'cancelled' }}
     runs-on: ubuntu-slim
     outputs:
       activated: ${{ (steps.check_membership.outputs.is_team_member == 'true') && (steps.check_stop_time.outputs.stop_time_ok == 'true') }}

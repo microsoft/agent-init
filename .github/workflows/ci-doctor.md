@@ -11,7 +11,7 @@ on:
       - main
   stop-after: +3mo
 
-if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'cancelled' }}
 
 permissions:
   actions: read

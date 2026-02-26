@@ -41,12 +41,10 @@ tools:
     - "git log"
     - "git diff"
     - "git show"
-    - "cat src/"
-    - "cat vscode-extension/src/"
     - "cat .github/copilot-instructions.md"
     - "find src -name '*.ts' -o -name '*.tsx'"
     - "find vscode-extension/src -name '*.ts' -o -name '*.tsx'"
-    - "grep -r --include='*.ts'"
+    - "grep -rn --include='*.ts' '.' src vscode-extension/src"
 
 timeout-minutes: 30
 ---
