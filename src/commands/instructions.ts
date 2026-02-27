@@ -1,10 +1,14 @@
 import path from "path";
 
-import { analyzeRepo } from "../services/analyzer";
+import { analyzeRepo, loadAgentrcConfig } from "../services/analyzer";
+import type { InstructionStrategy } from "../services/instructions";
 import {
   generateCopilotInstructions,
   generateAreaInstructions,
-  writeAreaInstruction
+  generateNestedInstructions,
+  generateNestedAreaInstructions,
+  writeAreaInstruction,
+  writeNestedInstructions
 } from "../services/instructions";
 import { ensureDir, safeWriteFile } from "../utils/fs";
 import type { CommandResult } from "../utils/output";
@@ -20,6 +24,8 @@ type InstructionsOptions = {
   areas?: boolean;
   areasOnly?: boolean;
   area?: string;
+  strategy?: string;
+  claudeMd?: boolean;
 };
 
 export async function instructionsCommand(options: InstructionsOptions): Promise<void> {
@@ -30,59 +36,127 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
   const progress = createProgressReporter(!shouldLog(options));
   const wantAreas = options.areas || options.areasOnly || options.area;
 
+  // Load config for strategy merge (CLI flag > config > default "flat")
+  let strategy: InstructionStrategy = "flat";
+  let detailDir = ".agents";
+  let claudeMd = false;
+  try {
+    const config = await loadAgentrcConfig(repoPath);
+    strategy = (options.strategy as InstructionStrategy) ?? config?.strategy ?? "flat";
+    detailDir = config?.detailDir ?? ".agents";
+    claudeMd = options.claudeMd ?? config?.claudeMd ?? false;
+  } catch {
+    // Config loading failure is non-fatal; use defaults
+    if (options.strategy === "flat" || options.strategy === "nested") {
+      strategy = options.strategy;
+    }
+    if (options.claudeMd) claudeMd = true;
+  }
+
+  // Validate strategy value
+  if (strategy !== "flat" && strategy !== "nested") {
+    outputError(`Invalid strategy "${strategy}". Use "flat" or "nested".`, Boolean(options.json));
+    return;
+  }
+
   try {
     // Generate root instructions unless --areas-only
     if (!options.areasOnly && !options.area) {
-      let content = "";
-      try {
-        progress.update("Generating instructions...");
-        content = await generateCopilotInstructions({
-          repoPath,
-          model: options.model
-        });
-      } catch (error) {
-        const msg =
-          "Failed to generate instructions with Copilot SDK. " +
-          "Ensure the Copilot CLI is installed (copilot --version) and logged in. " +
-          (error instanceof Error ? error.message : String(error));
-        outputError(msg, Boolean(options.json));
-        if (!wantAreas) return;
-      }
-      if (!content && !wantAreas) {
-        outputError("No instructions were generated.", Boolean(options.json));
-        return;
-      }
-
-      if (content) {
-        await ensureDir(path.dirname(outputPath));
-        const { wrote, reason } = await safeWriteFile(outputPath, content, Boolean(options.force));
-
-        if (!wrote) {
-          const relPath = path.relative(process.cwd(), outputPath);
-          const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+      if (strategy === "nested") {
+        // Nested: generate AGENTS.md hub + detail files
+        try {
+          progress.update("Generating nested instructions...");
+          const nestedResult = await generateNestedInstructions({
+            repoPath,
+            model: options.model,
+            onProgress: shouldLog(options) ? (msg) => progress.update(msg) : undefined,
+            detailDir,
+            claudeMd
+          });
+          const actions = await writeNestedInstructions(repoPath, nestedResult, options.force);
+          for (const action of actions) {
+            const relPath = path.relative(process.cwd(), action.path);
+            if (action.action === "wrote") {
+              if (shouldLog(options)) progress.succeed(`Wrote ${relPath}`);
+            } else if (shouldLog(options)) {
+              progress.update(`Skipped ${relPath} (exists, use --force)`);
+            }
+          }
           if (options.json) {
-            const result: CommandResult<{ outputPath: string; skipped: true; reason: string }> = {
+            const result: CommandResult<{ files: typeof actions }> = {
               ok: true,
-              status: "noop",
-              data: { outputPath, skipped: true, reason: why }
+              status: "success",
+              data: { files: actions }
             };
             outputResult(result, true);
-          } else if (shouldLog(options)) {
-            progress.update(`Skipped ${relPath}: ${why}`);
           }
-        } else {
-          const byteCount = Buffer.byteLength(content, "utf8");
+        } catch (error) {
+          const msg =
+            "Failed to generate nested instructions. " +
+            (error instanceof Error ? error.message : String(error));
+          outputError(msg, Boolean(options.json));
+          if (!wantAreas) return;
+        }
+      } else {
+        // Flat: existing behavior
+        let content = "";
+        try {
+          progress.update("Generating instructions...");
+          content = await generateCopilotInstructions({
+            repoPath,
+            model: options.model
+          });
+        } catch (error) {
+          const msg =
+            "Failed to generate instructions with Copilot SDK. " +
+            "Ensure the Copilot CLI is installed (copilot --version) and logged in. " +
+            (error instanceof Error ? error.message : String(error));
+          outputError(msg, Boolean(options.json));
+          if (!wantAreas) return;
+        }
+        if (!content && !wantAreas) {
+          outputError("No instructions were generated.", Boolean(options.json));
+          return;
+        }
 
-          if (options.json) {
-            const result: CommandResult<{ outputPath: string; model: string; byteCount: number }> =
-              {
+        if (content) {
+          await ensureDir(path.dirname(outputPath));
+          const { wrote, reason } = await safeWriteFile(
+            outputPath,
+            content,
+            Boolean(options.force)
+          );
+
+          if (!wrote) {
+            const relPath = path.relative(process.cwd(), outputPath);
+            const why = reason === "symlink" ? "path is a symlink" : "file exists (use --force)";
+            if (options.json) {
+              const result: CommandResult<{ outputPath: string; skipped: true; reason: string }> = {
+                ok: true,
+                status: "noop",
+                data: { outputPath, skipped: true, reason: why }
+              };
+              outputResult(result, true);
+            } else if (shouldLog(options)) {
+              progress.update(`Skipped ${relPath}: ${why}`);
+            }
+          } else {
+            const byteCount = Buffer.byteLength(content, "utf8");
+
+            if (options.json) {
+              const result: CommandResult<{
+                outputPath: string;
+                model: string;
+                byteCount: number;
+              }> = {
                 ok: true,
                 status: "success",
                 data: { outputPath, model: options.model ?? "default", byteCount }
               };
-            outputResult(result, true);
-          } else if (shouldLog(options)) {
-            progress.succeed(`Updated ${path.relative(process.cwd(), outputPath)}`);
+              outputResult(result, true);
+            } else if (shouldLog(options)) {
+              progress.succeed(`Updated ${path.relative(process.cwd(), outputPath)}`);
+            }
           }
         }
       }
@@ -133,35 +207,60 @@ export async function instructionsCommand(options: InstructionsOptions): Promise
               `Generating for "${area.name}" (${Array.isArray(area.applyTo) ? area.applyTo.join(", ") : area.applyTo})...`
             );
           }
-          const body = await generateAreaInstructions({
-            repoPath,
-            area,
-            model: options.model,
-            onProgress: shouldLog(options) ? (msg) => progress.update(msg) : undefined
-          });
 
-          if (!body.trim()) {
-            if (shouldLog(options)) {
-              progress.update(`Skipped "${area.name}" — no content generated.`);
+          if (strategy === "nested") {
+            // Nested: per-area AGENTS.md hub + detail files
+            const childAreas = areas.filter((a) => a.parentArea === area.name);
+            const nestedResult = await generateNestedAreaInstructions({
+              repoPath,
+              area,
+              childAreas,
+              model: options.model,
+              onProgress: shouldLog(options) ? (msg) => progress.update(msg) : undefined,
+              detailDir,
+              claudeMd
+            });
+            const actions = await writeNestedInstructions(repoPath, nestedResult, options.force);
+            for (const action of actions) {
+              const relPath = path.relative(process.cwd(), action.path);
+              if (action.action === "wrote") {
+                if (shouldLog(options)) progress.succeed(`Wrote ${relPath}`);
+              } else if (shouldLog(options)) {
+                progress.update(`Skipped ${relPath} (exists, use --force)`);
+              }
             }
-            continue;
-          }
+          } else {
+            // Flat: existing behavior
+            const body = await generateAreaInstructions({
+              repoPath,
+              area,
+              model: options.model,
+              onProgress: shouldLog(options) ? (msg) => progress.update(msg) : undefined
+            });
 
-          const result = await writeAreaInstruction(repoPath, area, body, options.force);
-          if (result.status === "skipped") {
-            if (shouldLog(options)) {
-              progress.update(`Skipped "${area.name}" — file exists (use --force to overwrite).`);
+            if (!body.trim()) {
+              if (shouldLog(options)) {
+                progress.update(`Skipped "${area.name}" — no content generated.`);
+              }
+              continue;
             }
-            continue;
-          }
-          if (result.status === "symlink") {
-            if (shouldLog(options)) {
-              progress.update(`Skipped "${area.name}" — path is a symlink.`);
+
+            const result = await writeAreaInstruction(repoPath, area, body, options.force);
+            if (result.status === "skipped") {
+              if (shouldLog(options)) {
+                progress.update(`Skipped "${area.name}" — file exists (use --force to overwrite).`);
+              }
+              continue;
             }
-            continue;
-          }
-          if (shouldLog(options)) {
-            progress.succeed(`Wrote ${path.relative(process.cwd(), result.filePath)}`);
+            if (result.status === "symlink") {
+              if (shouldLog(options)) {
+                progress.update(`Skipped "${area.name}" — path is a symlink.`);
+              }
+              continue;
+            }
+            if (shouldLog(options)) {
+              progress.succeed(`Wrote ${path.relative(process.cwd(), result.filePath)}`);
+            }
           }
         } catch (error) {
           if (shouldLog(options)) {

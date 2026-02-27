@@ -74,6 +74,7 @@ export function runCli(argv: string[]): void {
     .option("--force", "Overwrite existing files")
     .option("--per-app", "Generate per-app in monorepos")
     .option("--model <name>", "Model for instructions generation", DEFAULT_MODEL)
+    .option("--strategy <mode>", "Instruction strategy (flat or nested)")
     .action(withGlobalOpts(generateCommand));
 
   program
@@ -116,6 +117,8 @@ export function runCli(argv: string[]): void {
     .option("--areas", "Also generate file-based instructions for detected areas")
     .option("--areas-only", "Generate only file-based area instructions (skip root)")
     .option("--area <name>", "Generate file-based instructions for a specific area")
+    .option("--strategy <mode>", "Instruction strategy (flat or nested)")
+    .option("--claude-md", "Generate CLAUDE.md files alongside AGENTS.md (nested strategy)")
     .action(withGlobalOpts(instructionsCommand));
 
   program

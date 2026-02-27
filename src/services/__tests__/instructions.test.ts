@@ -7,12 +7,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Area } from "../analyzer";
 import {
   writeAreaInstruction,
+  writeInstructionFile,
+  writeNestedInstructions,
   buildAreaFrontmatter,
   buildAreaInstructionContent,
   areaInstructionPath,
   detectExistingInstructions,
-  buildExistingInstructionsSection
+  buildExistingInstructionsSection,
+  parseTopicsFromHub
 } from "../instructions";
+import type { NestedInstructionsResult } from "../instructions";
 
 describe("writeAreaInstruction", () => {
   let tmpDir: string;
@@ -356,7 +360,8 @@ describe("buildExistingInstructionsSection", () => {
     const result = buildExistingInstructionsSection({
       agentsMdFiles: [],
       claudeMdFiles: [],
-      instructionMdFiles: []
+      instructionMdFiles: [],
+      detailFiles: []
     });
     expect(result).toBe("");
   });
@@ -365,7 +370,8 @@ describe("buildExistingInstructionsSection", () => {
     const result = buildExistingInstructionsSection({
       agentsMdFiles: ["AGENTS.md", "backend/api/AGENTS.md"],
       claudeMdFiles: ["CLAUDE.md"],
-      instructionMdFiles: [".github/instructions/frontend.instructions.md"]
+      instructionMdFiles: [".github/instructions/frontend.instructions.md"],
+      detailFiles: []
     });
     expect(result).toContain("`AGENTS.md`");
     expect(result).toContain("`backend/api/AGENTS.md`");
@@ -378,7 +384,8 @@ describe("buildExistingInstructionsSection", () => {
     const result = buildExistingInstructionsSection({
       agentsMdFiles: ["AGENTS.md"],
       claudeMdFiles: [],
-      instructionMdFiles: []
+      instructionMdFiles: [],
+      detailFiles: []
     });
     expect(result).toContain("### Output rules");
     expect(result).toContain("do not restate it");
@@ -389,7 +396,8 @@ describe("buildExistingInstructionsSection", () => {
     const result = buildExistingInstructionsSection({
       agentsMdFiles: [],
       claudeMdFiles: ["CLAUDE.md"],
-      instructionMdFiles: []
+      instructionMdFiles: [],
+      detailFiles: []
     });
     expect(result).toContain("`CLAUDE.md`");
     expect(result).toContain("### Output rules");
@@ -399,9 +407,264 @@ describe("buildExistingInstructionsSection", () => {
     const result = buildExistingInstructionsSection({
       agentsMdFiles: [],
       claudeMdFiles: [],
-      instructionMdFiles: [".github/instructions/api.instructions.md"]
+      instructionMdFiles: [".github/instructions/api.instructions.md"],
+      detailFiles: []
     });
     expect(result).toContain("`.github/instructions/api.instructions.md`");
     expect(result).toContain("### Output rules");
+  });
+
+  it("includes detail files in listing", () => {
+    const result = buildExistingInstructionsSection({
+      agentsMdFiles: ["AGENTS.md"],
+      claudeMdFiles: [],
+      instructionMdFiles: [],
+      detailFiles: [".agents/testing.md", ".agents/architecture.md"]
+    });
+    expect(result).toContain("`.agents/testing.md`");
+    expect(result).toContain("`.agents/architecture.md`");
+  });
+});
+
+describe("writeInstructionFile", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-wif-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes file to arbitrary relative path", async () => {
+    const result = await writeInstructionFile(
+      tmpDir,
+      "docs/guide.md",
+      "# Guide\n\nContent.",
+      false
+    );
+
+    expect(result.status).toBe("written");
+    const content = await fs.readFile(result.filePath, "utf8");
+    expect(content).toBe("# Guide\n\nContent.");
+  });
+
+  it("creates parent directories", async () => {
+    const result = await writeInstructionFile(tmpDir, "deep/nested/dir/file.md", "content", false);
+
+    expect(result.status).toBe("written");
+    expect(await fs.readFile(result.filePath, "utf8")).toBe("content");
+  });
+
+  it("returns empty status for empty content", async () => {
+    const result = await writeInstructionFile(tmpDir, "empty.md", "  \n  ", false);
+
+    expect(result.status).toBe("empty");
+  });
+
+  it("rejects path that escapes repo root", async () => {
+    await expect(
+      writeInstructionFile(tmpDir, "../../../etc/passwd", "evil", false)
+    ).rejects.toThrow("escapes repository root");
+  });
+
+  it("skips existing file without force", async () => {
+    const filePath = path.join(tmpDir, "existing.md");
+    await fs.writeFile(filePath, "original");
+
+    const result = await writeInstructionFile(tmpDir, "existing.md", "new content", false);
+
+    expect(result.status).toBe("skipped");
+    expect(await fs.readFile(filePath, "utf8")).toBe("original");
+  });
+
+  it("overwrites existing file with force", async () => {
+    const filePath = path.join(tmpDir, "existing.md");
+    await fs.writeFile(filePath, "original");
+
+    const result = await writeInstructionFile(tmpDir, "existing.md", "new content", true);
+
+    expect(result.status).toBe("written");
+    expect(await fs.readFile(filePath, "utf8")).toBe("new content");
+  });
+});
+
+describe("writeNestedInstructions", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-wni-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes hub and detail files", async () => {
+    const result: NestedInstructionsResult = {
+      hub: { relativePath: "AGENTS.md", content: "# Hub\n\nOverview." },
+      details: [
+        { relativePath: ".agents/testing.md", content: "# Testing\n\nGuide.", topic: "Testing" },
+        {
+          relativePath: ".agents/arch.md",
+          content: "# Architecture\n\nPatterns.",
+          topic: "Architecture"
+        }
+      ]
+    };
+
+    const actions = await writeNestedInstructions(tmpDir, result, false);
+
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toEqual({ path: path.join(tmpDir, "AGENTS.md"), action: "wrote" });
+    expect(actions[1]).toEqual({ path: path.join(tmpDir, ".agents/testing.md"), action: "wrote" });
+    expect(actions[2]).toEqual({ path: path.join(tmpDir, ".agents/arch.md"), action: "wrote" });
+
+    expect(await fs.readFile(path.join(tmpDir, "AGENTS.md"), "utf8")).toBe("# Hub\n\nOverview.");
+    expect(await fs.readFile(path.join(tmpDir, ".agents/testing.md"), "utf8")).toBe(
+      "# Testing\n\nGuide."
+    );
+  });
+
+  it("writes optional CLAUDE.md", async () => {
+    const result: NestedInstructionsResult = {
+      hub: { relativePath: "AGENTS.md", content: "# Hub" },
+      details: [],
+      claudeMd: { relativePath: "CLAUDE.md", content: "@AGENTS.md\n" }
+    };
+
+    const actions = await writeNestedInstructions(tmpDir, result, false);
+
+    expect(actions).toHaveLength(2);
+    expect(await fs.readFile(path.join(tmpDir, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
+  });
+
+  it("skips existing files without force", async () => {
+    await fs.writeFile(path.join(tmpDir, "AGENTS.md"), "existing");
+
+    const result: NestedInstructionsResult = {
+      hub: { relativePath: "AGENTS.md", content: "new content" },
+      details: []
+    };
+
+    const actions = await writeNestedInstructions(tmpDir, result, false);
+
+    expect(actions[0].action).toBe("skipped");
+    expect(await fs.readFile(path.join(tmpDir, "AGENTS.md"), "utf8")).toBe("existing");
+  });
+});
+
+describe("detectExistingInstructions with detail files", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentrc-det-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("finds detail files in .agents directory", async () => {
+    await fs.mkdir(path.join(tmpDir, ".agents"), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, ".agents", "testing.md"), "# Testing");
+    await fs.writeFile(path.join(tmpDir, ".agents", "arch.md"), "# Arch");
+
+    const ctx = await detectExistingInstructions(tmpDir);
+
+    expect(ctx.detailFiles).toEqual([".agents/arch.md", ".agents/testing.md"]);
+  });
+
+  it("finds detail files in custom detail directory", async () => {
+    await fs.mkdir(path.join(tmpDir, "docs-ai"), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, "docs-ai", "guide.md"), "# Guide");
+
+    const ctx = await detectExistingInstructions(tmpDir, "docs-ai");
+
+    expect(ctx.detailFiles).toEqual(["docs-ai/guide.md"]);
+  });
+
+  it("finds detail files in nested area directories", async () => {
+    await fs.mkdir(path.join(tmpDir, "frontend", ".agents"), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, "frontend", ".agents", "components.md"), "# Comp");
+
+    const ctx = await detectExistingInstructions(tmpDir);
+
+    expect(ctx.detailFiles).toEqual(["frontend/.agents/components.md"]);
+  });
+
+  it("returns empty array when no detail directory exists", async () => {
+    const ctx = await detectExistingInstructions(tmpDir);
+
+    expect(ctx.detailFiles).toEqual([]);
+  });
+});
+
+describe("parseTopicsFromHub", () => {
+  it("parses valid topics from fenced JSON block", () => {
+    const content = `# Hub\n\nSome content\n\n\`\`\`json\n[{"slug":"testing","title":"Testing","description":"How to test"}]\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics).toEqual([
+      { slug: "testing", title: "Testing", description: "How to test" }
+    ]);
+    expect(result.cleanContent).toBe("# Hub\n\nSome content");
+  });
+
+  it("returns empty topics when no JSON block exists", () => {
+    const result = parseTopicsFromHub("# Hub\n\nNo JSON here");
+
+    expect(result.topics).toEqual([]);
+    expect(result.cleanContent).toBe("# Hub\n\nNo JSON here");
+  });
+
+  it("returns empty topics for malformed JSON", () => {
+    const content = `# Hub\n\n\`\`\`json\n{not valid json\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics).toEqual([]);
+    expect(result.cleanContent).toBe(content);
+  });
+
+  it("filters out entries missing required fields", () => {
+    const content = `# Hub\n\n\`\`\`json\n[{"slug":"valid","title":"Valid"},{"slug":"no-title"},{"title":"no-slug"}]\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics).toHaveLength(1);
+    expect(result.topics[0].slug).toBe("valid");
+  });
+
+  it("caps topics at 7", () => {
+    const topics = Array.from({ length: 10 }, (_, i) => ({ slug: `t${i}`, title: `T${i}` }));
+    const content = `# Hub\n\n\`\`\`json\n${JSON.stringify(topics)}\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics).toHaveLength(7);
+  });
+
+  it("sanitizes slugs with path traversal characters", () => {
+    const content = `# Hub\n\n\`\`\`json\n[{"slug":"../../../etc/passwd","title":"Evil"}]\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics[0].slug).toBe("etc-passwd");
+    expect(result.topics[0].slug).not.toContain("..");
+    expect(result.topics[0].slug).not.toContain("/");
+  });
+
+  it("sanitizes slugs with slashes and special characters", () => {
+    const content = `# Hub\n\n\`\`\`json\n[{"slug":"api/v2","title":"API v2"},{"slug":"my file name","title":"Spaces"}]\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics[0].slug).toBe("api-v2");
+    expect(result.topics[1].slug).toBe("my-file-name");
+  });
+
+  it("returns non-array JSON as empty topics", () => {
+    const content = `# Hub\n\n\`\`\`json\n{"not":"an array"}\n\`\`\``;
+    const result = parseTopicsFromHub(content);
+
+    expect(result.topics).toEqual([]);
+    expect(result.cleanContent).toBe(content);
   });
 });

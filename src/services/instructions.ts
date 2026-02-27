@@ -4,10 +4,26 @@ import path from "path";
 import { DEFAULT_MODEL } from "../config";
 import { ensureDir, safeWriteFile } from "../utils/fs";
 
-import type { Area } from "./analyzer";
+import type { Area, InstructionStrategy } from "./analyzer";
 import { sanitizeAreaName } from "./analyzer";
 import { assertCopilotCliReady } from "./copilot";
 import { createCopilotClient } from "./copilotSdk";
+import type { FileAction } from "./generator";
+
+type CopilotClient = Awaited<ReturnType<typeof createCopilotClient>>;
+
+export type { InstructionStrategy };
+
+export type NestedInstructionsResult = {
+  hub: { relativePath: string; content: string };
+  details: Array<{ relativePath: string; content: string; topic: string }>;
+  claudeMd?: { relativePath: string; content: string };
+};
+
+export type NestedHub = {
+  hubContent: string;
+  topics: Array<{ slug: string; title: string; description: string }>;
+};
 
 export type ExistingInstructionsContext = {
   /** AGENTS.md files found in the repo tree. */
@@ -16,19 +32,23 @@ export type ExistingInstructionsContext = {
   claudeMdFiles: string[];
   /** .github/instructions/*.instructions.md files. */
   instructionMdFiles: string[];
+  /** Detail files found in nested strategy directories (e.g. .agents/*.md). */
+  detailFiles: string[];
 };
 
 /**
  * Detect existing AI instruction files in a repository.
- * Returns context about AGENTS.md, CLAUDE.md, and .instructions.md files
+ * Returns context about AGENTS.md, CLAUDE.md, .instructions.md, and nested detail files
  * so instruction generation can avoid duplicating content they already cover.
  */
 export async function detectExistingInstructions(
-  repoPath: string
+  repoPath: string,
+  detailDirName = ".agents"
 ): Promise<ExistingInstructionsContext> {
   const { agentsMdFiles, claudeMdFiles } = await findInstructionMarkerFiles(repoPath);
   const instructionMdFiles = await findModularInstructionFiles(repoPath);
-  return { agentsMdFiles, claudeMdFiles, instructionMdFiles };
+  const detailFiles = await findDetailFiles(repoPath, detailDirName);
+  return { agentsMdFiles, claudeMdFiles, instructionMdFiles, detailFiles };
 }
 
 /**
@@ -77,12 +97,57 @@ async function findModularInstructionFiles(repoPath: string): Promise<string[]> 
 }
 
 /**
+ * Find detail files in nested strategy directories.
+ * Walks the repo tree looking for directories matching detailDirName
+ * and lists .md files inside them.
+ */
+async function findDetailFiles(repoPath: string, detailDirName: string): Promise<string[]> {
+  const detailFiles: string[] = [];
+  const excludeDirs = new Set([".git", "node_modules", "apm_modules", ".apm"]);
+
+  async function walk(dir: string, relPath: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (excludeDirs.has(entry.name)) continue;
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (entry.name === detailDirName) {
+          // Found a detail directory — list .md files inside
+          const detailDir = path.join(dir, entry.name);
+          const detailEntries = await fs
+            .readdir(detailDir, { withFileTypes: true })
+            .catch(() => []);
+          for (const de of detailEntries) {
+            if (!de.isSymbolicLink() && de.isFile() && de.name.endsWith(".md")) {
+              const rel = relPath
+                ? `${relPath}/${entry.name}/${de.name}`
+                : `${entry.name}/${de.name}`;
+              detailFiles.push(rel);
+            }
+          }
+        } else {
+          await walk(path.join(dir, entry.name), relPath ? `${relPath}/${entry.name}` : entry.name);
+        }
+      }
+    }
+  }
+
+  await walk(repoPath, "");
+  return detailFiles.sort();
+}
+
+/**
  * Build a prompt section listing existing instruction files.
  * Only emits content when instruction files actually exist,
  * so the LLM knows what content is already covered.
  */
 export function buildExistingInstructionsSection(ctx: ExistingInstructionsContext): string {
-  const allFiles = [...ctx.agentsMdFiles, ...ctx.claudeMdFiles, ...ctx.instructionMdFiles];
+  const allFiles = [
+    ...ctx.agentsMdFiles,
+    ...ctx.claudeMdFiles,
+    ...ctx.instructionMdFiles,
+    ...ctx.detailFiles
+  ];
   if (allFiles.length === 0) return "";
 
   const lines: string[] = [
@@ -105,6 +170,9 @@ type GenerateInstructionsOptions = {
   repoPath: string;
   model?: string;
   onProgress?: (message: string) => void;
+  strategy?: InstructionStrategy;
+  detailDir?: string;
+  claudeMd?: boolean;
 };
 
 export async function generateCopilotInstructions(
@@ -199,6 +267,9 @@ type GenerateAreaInstructionsOptions = {
   area: Area;
   model?: string;
   onProgress?: (message: string) => void;
+  strategy?: InstructionStrategy;
+  detailDir?: string;
+  claudeMd?: boolean;
 };
 
 export async function generateAreaInstructions(
@@ -358,4 +429,390 @@ export async function writeAreaInstruction(
     return { status: reason === "symlink" ? "symlink" : "skipped", filePath };
   }
   return { status: "written", filePath };
+}
+
+/**
+ * Write an instruction file to an arbitrary repo-relative path.
+ * Validates the path stays within the repo root.
+ */
+export async function writeInstructionFile(
+  repoPath: string,
+  relativePath: string,
+  content: string,
+  force?: boolean
+): Promise<WriteAreaResult> {
+  const resolvedRoot = path.resolve(repoPath);
+  const filePath = path.resolve(repoPath, relativePath);
+  if (!filePath.startsWith(resolvedRoot + path.sep) && filePath !== resolvedRoot) {
+    throw new Error(`Invalid path: escapes repository root (${relativePath})`);
+  }
+  if (!content.trim()) return { status: "empty", filePath };
+  await ensureDir(path.dirname(filePath));
+  const { wrote, reason } = await safeWriteFile(filePath, content, Boolean(force));
+  if (!wrote) {
+    return { status: reason === "symlink" ? "symlink" : "skipped", filePath };
+  }
+  return { status: "written", filePath };
+}
+
+/**
+ * Write all files for a nested instruction set (hub + details + optional CLAUDE.md).
+ */
+export async function writeNestedInstructions(
+  repoPath: string,
+  result: NestedInstructionsResult,
+  force?: boolean
+): Promise<FileAction[]> {
+  const actions: FileAction[] = [];
+
+  // Write hub
+  const hubResult = await writeInstructionFile(
+    repoPath,
+    result.hub.relativePath,
+    result.hub.content,
+    force
+  );
+  actions.push({
+    path: hubResult.filePath,
+    action: hubResult.status === "written" ? "wrote" : "skipped"
+  });
+
+  // Write detail files
+  for (const detail of result.details) {
+    const detailResult = await writeInstructionFile(
+      repoPath,
+      detail.relativePath,
+      detail.content,
+      force
+    );
+    actions.push({
+      path: detailResult.filePath,
+      action: detailResult.status === "written" ? "wrote" : "skipped"
+    });
+  }
+
+  // Write optional CLAUDE.md
+  if (result.claudeMd) {
+    const claudeResult = await writeInstructionFile(
+      repoPath,
+      result.claudeMd.relativePath,
+      result.claudeMd.content,
+      force
+    );
+    actions.push({
+      path: claudeResult.filePath,
+      action: claudeResult.status === "written" ? "wrote" : "skipped"
+    });
+  }
+
+  return actions;
+}
+
+// ─── Nested strategy generation ───
+
+type NestedTopic = {
+  slug: string;
+  title: string;
+  description: string;
+};
+
+type HubResult = {
+  hubContent: string;
+  topics: NestedTopic[];
+};
+
+/**
+ * Parse topics JSON from a fenced code block at the end of hub content.
+ * Returns parsed topics and content with the JSON block stripped.
+ */
+export function parseTopicsFromHub(content: string): {
+  cleanContent: string;
+  topics: NestedTopic[];
+} {
+  // Match last fenced JSON block
+  const jsonBlockRe = /```json\s*\n([\s\S]*?)\n```\s*$/;
+  const match = jsonBlockRe.exec(content);
+  if (!match) return { cleanContent: content, topics: [] };
+
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    if (!Array.isArray(parsed)) return { cleanContent: content, topics: [] };
+    const topics = parsed
+      .filter(
+        (t): t is NestedTopic =>
+          typeof t === "object" &&
+          t !== null &&
+          typeof (t as Record<string, unknown>).slug === "string" &&
+          typeof (t as Record<string, unknown>).title === "string"
+      )
+      .map((t) => ({ ...t, slug: sanitizeAreaName(t.slug) }))
+      .slice(0, 7); // Cap at 7 topics
+    const cleanContent = content.slice(0, match.index).trimEnd();
+    return { cleanContent, topics };
+  } catch {
+    return { cleanContent: content, topics: [] };
+  }
+}
+
+async function generateNestedHub(
+  client: CopilotClient,
+  options: {
+    repoPath: string;
+    detailDir: string;
+    area?: Area;
+    childAreas?: Area[];
+    model?: string;
+    onProgress?: (message: string) => void;
+  }
+): Promise<HubResult> {
+  const progress = options.onProgress ?? (() => {});
+  const model = options.model ?? DEFAULT_MODEL;
+
+  const existingCtx = await detectExistingInstructions(options.repoPath);
+  const existingSection = buildExistingInstructionsSection(existingCtx);
+
+  const session = await client.createSession({
+    model,
+    streaming: true,
+    workingDirectory: options.repoPath,
+    systemMessage: {
+      content: options.area
+        ? `You are an expert codebase analyst. Generate a lean AGENTS.md hub file for the "${options.area.name}" area. Use tools to explore the codebase. Output ONLY the final markdown content.`
+        : "You are an expert codebase analyst. Generate a lean AGENTS.md hub file for this repository. Use tools to explore the codebase. Output ONLY the final markdown content."
+    },
+    infiniteSessions: { enabled: false }
+  });
+
+  let content = "";
+  session.on((event) => {
+    const e = event as { type: string; data?: Record<string, unknown> };
+    if (e.type === "assistant.message_delta") {
+      const delta = e.data?.deltaContent as string | undefined;
+      if (delta) {
+        content += delta;
+        progress(
+          options.area ? `Generating hub for "${options.area.name}"...` : "Generating hub..."
+        );
+      }
+    } else if (e.type === "tool.execution_start") {
+      const toolName = e.data?.toolName as string | undefined;
+      progress(`Using tool: ${toolName ?? "..."}`);
+    }
+  });
+
+  const areaContext = options.area
+    ? `\nThis hub is for the "${options.area.name}" area (files matching: ${Array.isArray(options.area.applyTo) ? options.area.applyTo.join(", ") : options.area.applyTo}).${options.area.description ? ` ${options.area.description}` : ""}`
+    : "";
+
+  const childContext = options.childAreas?.length
+    ? `\n\nThis area has sub-projects:\n${options.childAreas.map((c) => `- ${c.name} (${c.path ?? "unknown path"})`).join("\n")}\nInclude a "## Sub-Projects" section with links to each child's AGENTS.md.`
+    : "";
+
+  const parentContext = options.area?.parentArea
+    ? `\nThis is a sub-project of "${options.area.parentArea}". Include a note linking back to the parent area.`
+    : "";
+
+  const prompt = `Analyze this codebase and generate a lean AGENTS.md hub file (~90-120 lines).${areaContext}${parentContext}
+
+Use tools to explore the codebase structure, tech stack, and conventions.
+
+The hub should contain:
+- Project overview and purpose
+- Key concepts and architecture
+- Coding conventions and guardrails
+- A "## Detailed Instructions" section listing links to detail files in \`${options.detailDir}/\`${childContext}
+
+At the END of your output, emit a fenced JSON block with recommended topics for detail files:
+\`\`\`json
+[{"slug":"testing","title":"Testing Guide","description":"How to write and run tests"},{"slug":"architecture","title":"Architecture","description":"Codebase structure and patterns"}]
+\`\`\`
+
+Recommend 3-5 topics that would benefit from deep-dive detail files. Each slug becomes a filename: \`${options.detailDir}/{slug}.md\`.
+
+IMPORTANT:
+- Keep the hub LEAN — overview and guardrails only, details go in separate files
+- The JSON block will be parsed and removed from the final output
+${existingSection ? `- Do NOT duplicate content from existing instruction files\n${existingSection}` : ""}
+- Output ONLY markdown content (no code fences wrapping the whole output), ending with the JSON topic block`;
+
+  await session.sendAndWait({ prompt }, 180000);
+  await session.destroy();
+
+  const { cleanContent, topics } = parseTopicsFromHub(content.trim());
+
+  if (topics.length === 0) {
+    process.stderr.write("Warning: Could not parse topics from hub. Skipping detail generation.\n");
+  }
+
+  return { hubContent: cleanContent, topics };
+}
+
+async function generateNestedDetail(
+  client: CopilotClient,
+  options: {
+    repoPath: string;
+    topic: NestedTopic;
+    area?: Area;
+    model?: string;
+    onProgress?: (message: string) => void;
+  }
+): Promise<string> {
+  const progress = options.onProgress ?? (() => {});
+  const model = options.model ?? DEFAULT_MODEL;
+
+  const session = await client.createSession({
+    model,
+    streaming: true,
+    workingDirectory: options.repoPath,
+    systemMessage: {
+      content: `You are an expert codebase analyst. Generate a deep-dive instruction file about "${options.topic.title}". Use tools to explore the codebase. Output ONLY the final markdown content.`
+    },
+    infiniteSessions: { enabled: false }
+  });
+
+  let content = "";
+  session.on((event) => {
+    const e = event as { type: string; data?: Record<string, unknown> };
+    if (e.type === "assistant.message_delta") {
+      const delta = e.data?.deltaContent as string | undefined;
+      if (delta) {
+        content += delta;
+        progress(`Generating detail: ${options.topic.title}...`);
+      }
+    } else if (e.type === "tool.execution_start") {
+      const toolName = e.data?.toolName as string | undefined;
+      progress(`${options.topic.slug}: using tool ${toolName ?? "..."}`);
+    }
+  });
+
+  const areaContext = options.area
+    ? `Focus on the "${options.area.name}" area (files matching: ${Array.isArray(options.area.applyTo) ? options.area.applyTo.join(", ") : options.area.applyTo}).`
+    : "Focus on the entire repository.";
+
+  const prompt = `Generate a deep-dive instruction file about "${options.topic.title}" for this codebase.
+${areaContext}
+
+Topic: ${options.topic.title}
+Description: ${options.topic.description}
+
+Use tools to explore the codebase and understand the specific patterns, APIs, and conventions related to this topic.
+
+The file should:
+- Start with \`# ${options.topic.title}\`
+- Include \`**When to read:** {one-line trigger condition}\` right after the heading
+- Cover ~50-100 lines of practical, actionable guidance
+- Include code patterns and examples found in the actual codebase
+- Be specific to this codebase, not generic advice
+
+Output ONLY the markdown content, no code fences wrapping the whole output.`;
+
+  await session.sendAndWait({ prompt }, 180000);
+  await session.destroy();
+
+  return content.trim() || "";
+}
+
+/**
+ * Generate a full nested instruction set (hub + detail files + optional CLAUDE.md).
+ * Reuses a single CopilotClient across all SDK sessions.
+ */
+export async function generateNestedInstructions(
+  options: GenerateInstructionsOptions & {
+    detailDir: string;
+    claudeMd: boolean;
+    area?: Area;
+    childAreas?: Area[];
+  }
+): Promise<NestedInstructionsResult> {
+  const progress = options.onProgress ?? (() => {});
+
+  progress("Checking Copilot CLI...");
+  const cliConfig = await assertCopilotCliReady();
+
+  progress("Starting Copilot SDK...");
+  const client = await createCopilotClient(cliConfig);
+
+  try {
+    // Step 1: Generate hub
+    const { hubContent, topics } = await generateNestedHub(client, {
+      repoPath: options.repoPath,
+      detailDir: options.detailDir,
+      area: options.area,
+      childAreas: options.childAreas,
+      model: options.model,
+      onProgress: options.onProgress
+    });
+
+    // Determine output paths
+    const basePath = options.area?.path ?? ".";
+    const hubRelativePath = path.join(basePath, "AGENTS.md");
+
+    // Hub content: prepend frontmatter if area-scoped
+    let finalHubContent = hubContent;
+    if (options.area) {
+      finalHubContent = `${buildAreaFrontmatter(options.area)}\n\n${hubContent}`;
+    }
+
+    const result: NestedInstructionsResult = {
+      hub: { relativePath: hubRelativePath, content: finalHubContent },
+      details: []
+    };
+
+    // Step 2: Generate detail files (sequential, one session per topic)
+    for (const [i, topic] of topics.entries()) {
+      progress(`Generating detail ${i + 1}/${topics.length}: ${topic.title}...`);
+      try {
+        const detailContent = await generateNestedDetail(client, {
+          repoPath: options.repoPath,
+          topic,
+          area: options.area,
+          model: options.model,
+          onProgress: options.onProgress
+        });
+        if (detailContent) {
+          result.details.push({
+            relativePath: path.join(basePath, options.detailDir, `${topic.slug}.md`),
+            content: detailContent,
+            topic: topic.title
+          });
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`Warning: Failed to generate detail for "${topic.title}": ${msg}\n`);
+      }
+    }
+
+    // Step 3: Optional CLAUDE.md
+    if (options.claudeMd) {
+      result.claudeMd = {
+        relativePath: path.join(basePath, "CLAUDE.md"),
+        content: "@AGENTS.md\n"
+      };
+    }
+
+    return result;
+  } finally {
+    await client.stop();
+  }
+}
+
+/**
+ * Generate nested instructions for a specific area.
+ */
+export async function generateNestedAreaInstructions(
+  options: GenerateAreaInstructionsOptions & {
+    detailDir: string;
+    claudeMd: boolean;
+    childAreas?: Area[];
+  }
+): Promise<NestedInstructionsResult> {
+  return generateNestedInstructions({
+    repoPath: options.repoPath,
+    area: options.area,
+    childAreas: options.childAreas,
+    model: options.model,
+    onProgress: options.onProgress,
+    detailDir: options.detailDir,
+    claudeMd: options.claudeMd
+  });
 }

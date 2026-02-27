@@ -1,9 +1,12 @@
-export { analyzeRepo } from "agentrc/services/analyzer.js";
+export { analyzeRepo, loadAgentrcConfig } from "agentrc/services/analyzer.js";
 export { generateConfigs } from "agentrc/services/generator.js";
 export {
   generateCopilotInstructions,
   generateAreaInstructions,
-  writeAreaInstruction
+  generateNestedInstructions,
+  generateNestedAreaInstructions,
+  writeAreaInstruction,
+  writeNestedInstructions
 } from "agentrc/services/instructions.js";
 export { runEval } from "agentrc/services/evaluator.js";
 export { generateEvalScaffold } from "agentrc/services/evalScaffold.js";

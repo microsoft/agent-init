@@ -14,6 +14,7 @@ type GenerateOptions = {
   model?: string;
   json?: boolean;
   quiet?: boolean;
+  strategy?: string;
 };
 
 export async function generateCommand(
@@ -33,7 +34,8 @@ export async function generateCommand(
       model: options.model,
       json: options.json,
       quiet: options.quiet,
-      areas: options.perApp
+      areas: options.perApp,
+      strategy: options.strategy
     });
     return;
   }
