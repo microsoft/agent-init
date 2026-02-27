@@ -490,6 +490,46 @@ describe("runReadinessReport", () => {
         expect(criterion?.status).toBe("pass");
         expect(criterion?.evidence).toEqual(["real-skills"]);
       });
+
+      it("parses JSONC settings with comments and trailing commas", async () => {
+        await writePackageJson({ name: "test-repo" });
+        const jsonc = `{
+  // Custom agent locations
+  "chat.agentFilesLocations": [
+    { "path": "my-agents" }, // workspace agents
+  ]
+}`;
+        await writeFile(".vscode/settings.json", jsonc);
+        await writeFile("my-agents/review.agent.md", "# Review");
+
+        const report = await runReadinessReport({ repoPath });
+        const criterion = report.criteria.find((c) => c.id === "custom-agents");
+
+        expect(criterion?.status).toBe("pass");
+        expect(criterion?.evidence).toEqual(expect.arrayContaining(["my-agents"]));
+      });
+
+      it("parses JSONC .code-workspace files with comments", async () => {
+        await writePackageJson({ name: "test-repo" });
+        const jsonc = `{
+  // Workspace folders
+  "folders": [{ "path": "." }],
+  "settings": {
+    // Skills location
+    "chat.agentSkillsLocations": [
+      { "path": "tools/skills" },
+    ]
+  }
+}`;
+        await writeFile("project.code-workspace", jsonc);
+        await writeFile("tools/skills/testing/SKILL.md", "# Testing");
+
+        const report = await runReadinessReport({ repoPath });
+        const criterion = report.criteria.find((c) => c.id === "copilot-skills");
+
+        expect(criterion?.status).toBe("pass");
+        expect(criterion?.evidence).toEqual(expect.arrayContaining(["tools/skills"]));
+      });
     });
 
     describe("instructions-consistency", () => {

@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { fileExists, safeReadDir, readJson } from "../utils/fs";
+import { fileExists, safeReadDir, readJson, readJsonc } from "../utils/fs";
 
 import type { RepoApp, RepoAnalysis, Area } from "./analyzer";
 import { analyzeRepo, sanitizeAreaName, loadAgentrcConfig } from "./analyzer";
@@ -157,6 +157,10 @@ type ReadinessOptions = {
   shadow?: boolean;
 };
 
+/**
+ * Parsed VS Code workspace location settings for AI-related file discovery.
+ * Extracted from `.vscode/settings.json` and `*.code-workspace` files.
+ */
 export type VscodeLocationSettings = {
   instructionsLocations: string[];
   agentLocations: string[];
@@ -1189,7 +1193,7 @@ function extractLocationPaths(entries: unknown): string[] {
       }
     }
     if (raw && raw.trim() !== "" && !path.isAbsolute(raw) && !raw.includes("..")) {
-      paths.push(raw);
+      paths.push(path.normalize(raw).replace(/\\/gu, "/"));
     }
   }
   return paths;
@@ -1214,6 +1218,11 @@ function mergeLocations(
   };
 }
 
+/**
+ * Read `chat.instructionsFilesLocations`, `chat.agentFilesLocations`, and
+ * `chat.agentSkillsLocations` from `.vscode/settings.json` and `*.code-workspace`
+ * files in the repo root. Paths are validated to be relative and free of traversal.
+ */
 export async function parseVscodeLocations(
   repoPath: string,
   rootFiles: string[]
@@ -1225,17 +1234,17 @@ export async function parseVscodeLocations(
   };
   let result = { ...empty };
 
-  // Read from .vscode/settings.json
-  const settings = await readJson(path.join(repoPath, ".vscode", "settings.json"));
+  // Read from .vscode/settings.json (JSONC — may contain comments)
+  const settings = await readJsonc(path.join(repoPath, ".vscode", "settings.json"));
   if (settings) {
     result = mergeLocations(result, extractLocationsFromSettings(settings));
   }
 
-  // Read from *.code-workspace files in the repo root
+  // Read from *.code-workspace files in the repo root (JSONC format)
   const workspaceFiles = rootFiles.filter((f) => f.endsWith(".code-workspace"));
   for (const wsFile of workspaceFiles) {
-    const ws = await readJson(path.join(repoPath, wsFile));
-    if (ws?.settings && typeof ws.settings === "object") {
+    const ws = await readJsonc(path.join(repoPath, wsFile));
+    if (ws?.settings && typeof ws.settings === "object" && !Array.isArray(ws.settings)) {
       result = mergeLocations(
         result,
         extractLocationsFromSettings(ws.settings as Record<string, unknown>)
@@ -1399,8 +1408,8 @@ async function hasMcpConfig(repoPath: string): Promise<string[]> {
   if (await fileExists(path.join(repoPath, "mcp.json"))) {
     found.push("mcp.json");
   }
-  // Check .vscode/settings.json for MCP section
-  const settings = await readJson(path.join(repoPath, ".vscode", "settings.json"));
+  // Check .vscode/settings.json for MCP section (JSONC — may contain comments)
+  const settings = await readJsonc(path.join(repoPath, ".vscode", "settings.json"));
   if (settings && (settings["mcp"] || settings["github.copilot.chat.mcp.enabled"])) {
     found.push(".vscode/settings.json (mcp section)");
   }

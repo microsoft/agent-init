@@ -2,6 +2,8 @@ import { constants as fsConstants } from "fs";
 import fs from "fs/promises";
 import path from "path";
 
+import stripJsonComments from "strip-json-comments";
+
 export async function ensureDir(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true });
 }
@@ -307,6 +309,16 @@ export async function readJson(filePath: string): Promise<Record<string, unknown
   try {
     const raw = await fs.readFile(filePath, "utf8");
     return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Like readJson but tolerates JSONC (comments and trailing commas). */
+export async function readJsonc(filePath: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return JSON.parse(stripJsonComments(raw, { trailingCommas: true })) as Record<string, unknown>;
   } catch {
     return undefined;
   }
