@@ -1192,9 +1192,12 @@ function extractLocationPaths(entries: unknown): string[] {
         raw = obj.path;
       }
     }
-    if (raw && raw.trim() !== "" && !path.isAbsolute(raw) && !raw.includes("..")) {
-      paths.push(path.normalize(raw).replace(/\\/gu, "/"));
-    }
+    if (!raw) continue;
+    const trimmed = raw.trim();
+    if (!trimmed || path.isAbsolute(trimmed)) continue;
+    const segments = trimmed.split(/[/\\]+/u);
+    if (segments.some((s) => s === "..")) continue;
+    paths.push(path.normalize(trimmed).replace(/\\/gu, "/"));
   }
   return paths;
 }
@@ -1297,10 +1300,11 @@ async function hasFileBasedInstructions(repoPath: string, extraDirs?: string[]):
   }
   for (const dir of extraDirs ?? []) {
     const fullDir = path.join(repoPath, dir);
+    const normalizedDir = dir.replace(/\\/gu, "/").replace(/\/+$/u, "");
     try {
       const entries = await fs.readdir(fullDir);
       found.push(
-        ...entries.filter((e) => e.endsWith(".instructions.md")).map((e) => `${dir}/${e}`)
+        ...entries.filter((e) => e.endsWith(".instructions.md")).map((e) => `${normalizedDir}/${e}`)
       );
     } catch {
       // directory doesn't exist or not readable
