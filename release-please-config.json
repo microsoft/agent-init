@@ -6,7 +6,7 @@
       "changelog-path": "CHANGELOG.md"
     },
     "vscode-extension": {
-      "package-name": "@microsoft/agentrc-vscode",
+      "package-name": "agentrc-vscode",
       "changelog-path": "CHANGELOG.md"
     }
   }

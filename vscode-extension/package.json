@@ -1,5 +1,5 @@
 {
-  "name": "@microsoft/agentrc-vscode",
+  "name": "agentrc-vscode",
   "displayName": "AgentRC — AI Repository Setup",
   "description": "Prime repositories for AI-assisted development: generate Copilot instructions, VS Code configs, MCP configs, and evaluate AI agent effectiveness.",
   "version": "0.0.2",
