@@ -444,6 +444,39 @@ describe("runReadinessReport", () => {
         expect(criterion?.evidence).toEqual(expect.arrayContaining(["my-skills"]));
       });
 
+      it("handles object/map format for location settings", async () => {
+        await writePackageJson({ name: "test-repo" });
+        await writeFile(
+          "project.code-workspace",
+          JSON.stringify({
+            folders: [{ path: "." }],
+            settings: {
+              "chat.agentFilesLocations": {
+                "agents/team": true,
+                "agents/disabled": false
+              },
+              "chat.agentSkillsLocations": {
+                "skills/active": true
+              }
+            }
+          })
+        );
+        await writeFile("agents/team/review.agent.md", "# Review");
+        await writeFile("agents/disabled/skip.agent.md", "# Skip");
+        await writeFile("skills/active/test/SKILL.md", "# Test skill");
+
+        const report = await runReadinessReport({ repoPath });
+
+        const agentsCriterion = report.criteria.find((c) => c.id === "custom-agents");
+        expect(agentsCriterion?.status).toBe("pass");
+        expect(agentsCriterion?.evidence).toEqual(expect.arrayContaining(["agents/team"]));
+        expect(agentsCriterion?.evidence).not.toEqual(expect.arrayContaining(["agents/disabled"]));
+
+        const skillsCriterion = report.criteria.find((c) => c.id === "copilot-skills");
+        expect(skillsCriterion?.status).toBe("pass");
+        expect(skillsCriterion?.evidence).toEqual(expect.arrayContaining(["skills/active"]));
+      });
+
       it("rejects path traversal and absolute paths in location settings", async () => {
         await writePackageJson({ name: "test-repo" });
         await writeFile(

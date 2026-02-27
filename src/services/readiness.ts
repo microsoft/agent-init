@@ -1179,25 +1179,43 @@ async function hasArchitectureDoc(repoPath: string): Promise<boolean> {
   return fileExists(path.join(repoPath, "docs", "architecture.md"));
 }
 
+function validateAndNormalize(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed || path.isAbsolute(trimmed)) return undefined;
+  const segments = trimmed.split(/[/\\]+/u);
+  if (segments.some((s) => s === "..")) return undefined;
+  return path.normalize(trimmed).replace(/\\/gu, "/");
+}
+
 function extractLocationPaths(entries: unknown): string[] {
-  if (!Array.isArray(entries)) return [];
+  if (!entries || typeof entries !== "object") return [];
   const paths: string[] = [];
-  for (const entry of entries) {
-    let raw: string | undefined;
-    if (typeof entry === "string") {
-      raw = entry;
-    } else if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-      const obj = entry as Record<string, unknown>;
-      if (typeof obj.path === "string") {
-        raw = obj.path;
+
+  // Array format: [{ path: "dir" }, "dir2"]
+  if (Array.isArray(entries)) {
+    for (const entry of entries) {
+      let raw: string | undefined;
+      if (typeof entry === "string") {
+        raw = entry;
+      } else if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        if (typeof obj.path === "string") {
+          raw = obj.path;
+        }
+      }
+      if (raw) {
+        const normalized = validateAndNormalize(raw);
+        if (normalized) paths.push(normalized);
       }
     }
-    if (!raw) continue;
-    const trimmed = raw.trim();
-    if (!trimmed || path.isAbsolute(trimmed)) continue;
-    const segments = trimmed.split(/[/\\]+/u);
-    if (segments.some((s) => s === "..")) continue;
-    paths.push(path.normalize(trimmed).replace(/\\/gu, "/"));
+    return paths;
+  }
+
+  // Object/map format: { "dir": true, "dir2": true }
+  for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
+    if (value !== true) continue;
+    const normalized = validateAndNormalize(key);
+    if (normalized) paths.push(normalized);
   }
   return paths;
 }
