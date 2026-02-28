@@ -23,6 +23,7 @@ type BatchOptions = {
   branch?: string;
   json?: boolean;
   quiet?: boolean;
+  accessible?: boolean;
 };
 
 export async function batchCommand(repos: string[], options: BatchOptions): Promise<void> {
@@ -69,7 +70,10 @@ export async function batchCommand(repos: string[], options: BatchOptions): Prom
     }
 
     try {
-      const { waitUntilExit } = render(<BatchTuiAzure token={token} outputPath={options.output} />);
+      const { waitUntilExit } = render(
+        <BatchTuiAzure token={token} outputPath={options.output} />,
+        { isScreenReaderEnabled: Boolean(options.accessible) }
+      );
       await waitUntilExit();
     } catch (error) {
       outputError(
@@ -90,7 +94,9 @@ export async function batchCommand(repos: string[], options: BatchOptions): Prom
   }
 
   try {
-    const { waitUntilExit } = render(<BatchTui token={token} outputPath={options.output} />);
+    const { waitUntilExit } = render(<BatchTui token={token} outputPath={options.output} />, {
+      isScreenReaderEnabled: Boolean(options.accessible)
+    });
     await waitUntilExit();
   } catch (error) {
     outputError(

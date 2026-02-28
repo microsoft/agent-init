@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 
 import type { Key } from "ink";
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { Box, Text, useApp, useInput, useStdout, useIsScreenReaderEnabled } from "ink";
 import React, { useEffect, useMemo, useState } from "react";
 
 import type { RepoApp, Area } from "../services/analyzer";
@@ -156,6 +156,7 @@ function pickBestModel(available: string[], fallback: string): string {
 
 export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JSX.Element {
   const app = useApp();
+  const accessible = useIsScreenReaderEnabled();
   const terminalColumns = useTerminalColumns();
   const [status, setStatus] = useState<Status>(skipAnimation ? "idle" : "intro");
   const [message, setMessage] = useState<string>("");
@@ -836,7 +837,20 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
     { isActive: inputActive }
   );
 
-  const statusIcon = status === "error" ? "✗" : status === "done" ? "✓" : isLoading ? spinner : "●";
+  const statusIcon =
+    status === "error"
+      ? accessible
+        ? "ERROR"
+        : "✗"
+      : status === "done"
+        ? accessible
+          ? "OK"
+          : "✓"
+        : isLoading
+          ? spinner
+          : accessible
+            ? "*"
+            : "●";
   const statusLabel =
     status === "intro"
       ? "starting"
@@ -876,7 +890,8 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
         ? (withoutUsage.promptTokens ?? 0) + (withoutUsage.completionTokens ?? 0)
         : undefined);
     if (withTotal == null && withoutTotal == null) return "tokens n/a";
-    return `tokens w/: ${withTotal ?? "n/a"} • w/o: ${withoutTotal ?? "n/a"}`;
+    if (accessible) return `tokens with: ${withTotal ?? "n/a"}, without: ${withoutTotal ?? "n/a"}`;
+    return `tokens w/: ${withTotal ?? "n/a"} \u2022 w/o: ${withoutTotal ?? "n/a"}`;
   };
 
   const previewLines = generatedContent.split("\n").slice(0, 20);
@@ -894,7 +909,12 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
   const innerWidth = Math.max(0, terminalColumns - 4);
 
   return (
-    <Box flexDirection="column" padding={1} borderStyle="round" borderColor="magenta" width="100%">
+    <Box
+      flexDirection="column"
+      padding={1}
+      {...(accessible ? {} : { borderStyle: "round" as const, borderColor: "magenta" })}
+      width="100%"
+    >
       {status === "intro" ? (
         <AnimatedBanner onComplete={handleAnimationComplete} maxWidth={innerWidth} />
       ) : (
@@ -1005,7 +1025,9 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
               const isCursor = i === modelCursor;
               return (
                 <Text key={model}>
-                  <Text color={isCursor ? "cyan" : undefined}>{isCursor ? "\u276F " : "  "}</Text>
+                  <Text color={isCursor ? "cyan" : undefined}>
+                    {isCursor ? (accessible ? "> " : "\u276F ") : "  "}
+                  </Text>
                   <Text
                     color={isCurrent ? "green" : isCursor ? "cyanBright" : "white"}
                     bold={isCursor}
@@ -1060,7 +1082,7 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
             {repoAreas.map((area, i) => (
               <Text key={area.name}>
                 <Text color={i === areaCursor ? "cyanBright" : "gray"}>
-                  {i === areaCursor ? "▶" : " "}
+                  {i === areaCursor ? (accessible ? ">" : "▶") : " "}
                 </Text>
                 <Text color="gray"> </Text>
                 <Text color={i === areaCursor ? "white" : "gray"} bold={i === areaCursor}>
@@ -1087,7 +1109,7 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
         <Box marginTop={1} paddingLeft={1}>
           <Text color="cyan">Eval case count: </Text>
           <Text color="white" bold>
-            {evalCaseCountInput || "▍"}
+            {evalCaseCountInput || (accessible ? "|" : "▍")}
           </Text>
         </Box>
       )}
@@ -1097,8 +1119,7 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
         <Box
           flexDirection="column"
           marginTop={1}
-          borderStyle="single"
-          borderColor="gray"
+          {...(accessible ? {} : { borderStyle: "single" as const, borderColor: "gray" })}
           paddingX={1}
         >
           <Text color="cyan" bold>
@@ -1118,13 +1139,19 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
                 <Text
                   color={r.verdict === "pass" ? "green" : r.verdict === "fail" ? "red" : "yellow"}
                 >
-                  {r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"}{" "}
+                  {accessible
+                    ? `Verdict: ${r.verdict === "pass" ? "PASS" : r.verdict === "fail" ? "FAIL" : "UNKNOWN"} ${r.id} (score:${r.score} ${formatTokens(r)})`
+                    : `${r.verdict === "pass" ? "✓" : r.verdict === "fail" ? "✗" : "?"} `}
                 </Text>
-                <Text>{r.id}</Text>
-                <Text color="gray">
-                  {" "}
-                  score:{r.score} • {formatTokens(r)}
-                </Text>
+                {!accessible && (
+                  <>
+                    <Text>{r.id}</Text>
+                    <Text color="gray">
+                      {" "}
+                      score:{r.score} • {formatTokens(r)}
+                    </Text>
+                  </>
+                )}
               </Text>
             ))}
             {evalViewerPath && (

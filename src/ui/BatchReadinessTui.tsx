@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, useApp, useInput, useIsScreenReaderEnabled } from "ink";
 import React, { useEffect, useState } from "react";
 import simpleGit from "simple-git";
 
@@ -40,6 +40,7 @@ type ProcessResult = {
 
 export function BatchReadinessTui({ token, outputPath, policies }: Props): React.JSX.Element {
   const app = useApp();
+  const accessible = useIsScreenReaderEnabled();
   const [status, setStatus] = useState<Status>("loading-orgs");
   const [message, setMessage] = useState<string>("Fetching organizations...");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -294,8 +295,8 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
           <Text dimColor>Organizations:</Text>
           {orgs.slice(0, 20).map((org, i) => (
             <Text key={i}>
-              {i === cursorIndex ? ">" : " "} [{selectedOrgIndices.has(i) ? "●" : " "}]{" "}
-              {org.name ?? org.login}
+              {i === cursorIndex ? ">" : " "} [
+              {selectedOrgIndices.has(i) ? (accessible ? "x" : "●") : " "}] {org.name ?? org.login}
             </Text>
           ))}
           <Box marginTop={1}>
@@ -314,7 +315,8 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
               return (
                 <Text key={actualIndex}>
                   {actualIndex === cursorIndex ? ">" : " "} [
-                  {selectedRepoIndices.has(actualIndex) ? "●" : " "}] {repo.fullName}
+                  {selectedRepoIndices.has(actualIndex) ? (accessible ? "x" : "●") : " "}]{" "}
+                  {repo.fullName}
                 </Text>
               );
             })}
@@ -336,7 +338,7 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
 
       {status === "complete" && (
         <Box marginTop={1} flexDirection="column">
-          <Text color="green">✓ Complete!</Text>
+          <Text color="green">{accessible ? "OK" : "✓"} Complete!</Text>
           <Text>Total repositories: {results.length}</Text>
           <Text>Successful: {results.filter((r) => !r.error).length}</Text>
           <Text>Failed: {results.filter((r) => r.error).length}</Text>

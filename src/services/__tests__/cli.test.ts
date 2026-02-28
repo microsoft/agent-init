@@ -22,7 +22,12 @@ describe("withGlobalOpts", () => {
 
     expect(handler).toHaveBeenCalledOnce();
     expect(handler.mock.calls[0][0]).toBe("some/path");
-    expect(handler.mock.calls[0][1]).toEqual({ force: true, json: true, quiet: false });
+    expect(handler.mock.calls[0][1]).toEqual({
+      force: true,
+      json: true,
+      quiet: false,
+      accessible: false
+    });
   });
 
   it("merges --quiet from program into command options", async () => {
@@ -35,7 +40,7 @@ describe("withGlobalOpts", () => {
     await wrapped(localOpts, cmd);
 
     expect(handler).toHaveBeenCalledOnce();
-    expect(handler.mock.calls[0][0]).toEqual({ json: false, quiet: true });
+    expect(handler.mock.calls[0][0]).toEqual({ json: false, quiet: true, accessible: false });
   });
 
   it("does not pass the Command object to the handler", async () => {
@@ -62,7 +67,7 @@ describe("withGlobalOpts", () => {
 
     await wrapped(localOpts, cmd);
 
-    expect(handler.mock.calls[0][0]).toEqual({ json: true, quiet: true });
+    expect(handler.mock.calls[0][0]).toEqual({ json: true, quiet: true, accessible: false });
   });
 
   it("works with variadic arguments (batch-style)", async () => {
@@ -83,6 +88,38 @@ describe("withGlobalOpts", () => {
 
     expect(handler).toHaveBeenCalledOnce();
     expect(handler.mock.calls[0][0]).toEqual(["owner/a", "owner/b"]);
-    expect(handler.mock.calls[0][1]).toEqual({ provider: "github", json: true, quiet: false });
+    expect(handler.mock.calls[0][1]).toEqual({
+      provider: "github",
+      json: true,
+      quiet: false,
+      accessible: false
+    });
+  });
+
+  it("merges --accessible from program into command options", async () => {
+    const handler =
+      vi.fn<(opts: { json?: boolean; quiet?: boolean; accessible?: boolean }) => Promise<void>>();
+    const wrapped = withGlobalOpts(handler);
+
+    const localOpts = {};
+    const cmd = buildFakeCommand({ json: false, quiet: false, accessible: true });
+
+    await wrapped(localOpts, cmd);
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler.mock.calls[0][0]).toEqual({ json: false, quiet: false, accessible: true });
+  });
+
+  it("defaults accessible to false when not set", async () => {
+    const handler =
+      vi.fn<(opts: { json?: boolean; quiet?: boolean; accessible?: boolean }) => Promise<void>>();
+    const wrapped = withGlobalOpts(handler);
+
+    const localOpts = {};
+    const cmd = buildFakeCommand({ json: false, quiet: false });
+
+    await wrapped(localOpts, cmd);
+
+    expect(handler.mock.calls[0][0]).toEqual({ json: false, quiet: false, accessible: false });
   });
 });

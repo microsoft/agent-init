@@ -11,14 +11,17 @@ type TuiOptions = {
   animation?: boolean;
   json?: boolean;
   quiet?: boolean;
+  accessible?: boolean;
 };
 
 export async function tuiCommand(options: TuiOptions): Promise<void> {
   const repoPath = path.resolve(options.repo ?? process.cwd());
   const skipAnimation = options.animation === false;
   try {
+    const accessible = Boolean(options.accessible);
     const { waitUntilExit } = render(
-      <AgentRCTui repoPath={repoPath} skipAnimation={skipAnimation} />
+      <AgentRCTui repoPath={repoPath} skipAnimation={skipAnimation || accessible} />,
+      { isScreenReaderEnabled: accessible }
     );
     await waitUntilExit();
   } catch (error) {

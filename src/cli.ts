@@ -23,7 +23,12 @@ export function withGlobalOpts<TArgs extends unknown[], TOptions extends Record<
     const cmd = raw[raw.length - 1] as Command;
     const localOpts = raw[raw.length - 2] as TOptions;
     const globalOpts = cmd.optsWithGlobals();
-    const merged = { ...localOpts, json: globalOpts.json, quiet: globalOpts.quiet } as TOptions;
+    const merged = {
+      ...localOpts,
+      json: globalOpts.json,
+      quiet: globalOpts.quiet,
+      accessible: globalOpts.accessible ?? false
+    } as TOptions;
     raw[raw.length - 2] = merged;
     raw.pop(); // remove Command
     await (fn as (...args: unknown[]) => Promise<void>)(...raw);
@@ -38,7 +43,8 @@ export function runCli(argv: string[]): void {
     .description("Set up repositories for AI-assisted development")
     .version("1.0.0")
     .option("--json", "Output machine-readable JSON to stdout")
-    .option("--quiet", "Suppress stderr progress output");
+    .option("--quiet", "Suppress stderr progress output")
+    .option("--accessible", "Enable screen reader friendly output");
 
   program
     .command("init")

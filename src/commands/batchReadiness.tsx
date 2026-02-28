@@ -11,6 +11,7 @@ type BatchReadinessOptions = {
   policy?: string;
   json?: boolean;
   quiet?: boolean;
+  accessible?: boolean;
 };
 
 export async function batchReadinessCommand(options: BatchReadinessOptions): Promise<void> {
@@ -26,7 +27,8 @@ export async function batchReadinessCommand(options: BatchReadinessOptions): Pro
   try {
     const policies = parsePolicySources(options.policy);
     const { waitUntilExit } = render(
-      <BatchReadinessTui token={token} outputPath={options.output} policies={policies} />
+      <BatchReadinessTui token={token} outputPath={options.output} policies={policies} />,
+      { isScreenReaderEnabled: Boolean(options.accessible) }
     );
     await waitUntilExit();
   } catch (error) {

@@ -1,4 +1,4 @@
-import { Box, Text } from "ink";
+import { Box, Text, useIsScreenReaderEnabled } from "ink";
 import React, { useState, useEffect } from "react";
 
 /**
@@ -73,13 +73,14 @@ export function AnimatedBanner({
   darkMode = true,
   maxWidth
 }: AnimatedBannerProps): React.JSX.Element {
-  const [frameIndex, setFrameIndex] = useState(skipAnimation ? FRAMES.length - 1 : 0);
-  const [isComplete, setIsComplete] = useState(skipAnimation);
+  const accessible = useIsScreenReaderEnabled();
+  const [frameIndex, setFrameIndex] = useState(skipAnimation || accessible ? FRAMES.length - 1 : 0);
+  const [isComplete, setIsComplete] = useState(skipAnimation || accessible);
 
   const theme = darkMode ? THEME_DARK : THEME_LIGHT;
 
   useEffect(() => {
-    if (skipAnimation || isComplete) return;
+    if (skipAnimation || accessible || isComplete) return;
 
     const interval = setInterval(() => {
       setFrameIndex((current) => {
@@ -98,10 +99,18 @@ export function AnimatedBanner({
 
   // Call onComplete in a separate effect to avoid setState during render
   useEffect(() => {
-    if (isComplete && !skipAnimation) {
+    if (isComplete && !skipAnimation && !accessible) {
       onComplete?.();
     }
-  }, [isComplete, skipAnimation, onComplete]);
+  }, [isComplete, skipAnimation, accessible, onComplete]);
+
+  if (accessible) {
+    return (
+      <Box flexDirection="column">
+        <Text bold>AGENTRC</Text>
+      </Box>
+    );
+  }
 
   const currentFrame = FRAMES[frameIndex];
   const showSparkles = frameIndex < 3;
@@ -133,6 +142,16 @@ export function StaticBanner({
   darkMode?: boolean;
   maxWidth?: number;
 }): React.JSX.Element {
+  const accessible = useIsScreenReaderEnabled();
+
+  if (accessible) {
+    return (
+      <Box flexDirection="column">
+        <Text bold>AGENTRC</Text>
+      </Box>
+    );
+  }
+
   const color = darkMode ? "magentaBright" : "magenta";
   const bannerWidth = FULL_BANNER[0].length;
   const shouldTruncate = maxWidth != null && maxWidth < bannerWidth;
