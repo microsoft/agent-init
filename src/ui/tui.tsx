@@ -890,7 +890,8 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
         ? (withoutUsage.promptTokens ?? 0) + (withoutUsage.completionTokens ?? 0)
         : undefined);
     if (withTotal == null && withoutTotal == null) return "tokens n/a";
-    return `tokens w/: ${withTotal ?? "n/a"} • w/o: ${withoutTotal ?? "n/a"}`;
+    if (accessible) return `tokens with: ${withTotal ?? "n/a"}, without: ${withoutTotal ?? "n/a"}`;
+    return `tokens w/: ${withTotal ?? "n/a"} \u2022 w/o: ${withoutTotal ?? "n/a"}`;
   };
 
   const previewLines = generatedContent.split("\n").slice(0, 20);
