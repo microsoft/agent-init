@@ -99,10 +99,10 @@ export function AnimatedBanner({
 
   // Call onComplete in a separate effect to avoid setState during render
   useEffect(() => {
-    if (isComplete && !skipAnimation && !accessible) {
+    if (isComplete) {
       onComplete?.();
     }
-  }, [isComplete, skipAnimation, accessible, onComplete]);
+  }, [isComplete, onComplete]);
 
   if (accessible) {
     return (

@@ -72,7 +72,7 @@ export async function batchCommand(repos: string[], options: BatchOptions): Prom
     try {
       const { waitUntilExit } = render(
         <BatchTuiAzure token={token} outputPath={options.output} />,
-        { isScreenReaderEnabled: Boolean(options.accessible) }
+        { isScreenReaderEnabled: options.accessible ? true : undefined }
       );
       await waitUntilExit();
     } catch (error) {
@@ -95,7 +95,7 @@ export async function batchCommand(repos: string[], options: BatchOptions): Prom
 
   try {
     const { waitUntilExit } = render(<BatchTui token={token} outputPath={options.output} />, {
-      isScreenReaderEnabled: Boolean(options.accessible)
+      isScreenReaderEnabled: options.accessible ? true : undefined
     });
     await waitUntilExit();
   } catch (error) {

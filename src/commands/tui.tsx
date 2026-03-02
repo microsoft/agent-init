@@ -18,9 +18,9 @@ export async function tuiCommand(options: TuiOptions): Promise<void> {
   const repoPath = path.resolve(options.repo ?? process.cwd());
   const skipAnimation = options.animation === false;
   try {
-    const accessible = Boolean(options.accessible);
+    const accessible = options.accessible ? true : undefined;
     const { waitUntilExit } = render(
-      <AgentRCTui repoPath={repoPath} skipAnimation={skipAnimation || accessible} />,
+      <AgentRCTui repoPath={repoPath} skipAnimation={skipAnimation || Boolean(accessible)} />,
       { isScreenReaderEnabled: accessible }
     );
     await waitUntilExit();

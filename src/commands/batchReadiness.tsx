@@ -28,7 +28,7 @@ export async function batchReadinessCommand(options: BatchReadinessOptions): Pro
     const policies = parsePolicySources(options.policy);
     const { waitUntilExit } = render(
       <BatchReadinessTui token={token} outputPath={options.output} policies={policies} />,
-      { isScreenReaderEnabled: Boolean(options.accessible) }
+      { isScreenReaderEnabled: options.accessible ? true : undefined }
     );
     await waitUntilExit();
   } catch (error) {

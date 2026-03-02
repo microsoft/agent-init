@@ -386,10 +386,10 @@ export function BatchTuiAzure({ token, outputPath }: Props): React.JSX.Element {
                   <Text color={repo.hasInstructions ? "green" : "red"}>
                     {repo.hasInstructions
                       ? accessible
-                        ? "HAS_INSTRUCTIONS"
+                        ? "Has Instructions"
                         : "✓"
                       : accessible
-                        ? "NEEDS_INSTRUCTIONS"
+                        ? "Needs Instructions"
                         : "✗"}{" "}
                   </Text>
                   <Text color={repo.hasInstructions ? "gray" : undefined}>
