@@ -906,17 +906,26 @@ async function areasFromFallback(repoPath: string, existingAreas: Area[]): Promi
   return areas;
 }
 
+const GLOB_CHARS = /[*?[\\]/u;
+
+function longestNonGlobPrefix(pattern: string): string | undefined {
+  const segments = pattern.split("/").filter((s) => s !== ".");
+  const prefixSegments: string[] = [];
+  for (const segment of segments) {
+    if (GLOB_CHARS.test(segment)) break;
+    prefixSegments.push(segment);
+  }
+  return prefixSegments.length > 0 ? prefixSegments.join("/") : undefined;
+}
+
 async function resolveConfigArea(
   repoPath: string,
   resolvedRoot: string,
   ca: AgentrcConfigArea
 ): Promise<Area | undefined> {
   const patterns = Array.isArray(ca.applyTo) ? ca.applyTo : [ca.applyTo];
-  const firstSegment = patterns[0].split("/")[0];
-  const basePath =
-    firstSegment.includes("*") || firstSegment.includes("?")
-      ? repoPath
-      : path.join(repoPath, firstSegment);
+  const nonGlobPrefix = longestNonGlobPrefix(patterns[0]);
+  const basePath = nonGlobPrefix ? path.join(repoPath, nonGlobPrefix) : repoPath;
 
   const resolved = path.resolve(basePath);
   if (resolved !== resolvedRoot && !resolved.startsWith(resolvedRoot + path.sep)) return undefined;
@@ -1017,7 +1026,8 @@ async function detectAreas(repoPath: string, analysis: RepoAnalysis): Promise<Ar
       const namespacedArea: AgentrcConfigArea = {
         ...ca,
         name: `${ws.name}/${ca.name}`,
-        applyTo: repoRelativeApplyTo
+        applyTo: repoRelativeApplyTo,
+        parentArea: ca.parentArea ? `${ws.name}/${ca.parentArea}` : undefined
       };
       const area = await resolveConfigArea(repoPath, resolvedRoot, namespacedArea);
       if (area) {
@@ -1303,7 +1313,8 @@ export async function loadAgentrcConfig(repoPath: string): Promise<AgentrcConfig
         if (typeof w.name !== "string" || !(w.name as string).trim()) continue;
         if (typeof w.path !== "string" || !(w.path as string).trim()) continue;
 
-        const wsPath = (w.path as string).replace(/\\+/gu, "/");
+        const wsPath = (w.path as string).trim().replace(/\\+/gu, "/").replace(/\/+$/u, "");
+        if (!wsPath) continue;
         // Must be relative, no traversal, no absolute path, no root
         if (path.isAbsolute(wsPath) || wsPath === "." || wsPath.split("/").includes("..")) continue;
 
@@ -1318,15 +1329,19 @@ export async function loadAgentrcConfig(repoPath: string): Promise<AgentrcConfig
       }
     }
 
-    // Validate parentArea references across all areas (flat + workspace)
-    const allConfigAreas = [...areas];
-    for (const ws of workspaces) {
-      allConfigAreas.push(...ws.areas);
-    }
-    const areaNames = new Set(allConfigAreas.map((a) => a.name.toLowerCase()));
-    for (const area of allConfigAreas) {
-      if (area.parentArea && !areaNames.has(area.parentArea.toLowerCase())) {
+    // Validate parentArea references — flat areas against flat names, workspace areas within their workspace
+    const flatNames = new Set(areas.map((a) => a.name.toLowerCase()));
+    for (const area of areas) {
+      if (area.parentArea && !flatNames.has(area.parentArea.toLowerCase())) {
         area.parentArea = undefined;
+      }
+    }
+    for (const ws of workspaces) {
+      const wsAreaNames = new Set(ws.areas.map((a) => a.name.toLowerCase()));
+      for (const area of ws.areas) {
+        if (area.parentArea && !wsAreaNames.has(area.parentArea.toLowerCase())) {
+          area.parentArea = undefined;
+        }
       }
     }
 
