@@ -34,7 +34,8 @@
     "fast-glob": "^3.3.3",
     "ink": "^6.7.0",
     "react": "^19.2.4",
-    "simple-git": "^3.31.1"
+    "simple-git": "^3.31.1",
+    "strip-json-comments": "^5.0.3"
   },
   "lint-staged": {
     "*.{ts,tsx,js,json,md}": "prettier --write"

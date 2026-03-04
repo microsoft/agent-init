@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { fileExists, safeReadDir, readJson } from "../utils/fs";
+import { fileExists, safeReadDir, readJson, readJsonc } from "../utils/fs";
 
 import type { RepoApp, RepoAnalysis, Area } from "./analyzer";
 import { analyzeRepo, sanitizeAreaName, loadAgentrcConfig } from "./analyzer";
@@ -157,12 +157,23 @@ type ReadinessOptions = {
   shadow?: boolean;
 };
 
+/**
+ * Parsed VS Code workspace location settings for AI-related file discovery.
+ * Extracted from `.vscode/settings.json` and `*.code-workspace` files.
+ */
+export type VscodeLocationSettings = {
+  instructionsLocations: string[];
+  agentLocations: string[];
+  skillsLocations: string[];
+};
+
 export type ReadinessContext = {
   repoPath: string;
   analysis: RepoAnalysis;
   apps: RepoApp[];
   rootFiles: string[];
   rootPackageJson?: Record<string, unknown>;
+  vscodeLocations?: VscodeLocationSettings;
   areaPath?: string;
   areaFiles?: string[];
 };
@@ -190,13 +201,15 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
   const rootFiles = await safeReadDir(repoPath);
   const rootPackageJson = await readJson(path.join(repoPath, "package.json"));
   const apps = analysis.apps?.length ? analysis.apps : [];
+  const vscodeLocations = await parseVscodeLocations(repoPath, rootFiles);
 
   const context: ReadinessContext = {
     repoPath,
     analysis,
     apps,
     rootFiles,
-    rootPackageJson
+    rootPackageJson,
+    vscodeLocations
   };
 
   // ── Policy resolution ──
@@ -707,7 +720,10 @@ export function buildCriteria(): ReadinessCriterion[] {
         }
 
         // Check for file-based instructions (.github/instructions/*.instructions.md)
-        const fileBasedInstructions = await hasFileBasedInstructions(context.repoPath);
+        const fileBasedInstructions = await hasFileBasedInstructions(
+          context.repoPath,
+          context.vscodeLocations?.instructionsLocations
+        );
         const areas = context.analysis.areas ?? [];
 
         // For monorepos or repos with detected areas, check coverage
@@ -719,6 +735,15 @@ export function buildCriteria(): ReadinessCriterion[] {
               evidence: [...rootFound, ...areas.map((a) => `${a.name}: missing .instructions.md`)]
             };
           }
+          return {
+            status: "pass",
+            reason: `Root + ${fileBasedInstructions.length} file-based instruction(s) found.`,
+            evidence: [...rootFound, ...fileBasedInstructions]
+          };
+        }
+
+        // File-based instructions found (e.g. from VS Code location settings) without areas
+        if (fileBasedInstructions.length > 0) {
           return {
             status: "pass",
             reason: `Root + ${fileBasedInstructions.length} file-based instruction(s) found.`,
@@ -810,7 +835,10 @@ export function buildCriteria(): ReadinessCriterion[] {
       impact: "medium",
       effort: "medium",
       check: async (context) => {
-        const found = await hasCustomAgents(context.repoPath);
+        const found = await hasCustomAgents(
+          context.repoPath,
+          context.vscodeLocations?.agentLocations
+        );
         return {
           status: found.length > 0 ? "pass" : "fail",
           reason: "No custom AI agents configured (e.g. .github/agents/, .copilot/agents/).",
@@ -830,7 +858,10 @@ export function buildCriteria(): ReadinessCriterion[] {
       impact: "medium",
       effort: "medium",
       check: async (context) => {
-        const found = await hasCopilotSkills(context.repoPath);
+        const found = await hasCopilotSkills(
+          context.repoPath,
+          context.vscodeLocations?.skillsLocations
+        );
         return {
           status: found.length > 0 ? "pass" : "fail",
           reason: "No Copilot or Claude skills found (e.g. .copilot/skills/, .github/skills/).",
@@ -1159,6 +1190,110 @@ async function hasArchitectureDoc(repoPath: string): Promise<boolean> {
   return fileExists(path.join(repoPath, "docs", "architecture.md"));
 }
 
+function validateAndNormalize(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed || path.isAbsolute(trimmed)) return undefined;
+  const segments = trimmed.split(/[/\\]+/u);
+  if (segments.some((s) => s === "..")) return undefined;
+  let normalized = path.normalize(trimmed).replace(/\\/gu, "/");
+  normalized = normalized.replace(/\/+$/u, "");
+  return normalized || undefined;
+}
+
+function extractLocationPaths(entries: unknown): string[] {
+  if (!entries || typeof entries !== "object") return [];
+  const paths: string[] = [];
+
+  // Array format: [{ path: "dir" }, "dir2"]
+  if (Array.isArray(entries)) {
+    for (const entry of entries) {
+      let raw: string | undefined;
+      if (typeof entry === "string") {
+        raw = entry;
+      } else if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        if (typeof obj.path === "string") {
+          raw = obj.path;
+        }
+      }
+      if (raw) {
+        const normalized = validateAndNormalize(raw);
+        if (normalized) paths.push(normalized);
+      }
+    }
+    return paths;
+  }
+
+  // Object/map format: { "dir": true, "dir2": true }
+  for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
+    if (value !== true) continue;
+    const normalized = validateAndNormalize(key);
+    if (normalized) paths.push(normalized);
+  }
+  return paths;
+}
+
+function extractLocationsFromSettings(settings: Record<string, unknown>): VscodeLocationSettings {
+  return {
+    instructionsLocations: extractLocationPaths(settings["chat.instructionsFilesLocations"]),
+    agentLocations: extractLocationPaths(settings["chat.agentFilesLocations"]),
+    skillsLocations: extractLocationPaths(settings["chat.agentSkillsLocations"])
+  };
+}
+
+function mergeLocations(
+  a: VscodeLocationSettings,
+  b: VscodeLocationSettings
+): VscodeLocationSettings {
+  return {
+    instructionsLocations: [...a.instructionsLocations, ...b.instructionsLocations],
+    agentLocations: [...a.agentLocations, ...b.agentLocations],
+    skillsLocations: [...a.skillsLocations, ...b.skillsLocations]
+  };
+}
+
+/**
+ * Read `chat.instructionsFilesLocations`, `chat.agentFilesLocations`, and
+ * `chat.agentSkillsLocations` from `.vscode/settings.json` and `*.code-workspace`
+ * files in the repo root. Paths are validated to be relative and free of traversal.
+ */
+export async function parseVscodeLocations(
+  repoPath: string,
+  rootFiles: string[]
+): Promise<VscodeLocationSettings> {
+  const empty: VscodeLocationSettings = {
+    instructionsLocations: [],
+    agentLocations: [],
+    skillsLocations: []
+  };
+  let result = { ...empty };
+
+  // Read from .vscode/settings.json (JSONC — may contain comments)
+  const settings = await readJsonc(path.join(repoPath, ".vscode", "settings.json"));
+  if (settings) {
+    result = mergeLocations(result, extractLocationsFromSettings(settings));
+  }
+
+  // Read from *.code-workspace files in the repo root (JSONC format)
+  const workspaceFiles = rootFiles.filter((f) => f.endsWith(".code-workspace"));
+  for (const wsFile of workspaceFiles) {
+    const ws = await readJsonc(path.join(repoPath, wsFile));
+    if (ws?.settings && typeof ws.settings === "object" && !Array.isArray(ws.settings)) {
+      result = mergeLocations(
+        result,
+        extractLocationsFromSettings(ws.settings as Record<string, unknown>)
+      );
+    }
+  }
+
+  // Deduplicate
+  return {
+    instructionsLocations: [...new Set(result.instructionsLocations)],
+    agentLocations: [...new Set(result.agentLocations)],
+    skillsLocations: [...new Set(result.skillsLocations)]
+  };
+}
+
 async function hasCustomInstructions(repoPath: string): Promise<string[]> {
   const found: string[] = [];
   const candidates = [
@@ -1181,16 +1316,32 @@ async function hasCustomInstructions(repoPath: string): Promise<string[]> {
   return found;
 }
 
-async function hasFileBasedInstructions(repoPath: string): Promise<string[]> {
-  const instructionsDir = path.join(repoPath, ".github", "instructions");
+async function hasFileBasedInstructions(repoPath: string, extraDirs?: string[]): Promise<string[]> {
+  const found: string[] = [];
+  const defaultDir = path.join(repoPath, ".github", "instructions");
   try {
-    const entries = await fs.readdir(instructionsDir);
-    return entries
-      .filter((e) => e.endsWith(".instructions.md"))
-      .map((e) => `.github/instructions/${e}`);
+    const entries = await fs.readdir(defaultDir);
+    found.push(
+      ...entries
+        .filter((e) => e.endsWith(".instructions.md"))
+        .map((e) => `.github/instructions/${e}`)
+    );
   } catch {
-    return [];
+    // directory doesn't exist or not readable
   }
+  for (const dir of extraDirs ?? []) {
+    const fullDir = path.join(repoPath, dir);
+    const normalizedDir = dir.replace(/\\/gu, "/").replace(/\/+$/u, "");
+    try {
+      const entries = await fs.readdir(fullDir);
+      found.push(
+        ...entries.filter((e) => e.endsWith(".instructions.md")).map((e) => `${normalizedDir}/${e}`)
+      );
+    } catch {
+      // directory doesn't exist or not readable
+    }
+  }
+  return [...new Set(found)];
 }
 
 export type InstructionConsistencyResult = {
@@ -1292,8 +1443,8 @@ async function hasMcpConfig(repoPath: string): Promise<string[]> {
   if (await fileExists(path.join(repoPath, "mcp.json"))) {
     found.push("mcp.json");
   }
-  // Check .vscode/settings.json for MCP section
-  const settings = await readJson(path.join(repoPath, ".vscode", "settings.json"));
+  // Check .vscode/settings.json for MCP section (JSONC — may contain comments)
+  const settings = await readJsonc(path.join(repoPath, ".vscode", "settings.json"));
   if (settings && (settings["mcp"] || settings["github.copilot.chat.mcp.enabled"])) {
     found.push(".vscode/settings.json (mcp section)");
   }
@@ -1304,7 +1455,7 @@ async function hasMcpConfig(repoPath: string): Promise<string[]> {
   return found;
 }
 
-async function hasCustomAgents(repoPath: string): Promise<string[]> {
+async function hasCustomAgents(repoPath: string, extraDirs?: string[]): Promise<string[]> {
   const found: string[] = [];
   const agentDirs = [".github/agents", ".copilot/agents", ".github/copilot/agents"];
   for (const dir of agentDirs) {
@@ -1319,10 +1470,15 @@ async function hasCustomAgents(repoPath: string): Promise<string[]> {
       found.push(agentFile);
     }
   }
-  return found;
+  for (const dir of extraDirs ?? []) {
+    if (await fileExists(path.join(repoPath, dir))) {
+      found.push(dir);
+    }
+  }
+  return [...new Set(found)];
 }
 
-async function hasCopilotSkills(repoPath: string): Promise<string[]> {
+async function hasCopilotSkills(repoPath: string, extraDirs?: string[]): Promise<string[]> {
   const found: string[] = [];
   const skillDirs = [
     ".copilot/skills",
@@ -1335,7 +1491,12 @@ async function hasCopilotSkills(repoPath: string): Promise<string[]> {
       found.push(dir);
     }
   }
-  return found;
+  for (const dir of extraDirs ?? []) {
+    if (await fileExists(path.join(repoPath, dir))) {
+      found.push(dir);
+    }
+  }
+  return [...new Set(found)];
 }
 
 async function readAllDependencies(context: ReadinessContext): Promise<string[]> {
