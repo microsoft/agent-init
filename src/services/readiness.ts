@@ -396,7 +396,9 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
       repoPath,
       rootFiles,
       rootPackageJson,
-      cache: new Map()
+      cache: new Map(),
+      analysis,
+      apps
     };
     const engineChain = await loadPluginChain(policySources ?? [], { jsonOnly: isConfigSourced });
     const engineReport = await executePlugins(engineChain.plugins, policyCtx, engineChain.options);

@@ -3,6 +3,8 @@
 // Both imperative hook plugins and declarative JSON policies compile to
 // the same runtime contract via these types.
 
+import type { RepoAnalysis, RepoApp } from "../analyzer";
+
 /** Classification of what a signal detects. */
 export type SignalKind = "file" | "setting" | "mcp-server" | "model-config" | "git" | "custom";
 
@@ -78,6 +80,10 @@ export type PolicyContext = {
   rootPackageJson?: Record<string, unknown>;
   /** Shared key-value cache scoped to a single engine run. */
   cache: Map<string, unknown>;
+  /** Full repo analysis, populated when running inside the readiness engine. */
+  analysis?: RepoAnalysis;
+  /** Detected repo apps, populated when running inside the readiness engine. */
+  apps?: RepoApp[];
 };
 
 /** A detector emits signals about the state of a repository. */

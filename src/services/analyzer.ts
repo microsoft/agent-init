@@ -5,8 +5,6 @@ import fg from "fast-glob";
 
 import { fileExists, safeReadDir, readJson } from "../utils/fs";
 
-import { isGitRepo } from "./git";
-
 export type RepoApp = {
   name: string;
   path: string;
@@ -64,9 +62,16 @@ const PACKAGE_MANAGERS: Array<{ file: string; name: string }> = [
 
 export async function analyzeRepo(repoPath: string): Promise<RepoAnalysis> {
   const files = await safeReadDir(repoPath);
+  let isGit = false;
+  try {
+    await fs.access(path.join(repoPath, ".git"));
+    isGit = true;
+  } catch {
+    // not a git repo
+  }
   const analysis: RepoAnalysis = {
     path: repoPath,
-    isGitRepo: await isGitRepo(repoPath),
+    isGitRepo: isGit,
     languages: [],
     frameworks: []
   };

@@ -59,6 +59,7 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
     });
 
     let content = "";
+    let sessionError: Error | undefined;
     session.on((event: { type: string; data?: Record<string, unknown> }) => {
       if (event.type === "assistant.message_delta") {
         const delta = event.data?.deltaContent as string | undefined;
@@ -72,7 +73,7 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
       } else if (event.type === "session.error") {
         const errorMsg = (event.data?.message as string) ?? "Unknown error";
         if (errorMsg.toLowerCase().includes("auth") || errorMsg.toLowerCase().includes("login")) {
-          throw new Error(
+          sessionError = new Error(
             "Copilot CLI not logged in. Run `copilot` then `/login` to authenticate."
           );
         }
@@ -157,6 +158,8 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
     } finally {
       await session.destroy();
     }
+
+    if (sessionError) throw sessionError;
 
     let parsed: EvalConfig;
     try {

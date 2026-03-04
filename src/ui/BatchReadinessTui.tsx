@@ -4,13 +4,11 @@ import path from "path";
 
 import { Box, Text, useApp, useInput, useIsScreenReaderEnabled } from "ink";
 import React, { useEffect, useState } from "react";
-import simpleGit from "simple-git";
 
-import { buildAuthedUrl, cloneRepo } from "../services/git";
+import type { ReadinessProcessResult } from "../services/batch";
+import { processBatchReadinessRepo } from "../services/batch";
 import type { GitHubOrg, GitHubRepo } from "../services/github";
 import { listUserOrgs, listOrgRepos, listAccessibleRepos } from "../services/github";
-import type { ReadinessReport } from "../services/readiness";
-import { runReadinessReport } from "../services/readiness";
 import { generateVisualReport } from "../services/visualReport";
 import { safeWriteFile, ensureDir, validateCachePath } from "../utils/fs";
 
@@ -32,12 +30,6 @@ type Status =
   | "complete"
   | "error";
 
-type ProcessResult = {
-  repo: string;
-  report?: ReadinessReport;
-  error?: string;
-};
-
 export function BatchReadinessTui({ token, outputPath, policies }: Props): React.JSX.Element {
   const app = useApp();
   const accessible = useIsScreenReaderEnabled();
@@ -53,7 +45,7 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
   const [cursorIndex, setCursorIndex] = useState(0);
 
   // Processing
-  const [results, setResults] = useState<ProcessResult[]>([]);
+  const [results, setResults] = useState<ReadinessProcessResult[]>([]);
   const [currentRepoIndex, setCurrentRepoIndex] = useState(0);
   const [processingMessage, setProcessingMessage] = useState("");
 
@@ -116,7 +108,7 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
   async function processRepos() {
     setStatus("processing");
     const selectedRepos = Array.from(selectedRepoIndices).map((i) => repos[i]);
-    const results: ProcessResult[] = [];
+    const results: ReadinessProcessResult[] = [];
     const tmpDir = path.join(os.tmpdir(), `agentrc-batch-readiness-${Date.now()}`);
 
     try {
@@ -128,30 +120,14 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
         setProcessingMessage(`Analyzing ${repo.fullName} (${i + 1}/${selectedRepos.length})`);
 
         const repoDir = validateCachePath(tmpDir, repo.owner, repo.name);
-
-        try {
-          // Clone repo
-          setProcessingMessage(`Cloning ${repo.fullName}...`);
-          const authedUrl = buildAuthedUrl(repo.cloneUrl, token, "github");
-          await cloneRepo(authedUrl, repoDir, { shallow: true });
-          // Strip credentials from persisted remote URL
-          const git = simpleGit(repoDir);
-          await git.remote(["set-url", "origin", repo.cloneUrl]);
-
-          // Run readiness report
-          setProcessingMessage(`Running readiness report for ${repo.fullName}...`);
-          const report = await runReadinessReport({ repoPath: repoDir, policies });
-
-          results.push({
-            repo: repo.fullName,
-            report
-          });
-        } catch (error) {
-          results.push({
-            repo: repo.fullName,
-            error: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
+        const result = await processBatchReadinessRepo({
+          repo,
+          token,
+          repoDir,
+          policies,
+          onProgress: (msg) => setProcessingMessage(msg)
+        });
+        results.push(result);
       }
 
       setResults(results);
@@ -206,17 +182,19 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
 
     if (status === "select-orgs") {
       if (key.upArrow) {
-        setCursorIndex(Math.max(0, cursorIndex - 1));
+        setCursorIndex((prev) => Math.max(0, prev - 1));
       } else if (key.downArrow) {
-        setCursorIndex(Math.min(orgs.length - 1, cursorIndex + 1));
+        setCursorIndex((prev) => Math.min(orgs.length - 1, prev + 1));
       } else if (input === " ") {
-        const newSelected = new Set(selectedOrgIndices);
-        if (newSelected.has(cursorIndex)) {
-          newSelected.delete(cursorIndex);
-        } else {
-          newSelected.add(cursorIndex);
-        }
-        setSelectedOrgIndices(newSelected);
+        setSelectedOrgIndices((prev) => {
+          const next = new Set(prev);
+          if (next.has(cursorIndex)) {
+            next.delete(cursorIndex);
+          } else {
+            next.add(cursorIndex);
+          }
+          return next;
+        });
       } else if (key.return) {
         if (selectedOrgIndices.size === 0) {
           setMessage("Please select at least one organization");
@@ -233,17 +211,19 @@ export function BatchReadinessTui({ token, outputPath, policies }: Props): React
 
     if (status === "select-repos") {
       if (key.upArrow) {
-        setCursorIndex(Math.max(0, cursorIndex - 1));
+        setCursorIndex((prev) => Math.max(0, prev - 1));
       } else if (key.downArrow) {
-        setCursorIndex(Math.min(repos.length - 1, cursorIndex + 1));
+        setCursorIndex((prev) => Math.min(repos.length - 1, prev + 1));
       } else if (input === " ") {
-        const newSelected = new Set(selectedRepoIndices);
-        if (newSelected.has(cursorIndex)) {
-          newSelected.delete(cursorIndex);
-        } else {
-          newSelected.add(cursorIndex);
-        }
-        setSelectedRepoIndices(newSelected);
+        setSelectedRepoIndices((prev) => {
+          const next = new Set(prev);
+          if (next.has(cursorIndex)) {
+            next.delete(cursorIndex);
+          } else {
+            next.add(cursorIndex);
+          }
+          return next;
+        });
       } else if (key.return) {
         if (selectedRepoIndices.size === 0) {
           setMessage("Please select at least one repository");

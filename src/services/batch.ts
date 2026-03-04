@@ -19,6 +19,8 @@ import {
 import type { GitHubRepo } from "./github";
 import { createPullRequest as createGitHubPullRequest } from "./github";
 import { generateCopilotInstructions } from "./instructions";
+import type { ReadinessReport } from "./readiness";
+import { runReadinessReport } from "./readiness";
 
 // ── Types ──
 
@@ -277,5 +279,50 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
     return await Promise.race([promise, timeout]);
   } finally {
     clearTimeout(timer!);
+  }
+}
+
+// ── Readiness batch processing ──
+
+export type ReadinessProcessResult = {
+  repo: string;
+  report?: ReadinessReport;
+  error?: string;
+};
+
+export type ProcessBatchReadinessRepoOptions = {
+  repo: GitHubRepo;
+  token: string;
+  repoDir: string;
+  policies?: string[];
+  onProgress?: (message: string) => void;
+};
+
+/**
+ * Clone a single GitHub repo and run the AI-readiness report.
+ * Credential-stripped clone URL is restored on the remote after cloning.
+ * Extracted from BatchReadinessTui so the TUI remains a thin presenter.
+ */
+export async function processBatchReadinessRepo(
+  options: ProcessBatchReadinessRepoOptions
+): Promise<ReadinessProcessResult> {
+  const { repo, token, repoDir, policies, onProgress } = options;
+  const progress = onProgress ?? (() => {});
+
+  try {
+    progress(`Cloning ${repo.fullName}...`);
+    const authedUrl = buildAuthedUrl(repo.cloneUrl, token, "github");
+    await cloneRepo(authedUrl, repoDir, { shallow: true });
+    await setRemoteUrl(repoDir, repo.cloneUrl);
+
+    progress(`Running readiness report for ${repo.fullName}...`);
+    const report = await runReadinessReport({ repoPath: repoDir, policies });
+
+    return { repo: repo.fullName, report };
+  } catch (error) {
+    return {
+      repo: repo.fullName,
+      error: sanitizeError(error instanceof Error ? error.message : "Unknown error")
+    };
   }
 }

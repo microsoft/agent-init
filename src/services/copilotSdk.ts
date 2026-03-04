@@ -129,7 +129,7 @@ async function startExternalServer(cliConfig: CopilotCliConfig): Promise<{
  * handler; without one, session creation fails.  Injecting it here keeps the
  * concern centralised and prevents call-sites from forgetting the handler.
  */
-function attachDefaultPermissionHandler(
+export function attachDefaultPermissionHandler(
   client: InstanceType<CopilotSdkModule["CopilotClient"]>
 ): void {
   const approveAll: CopilotSdk.PermissionHandler = () => ({ kind: "approved" as const });

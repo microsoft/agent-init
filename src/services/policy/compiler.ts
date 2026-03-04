@@ -238,18 +238,22 @@ function mapScope(scope: string): "file" | "git" | "custom" {
 /**
  * Bridge from PolicyContext to ReadinessContext.
  * Used by compiled detectors to run legacy check functions.
+ * When running inside the readiness engine, `ctx.analysis` and `ctx.apps`
+ * are populated and forwarded directly. Outside that path they are stubbed
+ * with safe empty values — criteria that rely on language/framework data
+ * should not be compiled into declarative JSON policies.
  */
 function policyCtxToReadinessCtx(ctx: PolicyContext): ReadinessContext {
   return {
     repoPath: ctx.repoPath,
-    analysis: {
+    analysis: ctx.analysis ?? {
       path: ctx.repoPath,
       isGitRepo: true,
       languages: [],
       frameworks: [],
       isMonorepo: false
     },
-    apps: [],
+    apps: ctx.apps ?? [],
     rootFiles: ctx.rootFiles,
     rootPackageJson: ctx.rootPackageJson
   };

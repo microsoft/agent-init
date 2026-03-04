@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-/**
- * Tests for the permission-handler wrapping logic used by createCopilotClient.
- *
- * We replicate attachDefaultPermissionHandler here so we can unit-test it
- * without needing a real Copilot CLI binary or SDK import.
- */
+import { attachDefaultPermissionHandler, type CopilotSdkModule } from "../copilotSdk";
 
 function buildMockClient() {
   const createSessionSpy = vi.fn(async (config: Record<string, unknown>) => ({
@@ -20,22 +15,17 @@ function buildMockClient() {
   };
 }
 
-// Mirrors the logic in copilotSdk.ts
-function attachDefaultPermissionHandler(client: ReturnType<typeof buildMockClient>): void {
-  const approveAll = () => ({ kind: "approved" as const });
-  const original = client.createSession.bind(client);
-  client.createSession = vi.fn(async (config: Record<string, unknown>) =>
-    original({
-      ...config,
-      onPermissionRequest: (config.onPermissionRequest as unknown) ?? approveAll
-    })
-  ) as typeof client.createSession;
+type MockClient = ReturnType<typeof buildMockClient>;
+type RealClient = InstanceType<CopilotSdkModule["CopilotClient"]>;
+
+function asRealClient(client: MockClient): RealClient {
+  return client as unknown as RealClient;
 }
 
 describe("attachDefaultPermissionHandler", () => {
   it("injects onPermissionRequest when not provided", async () => {
     const client = buildMockClient();
-    attachDefaultPermissionHandler(client);
+    attachDefaultPermissionHandler(asRealClient(client));
 
     await client.createSession({ model: "test-model", streaming: true });
 
@@ -55,7 +45,7 @@ describe("attachDefaultPermissionHandler", () => {
 
   it("preserves a caller-supplied onPermissionRequest", async () => {
     const client = buildMockClient();
-    attachDefaultPermissionHandler(client);
+    attachDefaultPermissionHandler(asRealClient(client));
 
     const customHandler = vi.fn(() => ({
       kind: "denied-interactively-by-user" as const
@@ -72,7 +62,7 @@ describe("attachDefaultPermissionHandler", () => {
 
   it("passes through all other config properties unchanged", async () => {
     const client = buildMockClient();
-    attachDefaultPermissionHandler(client);
+    attachDefaultPermissionHandler(asRealClient(client));
 
     await client.createSession({
       model: "test-model",
