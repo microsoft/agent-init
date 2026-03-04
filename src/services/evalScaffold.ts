@@ -131,35 +131,39 @@ export async function generateEvalScaffold(options: EvalScaffoldOptions): Promis
 
     progress("Analyzing codebase...");
     let timedOutWaitingForIdle = false;
+    let sendError: unknown;
     try {
       await session.sendAndWait({ prompt }, EVAL_SCAFFOLD_TIMEOUT_MS);
     } catch (error) {
       if (!isSessionIdleTimeoutError(error)) {
-        throw error;
-      }
+        sendError = error;
+      } else {
+        timedOutWaitingForIdle = true;
+        progress("Generation took longer than expected; requesting final JSON output...");
 
-      timedOutWaitingForIdle = true;
-      progress("Generation took longer than expected; requesting final JSON output...");
-
-      try {
-        await session.sendAndWait(
-          {
-            prompt:
-              "Stop analysis and return only the final JSON scaffold now. Do not include markdown or commentary."
-          },
-          EVAL_SCAFFOLD_RECOVERY_TIMEOUT_MS
-        );
-      } catch (recoveryError) {
-        if (!isSessionIdleTimeoutError(recoveryError)) {
-          throw recoveryError;
+        try {
+          await session.sendAndWait(
+            {
+              prompt:
+                "Stop analysis and return only the final JSON scaffold now. Do not include markdown or commentary."
+            },
+            EVAL_SCAFFOLD_RECOVERY_TIMEOUT_MS
+          );
+        } catch (recoveryError) {
+          if (!isSessionIdleTimeoutError(recoveryError)) {
+            sendError = recoveryError;
+          } else {
+            progress("Still waiting on idle; attempting to parse partial output...");
+          }
         }
-        progress("Still waiting on idle; attempting to parse partial output...");
       }
     } finally {
       await session.destroy();
     }
 
     if (sessionError) throw sessionError;
+    if (sendError !== undefined)
+      throw sendError instanceof Error ? sendError : new Error(String(sendError));
 
     let parsed: EvalConfig;
     try {

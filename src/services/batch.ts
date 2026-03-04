@@ -312,6 +312,7 @@ export async function processBatchReadinessRepo(
   try {
     progress(`Cloning ${repo.fullName}...`);
     const authedUrl = buildAuthedUrl(repo.cloneUrl, token, "github");
+    await ensureDir(path.dirname(repoDir));
     await cloneRepo(authedUrl, repoDir, { shallow: true });
     // Best-effort: strip credentials from the remote after cloning.
     // A failure here should not turn a successful readiness run into an error.

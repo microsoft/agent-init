@@ -255,12 +255,17 @@ ${existingSection}
 Output ONLY the markdown content for the instructions file, not wrapped in markdown code fences.`;
 
     progress("Analyzing codebase...");
+    let sendError: unknown;
     try {
       await session.sendAndWait({ prompt }, 180000);
+    } catch (err) {
+      sendError = err;
     } finally {
       await session.destroy();
     }
     if (sessionError) throw sessionError;
+    if (sendError !== undefined)
+      throw sendError instanceof Error ? sendError : new Error(String(sendError));
 
     return content.trim() || "";
   } finally {
@@ -365,12 +370,17 @@ ${existingSection ? `- Do NOT duplicate content already covered by existing inst
 - Output ONLY the markdown content, no YAML frontmatter, no code fences`;
 
     progress(`Analyzing area "${area.name}"...`);
+    let sendError: unknown;
     try {
       await session.sendAndWait({ prompt }, 180000);
+    } catch (err) {
+      sendError = err;
     } finally {
       await session.destroy();
     }
     if (sessionError) throw sessionError;
+    if (sendError !== undefined)
+      throw sendError instanceof Error ? sendError : new Error(String(sendError));
 
     return content.trim() || "";
   } finally {
