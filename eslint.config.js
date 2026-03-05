@@ -16,6 +16,7 @@ export default [
       "node_modules/**",
       "coverage/**",
       "vscode-extension/**",
+      "scripts/**",
       "docs/**",
       "eslint.config.js",
       "*.config.ts"

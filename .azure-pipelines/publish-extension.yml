@@ -1,0 +1,53 @@
+trigger:
+    branches:
+        include:
+            - main
+pr: none
+
+resources:
+    repositories:
+        - repository: templates
+          type: github
+          name: microsoft/vscode-engineering
+          ref: main
+          endpoint: Monaco
+
+parameters:
+    - name: publishExtension
+      displayName: 🚀 Publish Extension
+      type: boolean
+      default: false
+
+extends:
+    template: azure-pipelines/extension/stable.yml@templates
+    parameters:
+        publishExtension: ${{ parameters.publishExtension }}
+
+        buildSteps:
+            - script: |
+                  corepack enable
+                  corepack prepare npm@latest --activate
+              displayName: Setup npm
+
+            - script: npm ci --ignore-scripts
+              displayName: Install root dependencies
+
+            - script: npm ci
+              displayName: Install extension dependencies
+              workingDirectory: vscode-extension
+
+            - script: npm run build
+              displayName: Build CLI
+
+            - script: node esbuild.mjs --production
+              displayName: Build extension
+              workingDirectory: vscode-extension
+
+            - script: npm run test
+              displayName: Test
+
+        tsa:
+            config:
+                areaPath: "Visual Studio Code Miscellaneous Extensions"
+                serviceTreeID: "c8cb03c6-176e-40dd-90a5-518de08666dc"
+            enabled: true
