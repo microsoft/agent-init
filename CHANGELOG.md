@@ -2,6 +2,76 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0](https://github.com/microsoft/agentrc/compare/agentrc-v2.0.0...agentrc-v2.1.0) (2026-03-05)
+
+
+### Features
+
+* add --accessible flag for screen reader friendly TUI output ([#20](https://github.com/microsoft/agentrc/issues/20)) ([6a3c3b4](https://github.com/microsoft/agentrc/commit/6a3c3b4fca6b1ea86514d59a08c26ee56eec0013))
+* add agentic workflows for CI doctor, doc updater, and code simplifier ([#18](https://github.com/microsoft/agentrc/issues/18)) ([455c7ab](https://github.com/microsoft/agentrc/commit/455c7ab25c3c1f69d048c04da37f3e8ebc9ed6aa))
+* add custom policy support ([efd88f0](https://github.com/microsoft/agentrc/commit/efd88f05003b6e923aa566a274a3dd295b9e14b4))
+* add extension marketplace publishing workflows and instruction consistency docs ([15739b9](https://github.com/microsoft/agentrc/commit/15739b948c5b4c8aed3c0d6e3bc0200098261dad))
+* add maxWidth prop to banners ([30645e6](https://github.com/microsoft/agentrc/commit/30645e674e0e4acf2c1320ba9e536c7fe903df44))
+* add monorepo workspace configuration and auto-detection ([#23](https://github.com/microsoft/agentrc/issues/23)) ([86d3e08](https://github.com/microsoft/agentrc/commit/86d3e08bfd6731030c2269b44d4e2a37c0a739a0))
+* add multi-model code review prompt and synthesize findings into a prioritized fix list ([2c8843e](https://github.com/microsoft/agentrc/commit/2c8843eee26ff368c28ed9815e535e0c9196f097))
+* add nested instruction strategy with hub + detail files ([#22](https://github.com/microsoft/agentrc/issues/22)) ([df1e5fe](https://github.com/microsoft/agentrc/commit/df1e5fe538f18100ec5024affce29d549ddf94c7))
+* add per-area readiness scoring, file-based instructions, and area-aware eval scaffold ([d55821e](https://github.com/microsoft/agentrc/commit/d55821e10c3854aaf42d3ffa3f1facde199c4ffe))
+* add plugin-based policy engine with shadow mode ([067e675](https://github.com/microsoft/agentrc/commit/067e67530b1eba31a72d1d033fc45f26ff903897))
+* add plugin-based policy engine with shadow mode ([e7f58d3](https://github.com/microsoft/agentrc/commit/e7f58d34956cdbb158931f8075dc0fe0c54df9f6))
+* add VS Code extension wrapping CLI for key workflows ([b03d21b](https://github.com/microsoft/agentrc/commit/b03d21bea5ff2c910095d9b84ae3d58adcdcf957))
+* add VS Code extension wrapping CLI for key workflows ([6bef466](https://github.com/microsoft/agentrc/commit/6bef46621ee03735c6731adb2a600cd931236715))
+* add Windows Copilot CLI support with cliArgs and .bat/.cmd handling ([f2791b8](https://github.com/microsoft/agentrc/commit/f2791b842379734536295da37184595f7f2eba48))
+* add Windows Copilot CLI support with cliArgs and .bat/.cmd handling ([f1592e4](https://github.com/microsoft/agentrc/commit/f1592e40ebd6793504d86c4383547b153cdcf8d0))
+* **analyzer:** add .slnx support and fix package manager detection for Cargo/Go ([3109f7e](https://github.com/microsoft/agentrc/commit/3109f7e5cad7d937aa7d75100b39090eefc1b158))
+* **analyzer:** add Bazel/Nx/Pants/Turborepo detection, smart fallback heuristics, and symlink-safe scanning ([b6d5cc2](https://github.com/microsoft/agentrc/commit/b6d5cc2157254b4f0e20b4e6bb90b9c1b9f994b3))
+* **analyzer:** enhance repo analysis for non-JS ecosystems and improve workspace detection ([3257b1a](https://github.com/microsoft/agentrc/commit/3257b1af9160f769a9a3b94dd158c0fc2a075a91))
+* **cli:** add option to list available Copilot models ([ac7f562](https://github.com/microsoft/agentrc/commit/ac7f562699dd180ab41e5613883980b918a1defc))
+* consolidate vnext workstream (supersedes [#12](https://github.com/microsoft/agentrc/issues/12)) ([be2b2b6](https://github.com/microsoft/agentrc/commit/be2b2b69369120c8ada29cdb57dcdfc92e31fda3))
+* **copilot:** create function to extract and list Copilot models from CLI help ([ac7f562](https://github.com/microsoft/agentrc/commit/ac7f562699dd180ab41e5613883980b918a1defc))
+* enhance eval case generation prompts for deeper architectural analysis ([764d00c](https://github.com/microsoft/agentrc/commit/764d00cd43c7d6eff51e506f7f80999797e031aa))
+* enhance instruction generation and PR body creation ([8b7722c](https://github.com/microsoft/agentrc/commit/8b7722c8bc356c256c2d538c8b750289c15d65c4))
+* enhance language and package manager detection in analyzer service ([8b7722c](https://github.com/microsoft/agentrc/commit/8b7722c8bc356c256c2d538c8b750289c15d65c4))
+* enhance TUI with eval and batch processing features ([77fc44e](https://github.com/microsoft/agentrc/commit/77fc44e6a52b9efabca0a3d7eb5970e4b5cb9b1c))
+* **eval:** implement model listing functionality in eval command ([ac7f562](https://github.com/microsoft/agentrc/commit/ac7f562699dd180ab41e5613883980b918a1defc))
+* **eval:** implement timeout handling for scaffold generation and improve error reporting ([cd48e73](https://github.com/microsoft/agentrc/commit/cd48e73cd1adb10e71e61a097e04a2538c29d620))
+* **evaluator:** enhance trajectory viewer with phase filtering for tool calls ([ac7f562](https://github.com/microsoft/agentrc/commit/ac7f562699dd180ab41e5613883980b918a1defc))
+* headless CLI with --json/--quiet, batch service, structured output ([f449a76](https://github.com/microsoft/agentrc/commit/f449a762c2f64b7452210a63d22fc6f042b87de1))
+* headless CLI with --json/--quiet, batch service, structured output ([d9e75ca](https://github.com/microsoft/agentrc/commit/d9e75caa8b81d2e76c160310b307eda76daa7492))
+* instruction-aware generation — complement existing AGENTS.md, CLAUDE.md, and .instructions.md files ([#17](https://github.com/microsoft/agentrc/issues/17)) ([11e0eaa](https://github.com/microsoft/agentrc/commit/11e0eaa58700f9bb88902e9d0dee572f2145afa0))
+* **readiness:** add instructions-consistency criterion to detect diverging AI instruction files ([444b3b0](https://github.com/microsoft/agentrc/commit/444b3b07ea609d8310668843def10bf55fbc6d88))
+* redesign readiness UX with hero, fix-first, smart-collapse tree view ([b626b88](https://github.com/microsoft/agentrc/commit/b626b88511073e006c18855bafb95f1d7f377287))
+* **tui:** add readiness report feature with detailed output and user interaction ([ac7f562](https://github.com/microsoft/agentrc/commit/ac7f562699dd180ab41e5613883980b918a1defc))
+* update trajectory viewer with new design and metrics display ([d1db068](https://github.com/microsoft/agentrc/commit/d1db06827587bc1a8da15b376916c85379c33c2c))
+* VS Code extension onboarding — walkthrough, grouped readiness, format picker ([0384387](https://github.com/microsoft/agentrc/commit/0384387b7e7b79b4f66fb78ffeb16caa0813be4d))
+
+
+### Bug Fixes
+
+* add missing output directory ([9b2e8f3](https://github.com/microsoft/agentrc/commit/9b2e8f3d160bfe104e070dd6a71df96aa35cac61))
+* address PR review — fix pkg name, version, PAT leak, error handling, dead stubs, typo ([24b110d](https://github.com/microsoft/agentrc/commit/24b110da23b2ae174977d577ea2c10185bca56bd))
+* align table formatting in README ([95784a5](https://github.com/microsoft/agentrc/commit/95784a5caa13590e7ba9c67aca2b6b97aad217ab))
+* audit command-service wiring gaps ([503b870](https://github.com/microsoft/agentrc/commit/503b870c79dd81d5bb95a86d66a534747eeaf06b))
+* **azureDevops:** encode memberId in accounts URL ([3257b1a](https://github.com/microsoft/agentrc/commit/3257b1af9160f769a9a3b94dd158c0fc2a075a91))
+* disable no-undef for TypeScript files ([954a95d](https://github.com/microsoft/agentrc/commit/954a95d4ad2bc3cf701c0ffe6d6c899d7ce9ac63))
+* exclude vscode-extension from root ESLint config ([018610c](https://github.com/microsoft/agentrc/commit/018610c920edcdd8b9930dc10835048a34df9d50))
+* guard Ink render() calls with try/catch, improve area filter type safety ([bb1e19d](https://github.com/microsoft/agentrc/commit/bb1e19dd01ed3b7bc12261bfe5a19cf9f8c165ef))
+* implement P0 architecture reliability fixes ([#31](https://github.com/microsoft/agentrc/issues/31)) ([89a4b3e](https://github.com/microsoft/agentrc/commit/89a4b3edba156e255287d5f7cf99ac3587f5086e))
+* improve path validation logic ([97ce317](https://github.com/microsoft/agentrc/commit/97ce317afd13b8b1f8b6e88bf89c9e766a1ba89b))
+* npx CLI discovery, process cleanup, permission handler, and default model ([#28](https://github.com/microsoft/agentrc/issues/28)) ([3aaaa07](https://github.com/microsoft/agentrc/commit/3aaaa071bcfe0d0cda75d66f7ead7454aba760a0))
+* remove dead code, fix import spacing and double blank lines ([6f3bcfd](https://github.com/microsoft/agentrc/commit/6f3bcfd330b276fbe95aaad22dedc4fa1c94f002))
+* replace console.log with process.stderr.write in prettyPrintSummary ([b061e02](https://github.com/microsoft/agentrc/commit/b061e024f7614b29aae5fb014057e9c8d47ca3b6))
+* resolve all ESLint errors — add node globals, disable base no-unused-vars, fix unused imports, auto-fix import order ([e7d3286](https://github.com/microsoft/agentrc/commit/e7d3286d274d3bb3115743d3d3e2eadaaf43d54b))
+* sanitize error messages in git push ([8b7722c](https://github.com/microsoft/agentrc/commit/8b7722c8bc356c256c2d538c8b750289c15d65c4))
+* **tui:** fix Esc key handling, guard idle keys, remove dead modelPicker state ([55cc9d4](https://github.com/microsoft/agentrc/commit/55cc9d4f6947d387a5fa0bc3a187a9974e0c8149))
+* **ui:** handle errors during repo loading and processing ([3257b1a](https://github.com/microsoft/agentrc/commit/3257b1af9160f769a9a3b94dd158c0fc2a075a91))
+* validate Azure DevOps slugs and improve error handling ([8b7722c](https://github.com/microsoft/agentrc/commit/8b7722c8bc356c256c2d538c8b750289c15d65c4))
+* **vscode-extension:** resolve vsce packaging blockers ([e44b4ec](https://github.com/microsoft/agentrc/commit/e44b4ecb2796136ea030f2a53cd7278986eea0de))
+* **vscode:** harden extension commands with overwrite flows, shared PR service, and UX polish ([03c3446](https://github.com/microsoft/agentrc/commit/03c3446e40f8f42b4b7d61224cb202ab7bed7fab))
+* **vscode:** harden extension commands with overwrite flows, shared PR service, and UX polish ([9e55d36](https://github.com/microsoft/agentrc/commit/9e55d36d1da3ded956af32035f32459b9a2510f6))
+* wire --model to init/pr commands, add try/catch for generateConfigs ([7c93a53](https://github.com/microsoft/agentrc/commit/7c93a5369711cdf3ef17807f644d27bd296a60a8))
+* wire up progress reporting for eval --init ([0baf939](https://github.com/microsoft/agentrc/commit/0baf939442ef6efb0b9dd5703b14df9d5ce31b29))
+* wire up progress reporting for eval run and generate instructions ([a5456ce](https://github.com/microsoft/agentrc/commit/a5456ce89b1ec7490e1a274b147ba09674ba2674))
+
 ## [2.0.0]
 
 ### Complete Rewrite

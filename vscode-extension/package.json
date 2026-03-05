@@ -2,7 +2,7 @@
   "name": "agentrc-vscode",
   "displayName": "AgentRC — AI Repository Setup",
   "description": "Prime repositories for AI-assisted development: generate Copilot instructions, VS Code configs, MCP configs, and evaluate AI agent effectiveness.",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "publisher": "microsoft",
   "license": "MIT",
   "repository": {
