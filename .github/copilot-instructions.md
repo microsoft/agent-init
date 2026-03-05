@@ -34,9 +34,11 @@ VS Code extension: `node esbuild.mjs` from `vscode-extension/`; typecheck with `
 
 - **Entrypoint:** `src/index.ts` → `runCli()` in `src/cli.ts`
 - **Commands** (`src/commands/`) are thin orchestrators — parse options, call services, format output.
-- **Services** (`src/services/`) contain all business logic. Commands never access APIs or filesystem directly.
+- **Core Package** (`packages/core/`) — `@agentrc/core` npm workspace package; contains all business logic. Import via `@agentrc/core/services/<name>` or `@agentrc/core/utils/<name>`.
+  - **Services** (`packages/core/src/services/`) — all business logic (readiness, analyzer, instructions, evaluator, generator, policy, batch, git, github, azureDevops). The `readiness/` and `analyzer/` services are modularized into submodules (types, scoring/apps, checkers/areas, criteria/config, extras/workspaces, index).
+  - **Utils** (`packages/core/src/utils/`) — `output.ts`, `fs.ts`, `logger.ts`, `repo.ts`, `pr.ts`.
+  - **Config** (`packages/core/src/config.ts`) — default models and global constants.
 - **UI** (`src/ui/`) — Ink/React 19 components for interactive TUI. Use Ink 6 APIs.
-- **Utils** (`src/utils/`) — `output.ts`, `fs.ts`, `logger.ts`, `repo.ts`, `pr.ts`.
 - **VS Code Extension** (`vscode-extension/`) — companion extension; imports CLI services via path alias `agentrc/*`. See extension-specific instructions for details.
 
 ## Conventions
@@ -50,7 +52,7 @@ VS Code extension: `node esbuild.mjs` from `vscode-extension/`; typecheck with `
 
 ### File Safety
 
-- Use `safeWriteFile()` from `src/utils/fs.ts` for all user-path file writes. It rejects symlinks and skips existing files unless `--force`.
+- Use `safeWriteFile()` from `@agentrc/core/utils/fs` for all user-path file writes. It rejects symlinks and skips existing files unless `--force`.
 - Use `validateCachePath()` to prevent traversal attacks in `.agentrc-cache/`.
 
 ### Error Handling

@@ -227,23 +227,29 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and code style guidelines.
 ## Project Structure
 
 ```
+packages/
+└── core/                 # @agentrc/core — shared business logic (npm workspace)
+    └── src/
+        ├── config.ts      # Default models and global constants
+        ├── services/      # Core logic (all business logic lives here)
+        │   ├── readiness/ # 9-pillar scoring engine (types, scoring, checkers, criteria, extras)
+        │   ├── analyzer/  # Repo scanning (types, apps, areas, config, workspaces)
+        │   ├── policy/    # Plugin engine (types, compiler, loader, adapter, shadow)
+        │   ├── instructions.ts   # Copilot SDK integration
+        │   ├── visualReport.ts   # HTML report generator
+        │   ├── evaluator.ts      # Eval runner + trajectory viewer
+        │   ├── generator.ts      # MCP/VS Code config generation
+        │   ├── batch.ts          # Batch repo processing
+        │   ├── git.ts            # Git operations (clone, branch, push)
+        │   ├── github.ts         # GitHub API (Octokit)
+        │   └── azureDevops.ts    # Azure DevOps API
+        └── utils/         # Shared utilities (fs, logger, output, repo, pr)
+
 src/
 ├── cli.ts                # Commander CLI wiring
 ├── commands/             # CLI subcommands (thin orchestrators)
-├── services/             # Core logic
-│   ├── readiness.ts       # 9-pillar scoring engine with pillar groups
-│   ├── visualReport.ts    # HTML report generator
-│   ├── instructions.ts    # Copilot SDK integration
-│   ├── analyzer.ts        # Repo scanning (languages, frameworks, monorepos)
-│   ├── evaluator.ts       # Eval runner + trajectory viewer
-│   ├── generator.ts       # MCP/VS Code config generation
-│   ├── policy.ts          # Readiness policy loading and chain resolution
-│   ├── policy/            # Plugin engine (types, compiler, loader, adapter, shadow)
-│   ├── git.ts             # Git operations (clone, branch, push)
-│   ├── github.ts          # GitHub API (Octokit)
-│   └── azureDevops.ts     # Azure DevOps API
-├── ui/                   # Ink/React terminal UI
-└── utils/                # Shared utilities (fs, logger, output)
+├── services/__tests__/   # Vitest tests
+└── ui/                   # Ink/React terminal UI
 
 vscode-extension/         # VS Code extension (commands, tree views, webview)
 ```
