@@ -14,7 +14,13 @@ export default defineConfig({
   },
   // Keep node_modules as external — they'll be installed via npm
   external: [/^[^./]/],
+  // Bundle the workspace package inline (source .ts files, not published)
+  noExternal: [/@agentrc\/core/],
   esbuildOptions(options) {
     options.jsx = "automatic";
+    // Resolve @agentrc/core subpath imports to source files
+    options.alias = {
+      "@agentrc/core": "./packages/core/src"
+    };
   }
 });
