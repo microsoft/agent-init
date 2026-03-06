@@ -23,8 +23,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "patch-prerelease": "node scripts/applyPatchForPrerelease.cjs"
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",

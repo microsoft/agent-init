@@ -3,7 +3,16 @@ trigger:
     branches:
         include:
             - main
-pr: none
+
+schedules:
+    - cron: "0 7 * * *"
+      displayName: 🌙 Nightly prerelease build
+      branches:
+          include:
+              - main
+      always: true
+
+pr: [main]
 
 resources:
     repositories:
@@ -53,13 +62,13 @@ extends:
 
                   - script: npm test
                     displayName: 🧪 Run tests
-              ${{ if eq(parameters.nextVersion, 'none') }}:
-                  publishPackage: false
-              ${{ elseif eq(parameters.nextVersion, 'prerelease') }}:
+              ${{ if or(eq(parameters.nextVersion, 'prerelease'), eq(variables['Build.Reason'], 'Schedule')) }}:
                   publishPackage: true
                   publishRequiresApproval: false
                   nextVersion: prerelease
                   tag: next
+              ${{ elseif eq(parameters.nextVersion, 'none') }}:
+                  publishPackage: false
               ${{ else }}:
                   publishPackage: true
                   nextVersion: ${{ parameters.nextVersion }}

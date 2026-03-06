@@ -13,6 +13,10 @@ resources:
           endpoint: Monaco
 
 parameters:
+    - name: generateNotice
+      displayName: 📝 Generate Notice
+      type: boolean
+      default: true
     - name: publishExtension
       displayName: 🚀 Publish Extension
       type: boolean
@@ -22,12 +26,14 @@ extends:
     template: azure-pipelines/extension/stable.yml@templates
     parameters:
         publishExtension: ${{ parameters.publishExtension }}
+        generateNotice: ${{ parameters.generateNotice }}
+        nodeVersion: 22.x
 
         buildSteps:
-            - script: |
-                  corepack enable
-                  corepack prepare npm@latest --activate
-              displayName: Setup npm
+            - task: NodeTool@0
+              inputs:
+                  versionSpec: 22.x
+              displayName: Install Node.js
 
             - script: npm ci --ignore-scripts
               displayName: Install root dependencies
