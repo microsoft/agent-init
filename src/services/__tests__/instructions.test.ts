@@ -973,7 +973,7 @@ describe("instruction generation sessions", () => {
     expect(result.hub.content).toBe("# Hub\n\nOverview");
     expect(result.details).toEqual([
       {
-        relativePath: ".agents/testing.md",
+        relativePath: path.join(".agents", "testing.md"),
         content: "# Testing\n\n**When to read:** when updating tests",
         topic: "Testing"
       }
