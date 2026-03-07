@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Improvements
+
+- **SDK instruction generation** — Instruction content is now captured via a dedicated `emit_file_content` tool instead of parsing chat output, improving reliability and consistency across models. The model is directed to call the tool with the final markdown rather than outputting it in chat.
+- **Read-only SDK sessions** — Copilot SDK sessions used for instruction and agent generation are now restricted to read-only permissions, preventing unintended file modifications during generation.
+- **Working-directory scoping** — Area-specific instruction generation resolves and validates the working directory against the repository boundary, preventing path traversal during generation.
+
+### Infrastructure
+
+- Replaced release-please with Azure DevOps pipelines for both VS Code extension publishing and npm package publishing (see `CONTRIBUTING.md` for pipeline details).
+
 ## [2.0.0]
 
 ### Complete Rewrite
@@ -70,7 +82,7 @@ AgentRC vNext is a complete rewrite as a TypeScript CLI tool (ESM, strict, ES202
 - ESLint flat config with TypeScript, import ordering, and Prettier integration.
 - CI workflow with lint, typecheck, tests (Node 20/22, Ubuntu/macOS/Windows), build verification, and extension typecheck.
 - CI dogfooding: runs `agentrc analyze --json` and `agentrc readiness --json` on the repo itself.
-- Release automation via release-please with VSIX packaging for the VS Code extension.
+- Release automation via Azure DevOps pipelines (`publish-extension.yml`, `publish-extension-prerelease.yml`, `publish-npm.yml`) with VSIX packaging for the VS Code extension.
 - Code coverage via `@vitest/coverage-v8`.
 
 ### Project Setup
