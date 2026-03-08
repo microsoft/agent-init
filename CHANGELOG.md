@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Improvements
+
+- **SDK instruction generation — structured output via emit tool** — Instruction generation sessions now direct the model to call a custom `emit_file_content` SDK tool instead of outputting markdown in chat. This eliminates stray commentary and code-fence wrapping from generated files, with automatic fallback to the chat stream if the tool is not called. `stripMarkdownFences` is exported from `@agentrc/core` for consumers that process LLM-generated content. (#44)
+- **Read-only session permissions for instruction generation** — SDK sessions used by `agentrc instructions` (copilot-instructions, area instructions, and nested AGENTS.md) now run under a read-only permission handler: only `read` and `custom-tool` requests are approved; `shell`, `write`, and other mutation requests are denied. File-writing tools (`edit_file`, `create_file`, `bash`, `str_replace_editor`) are excluded from the session tool list. (#44)
+- **Working directory scoping per area** — Area instruction sessions now use the area's `workingDirectory` (or `path`) as the SDK session `workingDirectory`, scoping model tool calls to the relevant sub-tree. Paths are resolved relative to the repo root and validated to prevent traversal outside the repo boundary. (#44)
+- **Autopilot mode for instruction sessions** — Instruction generation sessions attempt to enable autopilot mode via the SDK RPC surface (best-effort; silently ignored if unsupported). (#44)
+- **Auth error propagation in nested generation** — Authentication errors encountered during nested `AGENTS.md` hub or detail generation are now immediately re-thrown as fatal errors instead of being silently downgraded to warnings. (#44)
+
 ## [2.0.0]
 
 ### Complete Rewrite

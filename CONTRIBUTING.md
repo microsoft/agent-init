@@ -55,4 +55,9 @@ To configure branch protection rules in GitHub:
 
 ## Releasing
 
-Releases are automated with release-please when changes are merged to main.
+Releases are automated via Azure Pipelines:
+
+- **VS Code extension** — Published to the Marketplace via `.azure-pipelines/publish-extension.yml` (stable) and `.azure-pipelines/publish-extension-prerelease.yml` (pre-release, scheduled weekdays).
+- **npm package (`@microsoft/agentrc`)** — Published via an ADO pipeline using the `microsoft/vscode-engineering` template. Supports manual version bumps (`major` / `minor` / `patch` / `prerelease` / `X.X.X`) and nightly pre-release builds.
+
+> **Note:** The `main` branch does not require a version bump before merging. Versioning and publishing are handled out-of-band by the pipelines.
