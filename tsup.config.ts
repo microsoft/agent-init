@@ -53,7 +53,9 @@ export default defineConfig({
   // Bundle workspace package (source .ts files) and the Copilot SDK.
   // The SDK uses dynamic import() so it won't be present in a stale npx
   // cache; bundling it avoids ERR_MODULE_NOT_FOUND in that scenario.
-  noExternal: [/@agentrc\/core/, /@github\/copilot-sdk/],
+  // vscode-jsonrpc is a transitive dep of the SDK whose subpath exports
+  // lack the .js extension, breaking ESM resolution at runtime.
+  noExternal: [/@agentrc\/core/, /@github\/copilot-sdk/, /vscode-jsonrpc/],
   esbuildPlugins: [shimSdkImportMeta],
   esbuildOptions(options) {
     options.jsx = "automatic";
