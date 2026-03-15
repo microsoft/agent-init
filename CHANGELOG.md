@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Features
+
+- **`--dry-run` on `instructions` command** — Preview what files would be generated without writing anything to disk. Works across all code paths (nested root, flat root, nested area, flat area). With `--json`, emits a unified `dryRunFiles` array with file paths and byte counts. ([#55](https://github.com/microsoft/agentrc/pull/55))
+- **VS Code: Batch Instructions (`AgentRC: Generate Instructions (All Roots)`)** — New command for multi-root workspaces that generates instructions for every workspace root in one pass. Respects per-root `agentrc.config.json` strategy. Only visible when `workspaceFolderCount > 1`. ([#55](https://github.com/microsoft/agentrc/pull/55))
+- **VS Code: Multi-root workspace support** — All extension commands now use `pickWorkspacePath()` showing a QuickPick when multiple roots are open. Single-root workspaces return immediately with no prompt change. ([#55](https://github.com/microsoft/agentrc/pull/55))
+- **Enhanced .NET detection** — F# language detection via `.fsproj` files; `global.json` and `Directory.Build.props` now trigger .NET platform detection; `packages.lock.json` recognized as a NuGet lock file. ([#60](https://github.com/microsoft/agentrc/pull/60))
+- **.NET framework detection** — New `detectDotnetFrameworks()` parses `*.csproj`/`*.fsproj` XML to identify frameworks: ASP.NET Core, Blazor WebAssembly, Blazor, Entity Framework, .NET MAUI, Xamarin, WPF, Windows Forms, xUnit, NUnit, MSTest, and Console apps. ([#60](https://github.com/microsoft/agentrc/pull/60))
+
+### Improvements
+
+- **Model default updated to `claude-sonnet-4.6`** — Default model for instruction generation, eval scaffolding, and batch operations updated from `claude-sonnet-4.5` to `claude-sonnet-4.6`. ([#55](https://github.com/microsoft/agentrc/pull/55))
+- **TUI key bindings** — **R** key runs the readiness report (loading policy from `agentrc.config.json`); **N** key generates nested area instructions (replaces **F**). ([#55](https://github.com/microsoft/agentrc/pull/55))
+- **VS Code readiness command** — Loads policy count from `agentrc.config.json` and surfaces it in the notification. ([#55](https://github.com/microsoft/agentrc/pull/55))
+- **Area QuickPick** — Extension area picker now shows `applyTo` patterns in the detail field. ([#55](https://github.com/microsoft/agentrc/pull/55))
+
+### Fixes
+
+- **Windows: `.bat`/`.cmd` shim spawn** — On Windows, the Copilot CLI resolved from VS Code globalStorage (`copilot.bat`) now bypasses the SDK-managed spawn path and goes directly to external server mode, eliminating `spawn EINVAL` errors. ([#53](https://github.com/microsoft/agentrc/pull/53))
+- **ESM/CJS interop** — Added a `createRequire` banner to the tsup bundle, fixing `Dynamic require of "util" is not supported` errors when CJS dependencies (e.g. `vscode-jsonrpc`) are bundled into ESM output. ([#52](https://github.com/microsoft/agentrc/pull/52))
+
+### Terminology
+
+- "AI readiness" → "readiness" across CLI output, docs, and extension labels.
+- "Copilot instructions" → "instructions" in descriptions and UI.
+- "file-based instructions" → "area instructions" in criteria messages and code comments.
+- PR body text de-branded: "GitHub Copilot" → "AI coding assistants". ([#55](https://github.com/microsoft/agentrc/pull/55))
+
 ## [2.0.0]
 
 ### Complete Rewrite
@@ -43,7 +72,7 @@ AgentRC vNext is a complete rewrite as a TypeScript CLI tool (ESM, strict, ES202
 - **Eval trajectory viewer** — Interactive HTML viewer comparing responses with/without instructions, including token usage, tool call metrics, and duration tracking.
 - **Windows Copilot CLI support** — `.cmd`/`.bat` wrapper handling via `cmd /c`, npm-loader.js detection, and `CopilotCliConfig` type replacing bare string paths.
 - **Copilot CLI discovery** — Cross-platform discovery with TTL caching and glob-based fallback for VS Code extension paths.
-- **Centralized model defaults** — Default model set to `claude-sonnet-4.5` via `src/config.ts`.
+- **Centralized model defaults** — Default model set to `claude-sonnet-4.6` via `src/config.ts`.
 
 ### Improvements
 
