@@ -123,7 +123,7 @@ Reference policy files to customize readiness scoring:
 }
 ```
 
-Paths are relative to the config file. Only JSON policy files are allowed in config — TypeScript module policies must be passed via `--policy` on the command line.
+Paths are resolved relative to the current working directory. Only JSON policy files are allowed in config — TypeScript module policies must be passed via `--policy` on the command line.
 
 See [Policies](policies.md) for the policy authoring guide.
 

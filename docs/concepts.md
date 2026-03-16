@@ -36,16 +36,16 @@ The readiness score is based on 9 pillars, grouped into two categories:
 
 These pillars measure general engineering maturity — things that benefit any development workflow, not just AI:
 
-| Pillar              | What it checks                                               |
-| ------------------- | ------------------------------------------------------------ |
-| **Style**           | Linter configs, formatter setup, editor config               |
-| **Build**           | Build scripts, bundler config, CI build steps                |
-| **Testing**         | Test framework, coverage config, test scripts                |
-| **Docs**            | README quality, CONTRIBUTING, API docs, changelogs           |
-| **Dev Environment** | Dev container, VS Code workspace settings, launch configs    |
-| **Code Quality**    | Static analysis, dependency management, code review policies |
-| **Observability**   | Logging, monitoring config, error tracking                   |
-| **Security**        | Security policy, dependency scanning, CODEOWNERS             |
+| Pillar              | What it checks                                                                |
+| ------------------- | ----------------------------------------------------------------------------- |
+| **Style**           | Linter config (ESLint/Biome/Prettier), type-checking config (TypeScript/Mypy) |
+| **Build**           | Build script in package.json, CI workflow config                              |
+| **Testing**         | Test script in package.json, area-scoped test scripts                         |
+| **Docs**            | README, CONTRIBUTING guide, area-scoped READMEs                               |
+| **Dev Environment** | Lockfile (npm/pnpm/yarn/bun), `.env.example`                                  |
+| **Code Quality**    | Formatter config (Prettier/Biome)                                             |
+| **Observability**   | Observability dependencies (OpenTelemetry, Pino, Winston, Bunyan)             |
+| **Security**        | LICENSE, CODEOWNERS, SECURITY.md, Dependabot config                           |
 
 ### AI Setup
 

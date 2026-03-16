@@ -104,7 +104,7 @@ You can declare new criterion metadata in JSON, but the detection logic requires
 }
 ```
 
-> Adding criteria via JSON registers the metadata, but you must pair it with a TypeScript plugin that implements the actual detection function. See [Plugin System](dev/plugins.md) for how to write detectors.
+> JSON policies can only customize existing criteria (rename, re-score, enable/disable). To **add new criteria** with custom detection logic, use a TypeScript/JavaScript policy module passed via `--policy`. See [Plugin System](dev/plugins.md) for details.
 
 ## Chaining policies
 

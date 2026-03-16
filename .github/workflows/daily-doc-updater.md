@@ -142,7 +142,7 @@ find vscode-extension -name '*.md'
 For each missing or incomplete documentation:
 
 1. **Determine the correct file** based on the change type:
-   - CLI commands/options → `README.md`
+   - CLI commands/options → `docs/commands.md`
    - Architecture changes → `docs/dev/product.md` or `docs/dev/plugins.md`
    - User-facing concepts → `docs/concepts.md`
    - Getting started content → `docs/getting-started.md`

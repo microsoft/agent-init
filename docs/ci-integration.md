@@ -56,6 +56,9 @@ jobs:
         run: npx github:microsoft/agentrc eval --fail-level 80 --json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # eval requires the Copilot CLI — install via:
+          # npm install -g @anthropic-ai/copilot-cli && copilot /login
+          # or ensure Copilot is available in your CI runner
 ```
 
 ## Azure Pipelines
