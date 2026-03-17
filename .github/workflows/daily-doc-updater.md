@@ -59,7 +59,8 @@ This is **@microsoft/agentrc** — a TypeScript CLI + VS Code extension for prim
 
 **Documentation locations:**
 
-- `README.md` — Main product overview, Quick Start, prerequisites, command reference
+- `README.md` — Main product overview, Quick Start, prerequisites
+- `docs/commands.md` — CLI command reference and options
 - `CONTRIBUTING.md` — Contribution workflow, code style, release process
 - `CHANGELOG.md` — Version history
 - `docs/getting-started.md` — Installation, prerequisites, first run walkthrough
@@ -125,7 +126,7 @@ Key conventions to follow:
 
 Review documentation files for:
 
-- New CLI commands or options not yet in README.md
+- New CLI commands or options not yet in `docs/commands.md`
 - New services or APIs not reflected in architecture docs
 - Changed behavior in existing commands
 - New VS Code extension features not in the extension README

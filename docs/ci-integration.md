@@ -86,6 +86,9 @@ steps:
     env:
       GITHUB_TOKEN: $(GITHUB_TOKEN)
       # AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
+      # eval requires the Copilot CLI — install via:
+      # npm install -g @anthropic-ai/copilot-cli && copilot /login
+      # or ensure Copilot is available in your CI runner
 ```
 
 ## Applying policies in CI
