@@ -58,8 +58,20 @@ export async function assertCopilotCliReady(): Promise<CopilotCliConfig> {
 export async function listCopilotModels(): Promise<string[]> {
   const config = await assertCopilotCliReady();
   const [cmd, args] = buildExecArgs(config, ["--help"]);
-  const { stdout } = await execFileAsync(cmd, args, { timeout: 5000 });
-  return extractModelChoices(stdout);
+  let stdout = "";
+  let stderr = "";
+  try {
+    const result = await execFileAsync(cmd, args, { timeout: 5000 });
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (err) {
+    // Some CLIs exit with a non-zero code for --help; try to extract from stderr
+    const e = err as { stderr?: string; stdout?: string };
+    stdout = e.stdout ?? "";
+    stderr = e.stderr ?? "";
+  }
+  const fromStdout = extractModelChoices(stdout);
+  return fromStdout.length > 0 ? fromStdout : extractModelChoices(stderr);
 }
 
 export function buildExecArgs(config: CopilotCliConfig, extraArgs: string[]): [string, string[]] {
@@ -274,7 +286,7 @@ async function isHeadlessCompatible(config: CopilotCliConfig): Promise<boolean> 
   }
 }
 
-function extractModelChoices(helpText: string): string[] {
+export function extractModelChoices(helpText: string): string[] {
   const lines = helpText.split("\n");
   let captured = "";
 

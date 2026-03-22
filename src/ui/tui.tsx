@@ -273,18 +273,18 @@ export function AgentRCTui({ repoPath, skipAnimation = false }: Props): React.JS
     listCopilotModels()
       .then((models) => {
         if (!active) return;
-        setAvailableModels(models);
-        if (models.length === 0) return;
+        const list = models.length > 0 ? models : PREFERRED_MODELS;
+        setAvailableModels(list);
         setEvalModel((current) =>
-          models.includes(current) ? current : pickBestModel(models, current)
+          list.includes(current) ? current : pickBestModel(list, current)
         );
         setJudgeModel((current) =>
-          models.includes(current) ? current : pickBestModel(models, current)
+          list.includes(current) ? current : pickBestModel(list, current)
         );
       })
       .catch(() => {
         if (!active) return;
-        setAvailableModels([]);
+        setAvailableModels(PREFERRED_MODELS);
       });
     return () => {
       active = false;
