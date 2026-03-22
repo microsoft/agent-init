@@ -36,7 +36,7 @@ agentrc init [path]
 | `--force`        |                     | Overwrite existing files            |
 | `--model <name>` | `claude-sonnet-4.6` | Model for generation                |
 
-For monorepos, auto-detects workspaces and creates `agentrc.config.json`.
+Always creates `agentrc.config.json` (a minimal `{}` stub for simple repos; auto-detected workspaces and areas for monorepos).
 
 ---
 

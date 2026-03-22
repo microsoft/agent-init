@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 
 - **Config scaffolding for simple repos** — `agentrc init` and the TUI now create `agentrc.config.json` even when no areas are detected, producing a minimal `{}` stub. Previously failed with "No areas detected. Cannot scaffold agentrc.config.json."
+- **Model/eval picker blank screen** — Fixed TUI model and judge-model pickers rendering nothing when `listCopilotModels()` fails (CLI not found or changed `--help` format). Falls back to a curated list of preferred models so the picker is always usable.
 
 ## [2.1.0]
 
