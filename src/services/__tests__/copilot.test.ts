@@ -10,7 +10,7 @@ describe("extractModelChoices", () => {
 
   it("extracts model names when choices span multiple lines", () => {
     const help = [
-      "  --model <model>  Model to use (choices: \"claude-sonnet-4.5\",",
+      '  --model <model>  Model to use (choices: "claude-sonnet-4.5",',
       '                   "claude-sonnet-4", "gpt-4.1")'
     ].join("\n");
     expect(extractModelChoices(help)).toEqual(["claude-sonnet-4.5", "claude-sonnet-4", "gpt-4.1"]);
@@ -31,8 +31,7 @@ describe("extractModelChoices", () => {
   });
 
   it("handles help text written to stderr (same format)", () => {
-    const stderr =
-      '  --model <model>  Model (choices: "gpt-5", "gpt-4.1", "claude-sonnet-4.5")';
+    const stderr = '  --model <model>  Model (choices: "gpt-5", "gpt-4.1", "claude-sonnet-4.5")';
     expect(extractModelChoices(stderr)).toEqual(["gpt-5", "gpt-4.1", "claude-sonnet-4.5"]);
   });
 });
