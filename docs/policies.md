@@ -1,4 +1,4 @@
-# Policies
+﻿# Policies
 
 > [AgentRC](https://github.com/microsoft/agentrc) — prime your repositories for AI-assisted development.
 
@@ -129,12 +129,11 @@ Score = 1 - (total deductions / max possible weight). Grades: A >= 0.9, B >= 0.8
 
 Extras are lightweight, optional checks for repository best practices. Unlike criteria, extras **never affect the readiness score or pass rate** — they’re reported in a separate section of readiness reports.
 
-AgentRC ships with four built-in extras:
+AgentRC ships with three built-in extras:
 
 | ID                 | What it checks                            |
 | ------------------ | ----------------------------------------- |
 | `agents-doc`       | `AGENTS.md` is present                    |
-| `pr-template`      | Pull request template exists              |
 | `pre-commit`       | Pre-commit hooks configured (Husky, etc.) |
 | `architecture-doc` | Architecture documentation present        |
 

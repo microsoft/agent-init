@@ -1,4 +1,4 @@
-# AgentRC
+﻿# AgentRC
 
 **Context engineering for AI coding agents.**
 
@@ -26,7 +26,7 @@ Works as a CLI, as a [VS Code extension](docs/extension.md), and in your [CI/CD 
 
 ### Measure
 
-Score your repo’s AI-readiness across 9 pillars and a 5-level maturity model. Find out what context is missing — from basic linting to MCP server configs.
+Score your repo’s AI-readiness across 10 pillars and a 5-level maturity model. Find out what context is missing — from basic linting and workflow automation to MCP server configs.
 
 ```bash
 npx github:microsoft/agentrc readiness
@@ -73,18 +73,20 @@ Works with **GitHub** and **Azure DevOps**. Supports monorepos, multi-root VS Co
 
 ## Documentation
 
-|                                                |                                                         |
-| ---------------------------------------------- | ------------------------------------------------------- |
-| **[Getting Started](docs/getting-started.md)** | Prerequisites and first run                             |
-| **[Concepts](docs/concepts.md)**               | Maturity model, readiness pillars, how generation works |
-| **[Commands](docs/commands.md)**               | Full CLI reference                                      |
-| **[Configuration](docs/configuration.md)**     | Areas, workspaces, monorepos                            |
-| **[Policies](docs/policies.md)**               | Custom readiness scoring                                |
-| **[At Scale](docs/at-scale.md)**               | Batch processing across orgs                            |
-| **[CI Integration](docs/ci-integration.md)**   | GitHub Actions & Azure Pipelines                        |
-| **[VS Code Extension](docs/extension.md)**     | Sidebar views, commands, settings                       |
-| **[Agent Plugin](plugin/README.md)**           | Install as a Copilot agent plugin with built-in skills  |
-| **[Examples](examples/)**                      | Configs, evals, and policies                            |
+|                                                          |                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| **[Getting Started](docs/getting-started.md)**           | Prerequisites and first run                             |
+| **[Concepts](docs/concepts.md)**                         | Maturity model, readiness pillars, how generation works |
+| **[Commands](docs/commands.md)**                         | Full CLI reference                                      |
+| **[Configuration](docs/configuration.md)**               | Areas, workspaces, monorepos                            |
+| **[Policies](docs/policies.md)**                         | Custom readiness scoring                                |
+| **[At Scale](docs/at-scale.md)**                         | Batch processing across orgs                            |
+| **[CI Integration](docs/ci-integration.md)**             | GitHub Actions & Azure Pipelines                        |
+| **[VS Code Extension](docs/extension.md)**               | Sidebar views, commands, settings                       |
+| **[Maturity Models](docs/maturity-models.md)**           | Canonical readiness levels, checks, and rollout signals |
+| **[Maturity in Practice](docs/maturity-in-practice.md)** | How those levels feel in day-to-day adoption            |
+| **[Agent Plugin](plugin/README.md)**                     | Install as a Copilot agent plugin with built-in skills  |
+| **[Examples](examples/)**                                | Configs, evals, and policies                            |
 
 [Customize AI in VS Code](https://code.visualstudio.com/docs/copilot/customization/overview) · [Custom instructions](https://code.visualstudio.com/docs/copilot/customization/custom-instructions) · [CONTRIBUTING.md](CONTRIBUTING.md)
 

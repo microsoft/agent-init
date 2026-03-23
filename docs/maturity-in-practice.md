@@ -9,7 +9,7 @@
 
 The checks and maturity levels in this document are drawn from [AgentRC](https://github.com/microsoft/agentrc), an open-source tool built to assess and improve AI-readiness across GitHub repositories. AgentRC scans a repo against a defined set of signals at each maturity level, generates a readiness report, and can open PRs with targeted fixes — custom instructions, CI gates, MCP configuration, and more.
 
-This document is the explanatory companion. For the canonical level definitions, assessment signals, and rollout guidance, see [AgentRC: The Agentic SDLC Report Card](maturity-levels.md). The framework here is meant to be useful as a thinking tool alongside that reference. AgentRC is what operationalizes it.
+This document is the explanatory companion. For the canonical level definitions, assessment signals, and rollout guidance, see [AgentRC: The Agentic SDLC Report Card](maturity-models.md). The framework here is meant to be useful as a thinking tool alongside that reference. AgentRC is what operationalizes it.
 
 ---
 
@@ -49,15 +49,15 @@ That trajectory is real, but it is not automatic. It emerges from sustained inve
 
 The five levels are still the right ladder. What this document is trying to add is not a second set of definitions, but a way to interpret them.
 
-If you want the authoritative checklist, the detailed evidence, or the exact assessment signals, use [the report card](maturity-levels.md). What follows is the shorter version of what each level tends to mean from the inside:
+If you want the authoritative checklist, the detailed evidence, or the exact assessment signals, use [the report card](maturity-models.md). What follows is the shorter version of what each level tends to mean from the inside:
 
 | Level            | What it usually feels like in practice                                                                                                                      | Canonical reference                                 |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 1 — Functional   | The repo is barely legible enough for humans and agents to build and test without guesswork. Most friction is environmental.                                | [Level 1](maturity-levels.md#level-1--functional)   |
-| 2 — Documented   | The repo starts explaining itself. Review churn falls because conventions and inputs are written down instead of rediscovered in every PR.                  | [Level 2](maturity-levels.md#level-2--documented)   |
-| 3 — Standardized | The setup stops depending on individual heroics. Security, dependency hygiene, and encoded workflows make AI-readiness durable.                             | [Level 3](maturity-levels.md#level-3--standardized) |
-| 4 — Optimized    | Teams begin trusting agents with bounded end-to-end work. The hard part shifts from configuration to habit, trust, and delegation.                          | [Level 4](maturity-levels.md#level-4--optimized)    |
-| 5 — Autonomous   | Agents handle authoring for suitable work, and the real challenge becomes governance: evals, drift prevention, review discipline, and organizational trust. | [Level 5](maturity-levels.md#level-5--autonomous)   |
+| 1 — Functional   | The repo is barely legible enough for humans and agents to build and test without guesswork. Most friction is environmental.                                | [Level 1](maturity-models.md#level-1--functional)   |
+| 2 — Documented   | The repo starts explaining itself. Review churn falls because conventions and inputs are written down instead of rediscovered in every PR.                  | [Level 2](maturity-models.md#level-2--documented)   |
+| 3 — Standardized | The setup stops depending on individual heroics. Security, dependency hygiene, and encoded workflows make AI-readiness durable.                             | [Level 3](maturity-models.md#level-3--standardized) |
+| 4 — Optimized    | Teams begin trusting agents with bounded end-to-end work. The hard part shifts from configuration to habit, trust, and delegation.                          | [Level 4](maturity-models.md#level-4--optimized)    |
+| 5 — Autonomous   | Agents handle authoring for suitable work, and the real challenge becomes governance: evals, drift prevention, review discipline, and organizational trust. | [Level 5](maturity-models.md#level-5--autonomous)   |
 
 ---
 
@@ -128,4 +128,4 @@ Every level of this framework generates real value before the next one becomes r
 
 ---
 
-_This assessment framework is based on the [AgentRC](https://github.com/microsoft/agentrc) maturity model. For the full assessment checklist and how to run it, see [AgentRC: The Agentic SDLC Report Card](maturity-levels.md)._
+_This assessment framework is based on the [AgentRC](https://github.com/microsoft/agentrc) maturity model. For the full assessment checklist and how to run it, see [AgentRC: The Agentic SDLC Report Card](maturity-models.md)._

@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- **Workflow automation readiness pillar** — add scored checks for issue templates, PR templates, commit conventions, PR auto-labeling, and release automation; readiness now reports across 10 pillars.
 - **`--dry-run` for generate** — preview which files would be created or skipped without writing anything (`agentrc generate mcp --dry-run`)
 - **JSONC support** — `agentrc.config.json`, `agentrc.eval.json`, and policy files now accept `//` and `/* */` comments
 - **Array eval expectations** — `expectation` field in eval configs accepts `string[]` for structured criteria

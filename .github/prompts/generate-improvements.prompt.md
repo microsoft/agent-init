@@ -1,4 +1,4 @@
----
+﻿---
 description: Suggest improvements to the AgentRC CLI project across features, bug fixes, security, performance, and engineering quality.
 ---
 
@@ -48,7 +48,7 @@ You are a senior software engineer reviewing the **AgentRC** project — a TypeS
 - Safe file writes: only overwrites with `--force` flag (`safeWriteFile` in `src/utils/fs.ts`)
 - Copilot SDK integration via `@github/copilot-sdk` with session-based agent conversations
 - GitHub token resolution: `GITHUB_TOKEN` → `GH_TOKEN` → `gh auth token` fallback chain
-- Readiness uses a leveled criteria system (levels 1-5) across 9 pillars with pass/fail/skip status
+- Readiness uses a leveled criteria system (levels 1-5) across 10 pillars with pass/fail/skip status
 - Build with `tsup`, test with `vitest`, lint with `eslint`, format with `prettier`
 
 ## Your Task

@@ -1,6 +1,6 @@
-## How Ready Is Your Repo?
+﻿## How Ready Is Your Repo?
 
-AgentRC evaluates your repository across **9 pillars** organized into two groups:
+AgentRC evaluates your repository across **10 pillars** organized into two groups:
 
 ### Repo Health
 
@@ -11,7 +11,8 @@ AgentRC evaluates your repository across **9 pillars** organized into two groups
 - **Dev Environment** — devcontainers, setup scripts
 - **Code Quality** — type checking, static analysis
 - **Observability** — logging, monitoring, error tracking
-- **Security & Governance** — CODEOWNERS, security policies
+- **Security & Governance** — CODEOWNERS, security policies, branch protection
+- **Workflow Automation** — issue templates, PR templates, commit conventions, PR auto-labeling, release automation
 
 ### AI Setup
 

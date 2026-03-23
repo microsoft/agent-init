@@ -1,4 +1,4 @@
-# Concepts
+﻿# Concepts
 
 > [AgentRC](https://github.com/microsoft/agentrc) — prime your repositories for AI-assisted development.
 
@@ -30,22 +30,23 @@ agentrc readiness --fail-level 3
 
 ## Readiness pillars
 
-The readiness score is based on 9 pillars, grouped into two categories:
+The readiness score is based on 10 pillars, grouped into two categories:
 
 ### Repo Health
 
 These pillars measure general engineering maturity — things that benefit any development workflow, not just AI:
 
-| Pillar              | What it checks                                                                |
-| ------------------- | ----------------------------------------------------------------------------- |
-| **Style**           | Linter config (ESLint/Biome/Prettier), type-checking config (TypeScript/Mypy) |
-| **Build**           | Build script in package.json, CI workflow config                              |
-| **Testing**         | Test script in package.json, area-scoped test scripts                         |
-| **Docs**            | README, CONTRIBUTING guide, area-scoped READMEs                               |
-| **Dev Environment** | Lockfile (npm/pnpm/yarn/bun), `.env.example`                                  |
-| **Code Quality**    | Formatter config (Prettier/Biome)                                             |
-| **Observability**   | Observability dependencies (OpenTelemetry, Pino, Winston, Bunyan)             |
-| **Security**        | LICENSE, CODEOWNERS, SECURITY.md, Dependabot config                           |
+| Pillar                  | What it checks                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| **Style**               | Linter config (ESLint/Biome/Prettier), type-checking config (TypeScript/Mypy)           |
+| **Build**               | Build script in package.json, CI workflow config                                        |
+| **Testing**             | Test script in package.json, area-scoped test scripts                                   |
+| **Docs**                | README, CONTRIBUTING guide, area-scoped READMEs                                         |
+| **Dev Environment**     | Lockfile (npm/pnpm/yarn/bun), `.env.example`                                            |
+| **Code Quality**        | Formatter config (Prettier/Biome)                                                       |
+| **Observability**       | Observability dependencies (OpenTelemetry, Pino, Winston, Bunyan)                       |
+| **Security**            | LICENSE, CODEOWNERS, SECURITY.md, Dependabot config, branch protection                  |
+| **Workflow Automation** | Issue templates, PR templates, commit conventions, PR auto-labeling, release automation |
 
 ### AI Setup
 

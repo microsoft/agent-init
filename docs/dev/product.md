@@ -1,4 +1,4 @@
-# AgentRC — Product Brief
+﻿# AgentRC — Product Brief
 
 ## The Problem
 
@@ -16,7 +16,7 @@ This gap widens at scale. An organization with hundreds of repos can't manually 
 
 AgentRC automates the preparation work that makes AI coding agents effective:
 
-1. **Assess** — Score any repo against a 9-pillar readiness model spanning repo health (style, build, testing, docs, dev environment, code quality, observability, security) and AI setup (instructions, MCP, agents, skills). Get a maturity level from 1–5.
+1. **Assess** — Score any repo against a 10-pillar readiness model spanning repo health (style, build, testing, docs, dev environment, code quality, observability, security, workflow automation) and AI setup (instructions, MCP, agents, skills). Get a maturity level from 1–5.
 
 2. **Generate** — Use the Copilot SDK to analyze a repo and produce tailored `copilot-instructions.md` or `AGENTS.md` files. Monorepo-aware: generates per-area instructions scoped with `applyTo` globs.
 
@@ -50,7 +50,7 @@ Organizations can define **readiness policies** to customize which criteria are 
 ## Key Design Decisions
 
 - **Instructions are generated, not templated.** AgentRC uses the Copilot SDK to analyze actual repo content — no generic boilerplate.
-- **Readiness is measurable.** The 9-pillar model produces a numeric score and maturity level, making it possible to set org-wide baselines and CI gates.
+- **Readiness is measurable.** The 10-pillar model produces a numeric score and maturity level, making it possible to set org-wide baselines and CI gates.
 - **Evaluation closes the loop.** Teams can prove that instructions actually improve AI output, with configurable pass-rate thresholds.
 - **Policy-driven compliance.** Policies are composable JSON files that can be checked into repos or distributed org-wide.
 - **Batch-first.** Every workflow that works on one repo also works on hundreds — same CLI, same output format.
