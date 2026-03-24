@@ -1,4 +1,4 @@
-﻿---
+---
 description: Suggest improvements to the AgentRC CLI project across features, bug fixes, security, performance, and engineering quality.
 ---
 

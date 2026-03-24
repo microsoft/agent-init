@@ -1,4 +1,4 @@
-﻿## How Ready Is Your Repo?
+## How Ready Is Your Repo?
 
 AgentRC evaluates your repository across **10 pillars** organized into two groups:
 

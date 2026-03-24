@@ -1,4 +1,4 @@
-﻿# AgentRC
+# AgentRC
 
 **Context engineering for AI coding agents.**
 

@@ -1,4 +1,4 @@
-﻿# AgentRC — Product Brief
+# AgentRC — Product Brief
 
 ## The Problem
 

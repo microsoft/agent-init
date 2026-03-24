@@ -1,4 +1,4 @@
-﻿# SDLC Readiness Assessment: Toward Level-5 Agentic Delivery
+# SDLC Readiness Assessment: Toward Level-5 Agentic Delivery
 
 > What would it look like if agents could handle most of the authoring work — and engineers spent their time on judgment, architecture, and the problems that actually need human creativity?
 > That is the promise of Level 5. Getting there is genuinely hard. This document tries to be honest about that, while exploring what the path looks like from the inside.

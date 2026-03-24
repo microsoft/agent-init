@@ -1,4 +1,4 @@
-﻿# Policies
+# Policies
 
 > [AgentRC](https://github.com/microsoft/agentrc) — prime your repositories for AI-assisted development.
 

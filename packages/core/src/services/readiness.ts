@@ -678,7 +678,7 @@ export function buildCriteria(): ReadinessCriterion[] {
           status: found ? "pass" : "fail",
           reason: found
             ? undefined
-            : "No branch ruleset or protection config found (.github/rulesets/*.json). Add branch protection rules to prevent unreviewed merges.",
+            : "No branch ruleset or protection config found (.github/rulesets/*.json or .github/branch-protection.json). Add branch protection rules to prevent unreviewed merges.",
           evidence: [".github/rulesets/*.json", ".github/branch-protection.json"]
         };
       }
@@ -901,7 +901,7 @@ export function buildCriteria(): ReadinessCriterion[] {
         try {
           const templatePath = path.join(context.repoPath, ".github", "PULL_REQUEST_TEMPLATE.md");
           const content = await fs.readFile(templatePath, "utf8");
-          const hasLinkedIssue = /fixes\s+#|closes\s+#|resolves\s+#/iu.test(content);
+          const hasLinkedIssue = /\b(?:fixes|closes|resolves)\b\s*:?\s*#/iu.test(content);
           return {
             status: "pass",
             reason: hasLinkedIssue
@@ -1631,13 +1631,5 @@ async function hasBranchRulesets(repoPath: string): Promise<boolean> {
       // skip unreadable directory
     }
   }
-  const rootFiles = await safeReadDir(repoPath);
-  if (
-    rootFiles.some(
-      (f) =>
-        f.toLowerCase() === "branch_protection.md" || f.toLowerCase() === "branch-protection.md"
-    )
-  )
-    return true;
   return fileExists(path.join(repoPath, ".github", "branch-protection.json"));
 }

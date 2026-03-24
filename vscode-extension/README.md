@@ -1,4 +1,4 @@
-﻿# AgentRC — AI Repository Setup
+# AgentRC — AI Repository Setup
 
 Prime your repositories for AI-assisted development, right from VS Code.
 

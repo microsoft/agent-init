@@ -399,14 +399,6 @@ export async function hasBranchRulesets(repoPath: string): Promise<boolean> {
       // skip unreadable directory
     }
   }
-  const rootFiles = await safeReadDir(repoPath);
-  if (
-    rootFiles.some(
-      (f) =>
-        f.toLowerCase() === "branch_protection.md" || f.toLowerCase() === "branch-protection.md"
-    )
-  )
-    return true;
   return fileExists(path.join(repoPath, ".github", "branch-protection.json"));
 }
 

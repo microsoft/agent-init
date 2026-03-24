@@ -1,4 +1,4 @@
-﻿# AgentRC: The Agentic SDLC Report Card
+# AgentRC: The Agentic SDLC Report Card
 
 **Repo:** [github.com/microsoft/agentrc](https://github.com/microsoft/agentrc)
 
