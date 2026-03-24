@@ -889,24 +889,30 @@ export function buildCriteria(): ReadinessCriterion[] {
       impact: "high",
       effort: "low",
       check: async (context) => {
-        const found = await hasPullRequestTemplate(context.repoPath);
-        if (!found) {
+        const templatePath = await findPullRequestTemplatePath(context.repoPath);
+        if (!templatePath) {
           return {
             status: "fail",
             reason:
-              "Missing PR template (.github/PULL_REQUEST_TEMPLATE.md). A template with linked-issue and testing sections standardises agent-generated PR descriptions.",
-            evidence: [".github/PULL_REQUEST_TEMPLATE.md"]
+              "Missing PR template (supported locations: .github/PULL_REQUEST_TEMPLATE.md, PULL_REQUEST_TEMPLATE.md, docs/PULL_REQUEST_TEMPLATE.md, or a PULL_REQUEST_TEMPLATE/*.md directory in those locations). A template with linked-issue and testing sections standardises agent-generated PR descriptions.",
+            evidence: [
+              ".github/PULL_REQUEST_TEMPLATE.md",
+              "PULL_REQUEST_TEMPLATE.md",
+              "docs/PULL_REQUEST_TEMPLATE.md",
+              ".github/PULL_REQUEST_TEMPLATE/*.md",
+              "PULL_REQUEST_TEMPLATE/*.md",
+              "docs/PULL_REQUEST_TEMPLATE/*.md"
+            ]
           };
         }
         try {
-          const templatePath = path.join(context.repoPath, ".github", "PULL_REQUEST_TEMPLATE.md");
           const content = await fs.readFile(templatePath, "utf8");
           const hasLinkedIssue = /\b(?:fixes|closes|resolves)\b\s*:?\s*#/iu.test(content);
           return {
             status: "pass",
             reason: hasLinkedIssue
               ? undefined
-              : 'PR template found but lacks a linked-issue reference ("Fixes #", "Closes #"). Add one to enable automatic issue closing on merge.'
+              : 'PR template found but lacks a linked-issue reference ("Fixes #", "Fixes: #", "Closes #", or "Resolves #"). Add one to enable automatic issue closing on merge.'
           };
         } catch {
           return { status: "pass" };
@@ -1270,16 +1276,36 @@ async function hasLicense(repoPath: string): Promise<boolean> {
   return files.some((file) => file.toLowerCase().startsWith("license"));
 }
 
-async function hasPullRequestTemplate(repoPath: string): Promise<boolean> {
-  const direct = await fileExists(path.join(repoPath, ".github", "PULL_REQUEST_TEMPLATE.md"));
-  if (direct) return true;
-  const dir = path.join(repoPath, ".github", "PULL_REQUEST_TEMPLATE");
-  try {
-    const entries = await fs.readdir(dir);
-    return entries.some((entry) => entry.toLowerCase().endsWith(".md"));
-  } catch {
-    return false;
+async function findPullRequestTemplatePath(repoPath: string): Promise<string | undefined> {
+  const supportedDirs = [".github", "", "docs"];
+
+  for (const supportedDir of supportedDirs) {
+    const baseDir = supportedDir ? path.join(repoPath, supportedDir) : repoPath;
+    const entries = await safeReadDir(baseDir);
+    const directTemplate = entries.find(
+      (entry) => entry.toLowerCase() === "pull_request_template.md"
+    );
+    if (directTemplate) {
+      return path.join(baseDir, directTemplate);
+    }
   }
+
+  for (const supportedDir of supportedDirs) {
+    const baseDir = supportedDir ? path.join(repoPath, supportedDir) : repoPath;
+    const entries = await safeReadDir(baseDir);
+    const templateDir = entries.find((entry) => entry.toLowerCase() === "pull_request_template");
+    if (!templateDir) continue;
+
+    const templateEntries = await safeReadDir(path.join(baseDir, templateDir));
+    const templateFile = [...templateEntries]
+      .sort((a, b) => a.localeCompare(b))
+      .find((entry) => entry.toLowerCase().endsWith(".md"));
+    if (templateFile) {
+      return path.join(baseDir, templateDir, templateFile);
+    }
+  }
+
+  return undefined;
 }
 
 async function hasPrecommitConfig(repoPath: string): Promise<boolean> {

@@ -21,7 +21,7 @@ import {
   readAllDependencies,
   checkInstructionConsistency,
   hasIssueTemplates,
-  hasPullRequestTemplate,
+  findPullRequestTemplatePath,
   hasCommitConvention,
   hasReleaseAutomation,
   hasAutoLabeler,
@@ -489,25 +489,31 @@ export function buildCriteria(): ReadinessCriterion[] {
       impact: "high",
       effort: "low",
       check: async (context) => {
-        const found = await hasPullRequestTemplate(context.repoPath);
-        if (!found) {
+        const templatePath = await findPullRequestTemplatePath(context.repoPath);
+        if (!templatePath) {
           return {
             status: "fail",
             reason:
-              "Missing PR template (.github/PULL_REQUEST_TEMPLATE.md). A template with linked-issue and testing sections standardises agent-generated PR descriptions.",
-            evidence: [".github/PULL_REQUEST_TEMPLATE.md"]
+              "Missing PR template (supported locations: .github/PULL_REQUEST_TEMPLATE.md, PULL_REQUEST_TEMPLATE.md, docs/PULL_REQUEST_TEMPLATE.md, or a PULL_REQUEST_TEMPLATE/*.md directory in those locations). A template with linked-issue and testing sections standardises agent-generated PR descriptions.",
+            evidence: [
+              ".github/PULL_REQUEST_TEMPLATE.md",
+              "PULL_REQUEST_TEMPLATE.md",
+              "docs/PULL_REQUEST_TEMPLATE.md",
+              ".github/PULL_REQUEST_TEMPLATE/*.md",
+              "PULL_REQUEST_TEMPLATE/*.md",
+              "docs/PULL_REQUEST_TEMPLATE/*.md"
+            ]
           };
         }
         // Check template content quality: linked-issue reference
         try {
-          const templatePath = path.join(context.repoPath, ".github", "PULL_REQUEST_TEMPLATE.md");
           const content = await fs.readFile(templatePath, "utf8");
           const hasLinkedIssue = /\b(?:fixes|closes|resolves)\b\s*:?\s*#/iu.test(content);
           return {
             status: "pass",
             reason: hasLinkedIssue
               ? undefined
-              : 'PR template found but lacks a linked-issue reference ("Fixes #", "Closes #"). Add one to enable automatic issue closing on merge.'
+              : 'PR template found but lacks a linked-issue reference ("Fixes #", "Fixes: #", "Closes #", or "Resolves #"). Add one to enable automatic issue closing on merge.'
           };
         } catch {
           return { status: "pass" };

@@ -75,15 +75,39 @@ export async function hasLicense(repoPath: string): Promise<boolean> {
 }
 
 export async function hasPullRequestTemplate(repoPath: string): Promise<boolean> {
-  const direct = await fileExists(path.join(repoPath, ".github", "PULL_REQUEST_TEMPLATE.md"));
-  if (direct) return true;
-  const dir = path.join(repoPath, ".github", "PULL_REQUEST_TEMPLATE");
-  try {
-    const entries = await fs.readdir(dir);
-    return entries.some((entry) => entry.toLowerCase().endsWith(".md"));
-  } catch {
-    return false;
+  return (await findPullRequestTemplatePath(repoPath)) !== undefined;
+}
+
+export async function findPullRequestTemplatePath(repoPath: string): Promise<string | undefined> {
+  const supportedDirs = [".github", "", "docs"];
+
+  for (const supportedDir of supportedDirs) {
+    const baseDir = supportedDir ? path.join(repoPath, supportedDir) : repoPath;
+    const entries = await safeReadDir(baseDir);
+    const directTemplate = entries.find(
+      (entry) => entry.toLowerCase() === "pull_request_template.md"
+    );
+    if (directTemplate) {
+      return path.join(baseDir, directTemplate);
+    }
   }
+
+  for (const supportedDir of supportedDirs) {
+    const baseDir = supportedDir ? path.join(repoPath, supportedDir) : repoPath;
+    const entries = await safeReadDir(baseDir);
+    const templateDir = entries.find((entry) => entry.toLowerCase() === "pull_request_template");
+    if (!templateDir) continue;
+
+    const templateEntries = await safeReadDir(path.join(baseDir, templateDir));
+    const templateFile = [...templateEntries]
+      .sort((a, b) => a.localeCompare(b))
+      .find((entry) => entry.toLowerCase().endsWith(".md"));
+    if (templateFile) {
+      return path.join(baseDir, templateDir, templateFile);
+    }
+  }
+
+  return undefined;
 }
 
 export async function hasPrecommitConfig(repoPath: string): Promise<boolean> {

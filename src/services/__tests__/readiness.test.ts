@@ -455,6 +455,28 @@ describe("runReadinessReport", () => {
         expect(criterion?.reason).toBeUndefined();
       });
 
+      it("passes when root PULL_REQUEST_TEMPLATE.md exists with linked-issue ref", async () => {
+        await writePackageJson({ name: "test-repo" });
+        await writeFile("PULL_REQUEST_TEMPLATE.md", "## Description\n\nCloses #");
+
+        const report = await runReadinessReport({ repoPath });
+        const criterion = report.criteria.find((c) => c.id === "pr-template");
+
+        expect(criterion?.status).toBe("pass");
+        expect(criterion?.reason).toBeUndefined();
+      });
+
+      it("passes when docs/PULL_REQUEST_TEMPLATE.md exists with linked-issue ref", async () => {
+        await writePackageJson({ name: "test-repo" });
+        await writeFile("docs/PULL_REQUEST_TEMPLATE.md", "## Description\n\nFixes: #");
+
+        const report = await runReadinessReport({ repoPath });
+        const criterion = report.criteria.find((c) => c.id === "pr-template");
+
+        expect(criterion?.status).toBe("pass");
+        expect(criterion?.reason).toBeUndefined();
+      });
+
       it("passes with advisory reason when template lacks linked-issue reference", async () => {
         await writePackageJson({ name: "test-repo" });
         await writeFile(".github/PULL_REQUEST_TEMPLATE.md", "## Description\n\n## Testing");
@@ -464,6 +486,17 @@ describe("runReadinessReport", () => {
 
         expect(criterion?.status).toBe("pass");
         expect(criterion?.reason).toContain("linked-issue reference");
+      });
+
+      it("passes for a template inside docs/PULL_REQUEST_TEMPLATE", async () => {
+        await writePackageJson({ name: "test-repo" });
+        await writeFile("docs/PULL_REQUEST_TEMPLATE/feature.md", "## Description\n\nCloses #");
+
+        const report = await runReadinessReport({ repoPath });
+        const criterion = report.criteria.find((c) => c.id === "pr-template");
+
+        expect(criterion?.status).toBe("pass");
+        expect(criterion?.reason).toBeUndefined();
       });
 
       it("passes when template contains 'Fixes #'", async () => {
@@ -484,6 +517,8 @@ describe("runReadinessReport", () => {
         const criterion = report.criteria.find((c) => c.id === "pr-template");
 
         expect(criterion?.status).toBe("fail");
+        expect(criterion?.evidence).toContain("PULL_REQUEST_TEMPLATE.md");
+        expect(criterion?.evidence).toContain("docs/PULL_REQUEST_TEMPLATE.md");
       });
 
       it("is a scored criterion, not an extra", async () => {
