@@ -59,7 +59,7 @@ export async function scanGitHubRepo(
     // Build clone URL
     const baseUrl = `https://github.com/${owner}/${repo}.git`;
     const cloneUrl = token
-      ? `https://x-access-token:${token}@github.com/${owner}/${repo}.git`
+      ? `https://x-access-token:${encodeURIComponent(token)}@github.com/${owner}/${repo}.git`
       : baseUrl;
 
     // Clone

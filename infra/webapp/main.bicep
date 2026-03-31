@@ -1,7 +1,9 @@
 // AgentRC Web App Infrastructure — Azure Container Apps (Consumption plan)
 // Resources: Log Analytics → App Insights (optional) → Container Apps Environment → Storage (optional) → Container App
 
-@description('Name prefix for all resources')
+@description('Name prefix for all resources (lowercase letters and numbers only, max 10 chars)')
+@minLength(1)
+@maxLength(10)
 param namePrefix string = 'agentrc'
 
 @description('Azure region')
@@ -73,7 +75,7 @@ resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
 
 // ===== Storage Account + File Share (for report sharing) =====
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = if (enableSharing) {
-  name: toLower(replace('${namePrefix}st${uniqueString(resourceGroup().id)}', '-', ''))
+  name: take(toLower(replace('${namePrefix}st${uniqueString(resourceGroup().id)}', '-', '')), 24)
   location: location
   tags: tags
   sku: {
@@ -102,7 +104,7 @@ resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-0
 
 // ===== Azure Container Registry =====
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: toLower(replace('${namePrefix}webapp', '-', ''))
+  name: take(toLower(replace('${namePrefix}webapp', '-', '')), 50)
   location: location
   tags: tags
   sku: {
