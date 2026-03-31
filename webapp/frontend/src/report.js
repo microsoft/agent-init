@@ -58,7 +58,7 @@ export function renderReport(report, { sharingEnabled = false, shared = false } 
   // Hero
   container.appendChild(buildHero(report));
 
-  // Share button
+  // Share button (top)
   if (sharingEnabled) container.appendChild(buildShareButton(report));
 
   // Fix First
@@ -79,6 +79,9 @@ export function renderReport(report, { sharingEnabled = false, shared = false } 
 
   // Area Breakdown
   if (report.areaReports?.length) container.appendChild(buildAreaBreakdown(report));
+
+  // Share button (bottom)
+  if (sharingEnabled) container.appendChild(buildShareButton(report));
 
   // Service Information (collapsed in footer)
   const svcInfo = buildServiceInfo(report);
@@ -492,14 +495,22 @@ function buildShareButton(report) {
   const btn = document.createElement("button");
   btn.className = "btn btn-secondary";
   btn.textContent = "Share Report";
+  btn.title = "Anyone with the link will be able to view this report";
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     btn.textContent = "Sharing…";
     try {
       const { url } = await shareReport(report);
-      await navigator.clipboard.writeText(`${window.location.origin}${url}`);
-      showToast("Link copied to clipboard!");
+      const fullUrl = `${window.location.origin}${url}`;
+      if (navigator.share) {
+        await navigator.share({ title: "AgentRC Readiness Report", url: fullUrl });
+        showToast("Report shared!");
+      } else {
+        await navigator.clipboard.writeText(fullUrl);
+        showToast("Link copied to clipboard!");
+      }
     } catch (err) {
+      if (err.name === "AbortError") return;
       showToast(`Share failed: ${err.message}`);
     } finally {
       btn.disabled = false;
