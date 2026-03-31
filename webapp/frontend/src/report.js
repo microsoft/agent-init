@@ -165,8 +165,8 @@ function buildFixFirst(report) {
             <div class="fix-title">${esc(c.title)}</div>
             ${c.reason ? `<div class="fix-reason">${esc(c.reason)}</div>` : ""}
             <div class="fix-badges">
-              ${c.impact ? `<span class="fix-badge impact-${c.impact}">${c.impact} impact</span>` : ""}
-              ${c.effort ? `<span class="fix-badge effort-${c.effort}">${c.effort} effort</span>` : ""}
+              ${c.impact ? `<span class="fix-badge impact-${safeClass(c.impact, ALLOWED_IMPACT)}">${esc(c.impact)} impact</span>` : ""}
+              ${c.effort ? `<span class="fix-badge effort-${safeClass(c.effort, ALLOWED_EFFORT)}">${esc(c.effort)} effort</span>` : ""}
             </div>
           </div>
         </div>
@@ -217,7 +217,7 @@ function buildAiToolingHero(report) {
           const icon = AI_ICONS[c.id] || "🔧";
           return `
           <div class="ai-criterion">
-            <div class="ai-criterion-icon ${c.status}">${c.status === "pass" ? "✓" : "✗"}</div>
+            <div class="ai-criterion-icon ${safeClass(c.status, ALLOWED_STATUS)}">${c.status === "pass" ? "✓" : "✗"}</div>
             <div class="ai-criterion-text">
               <div class="ai-criterion-title">${icon} ${esc(c.title)}</div>
               <div class="ai-criterion-reason">${c.status === "pass" ? "Detected" : esc(c.reason || "")}</div>
@@ -334,7 +334,7 @@ function buildPillarDetails(report) {
                       (c) => `
               <div class="criterion-row">
                 <span class="criterion-row-title">${esc(c.title)}${c.appSummary ? ` <span class="muted small">(${c.appSummary.passed}/${c.appSummary.total} apps)</span>` : ""}${c.areaSummary ? ` <span class="muted small">(${c.areaSummary.passed}/${c.areaSummary.total} areas)</span>` : ""}</span>
-                <span class="criterion-status ${c.status}">${c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail" : "Skip"}</span>
+                <span class="criterion-status ${safeClass(c.status, ALLOWED_STATUS)}">${c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail" : "Skip"}</span>
               </div>
             `
                     )
@@ -404,7 +404,7 @@ function buildAreaBreakdown(report) {
                 (c) => `
               <div class="criterion-row">
                 <span class="criterion-row-title">${esc(c.title)}</span>
-                <span class="criterion-status ${c.status}">${c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail" : "Skip"}</span>
+                <span class="criterion-status ${safeClass(c.status, ALLOWED_STATUS)}">${c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail" : "Skip"}</span>
               </div>
             `
               )
@@ -436,7 +436,7 @@ function buildServiceInfo(report) {
     const rows = report.engine.signals
       .map(
         (s) =>
-          `<tr><td>${esc(s.id)}</td><td>${esc(s.label)}</td><td>${esc(s.kind)}</td><td class="status-${s.status}">${esc(s.status)}</td></tr>`
+          `<tr><td>${esc(s.id)}</td><td>${esc(s.label)}</td><td>${esc(s.kind)}</td><td class="status-${safeClass(s.status, ALLOWED_STATUS)}">${esc(s.status)}</td></tr>`
       )
       .join("");
     blocks.push(
@@ -542,6 +542,13 @@ function esc(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+const ALLOWED_STATUS = new Set(["pass", "fail", "skip"]);
+const ALLOWED_IMPACT = new Set(["high", "medium", "low"]);
+const ALLOWED_EFFORT = new Set(["high", "medium", "low"]);
+function safeClass(val, allowed) {
+  return allowed.has(val) ? val : "unknown";
 }
 
 function isGitHubUrl(url) {

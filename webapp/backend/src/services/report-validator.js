@@ -11,8 +11,12 @@ export class ReportValidationError extends Error {
 }
 
 const MAX_STRING_LEN = 10_000;
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/;
 const GITHUB_URL_RE = /^https:\/\/github\.com\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?\/[a-zA-Z0-9._-]{1,100}$/;
+
+const ALLOWED_STATUS = new Set(["pass", "fail", "skip"]);
+const ALLOWED_IMPACT = new Set(["high", "medium", "low"]);
+const ALLOWED_EFFORT = new Set(["high", "medium", "low"]);
 
 /**
  * Validate and normalize a ReadinessReport for sharing.
@@ -87,13 +91,22 @@ export function normalizeSharedReportResult(value) {
     throw new ReportValidationError("criteria must be an array.");
   }
 
-  // Validate string lengths to prevent abuse
+  // Validate string lengths and enum fields to prevent abuse
   for (const c of criteria) {
     if (c.title && c.title.length > MAX_STRING_LEN) {
       throw new ReportValidationError("Criteria title too long.");
     }
     if (c.reason && c.reason.length > MAX_STRING_LEN) {
       throw new ReportValidationError("Criteria reason too long.");
+    }
+    if (c.status !== undefined && !ALLOWED_STATUS.has(c.status)) {
+      delete c.status;
+    }
+    if (c.impact !== undefined && !ALLOWED_IMPACT.has(c.impact)) {
+      delete c.impact;
+    }
+    if (c.effort !== undefined && !ALLOWED_EFFORT.has(c.effort)) {
+      delete c.effort;
     }
   }
 

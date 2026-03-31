@@ -52,6 +52,9 @@ export function createRuntime() {
 export function createApp(runtime) {
   const app = express();
 
+  // Trust one proxy hop (Azure Container Apps load balancer)
+  app.set("trust proxy", 1);
+
   // Security headers
   app.use(
     helmet({
@@ -67,7 +70,8 @@ export function createApp(runtime) {
     })
   );
 
-  app.use(cors());
+  const corsOrigin = process.env.CORS_ORIGIN || false;
+  app.use(cors({ origin: corsOrigin, credentials: false }));
   app.use(express.json({ limit: "1mb" }));
 
   // API routes
