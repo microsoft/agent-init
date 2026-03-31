@@ -409,6 +409,38 @@ export async function hasCopilotSkills(repoPath: string, extraDirs?: string[]): 
   return [...new Set(found)];
 }
 
+// ── APM (Agent Package Manager) helpers ──
+
+export async function hasApmConfig(repoPath: string): Promise<boolean> {
+  return fileExists(path.join(repoPath, "apm.yml"));
+}
+
+export async function hasApmLockfile(repoPath: string): Promise<boolean> {
+  return fileExists(path.join(repoPath, "apm.lock.yaml"));
+}
+
+export async function hasApmInWorkflows(repoPath: string): Promise<boolean> {
+  const workflowDir = path.join(repoPath, ".github", "workflows");
+  let files: string[];
+  try {
+    files = await fs.readdir(workflowDir);
+  } catch {
+    return false;
+  }
+  for (const file of files) {
+    if (!file.endsWith(".yml") && !file.endsWith(".yaml")) continue;
+    try {
+      const content = await fs.readFile(path.join(workflowDir, file), "utf8");
+      if (/\bmicrosoft\/apm-action\b/.test(content) || /\bapm\s+(audit|install)\b/.test(content)) {
+        return true;
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+  return false;
+}
+
 export async function readAllDependencies(context: ReadinessContext): Promise<string[]> {
   const dependencies: string[] = [];
   const apps = context.apps.length ? context.apps : [];
