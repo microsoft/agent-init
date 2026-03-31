@@ -1,0 +1,26 @@
+FROM node:24-alpine AS deps
+WORKDIR /app
+COPY packages/core/package.json ./packages/core/package.json
+COPY packages/core/src ./packages/core/src
+COPY webapp/backend/package.json ./backend/package.json
+RUN cd ./packages/core && npm install --omit=dev && npm install simple-git fast-glob --no-save
+RUN cd ./backend && npm install --omit=dev && npm install tsx
+
+FROM node:24-alpine
+RUN apk add --no-cache git
+WORKDIR /app/backend
+COPY webapp/backend/package.json ./package.json
+COPY --from=deps /app/backend/node_modules ./node_modules
+COPY --from=deps /app/packages /app/packages
+RUN mkdir -p node_modules/@agentrc && ln -sf /app/packages/core node_modules/@agentrc/core
+COPY webapp/backend/src ./src
+COPY webapp/frontend/ /app/frontend/
+ENV REPORTS_DIR=/app/data/reports
+RUN apk upgrade --no-cache \
+  && mkdir -p /app/data /tmp/agentrc-scans \
+  && chown -R node:node /app /tmp/agentrc-scans
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "--import", "tsx", "src/server.js"]

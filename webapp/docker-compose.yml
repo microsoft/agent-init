@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.webapp
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - ENABLE_SHARING=true
+      - REPORTS_DIR=/app/data/reports
+      - GH_TOKEN_FOR_SCAN=${GH_TOKEN_FOR_SCAN:-}
+    volumes:
+      - reports-data:/app/data
+volumes:
+  reports-data:
