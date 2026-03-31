@@ -64,8 +64,15 @@ jobs:
     needs: build-push
     permissions:
       security-events: write
+      packages: read
     steps:
       - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.35.0
         with:
@@ -100,6 +107,20 @@ jobs:
             --location eastus \
             --tags application=agentrc-webapp managedBy=bicep
 
+      - name: Push image to ACR
+        run: |
+          ACR_NAME=$(az acr list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+          if [ -z "$ACR_NAME" ]; then
+            echo "ACR not yet provisioned — will be created by Bicep and image imported after"
+          else
+            az acr import \
+              --name "$ACR_NAME" \
+              --source ${{ needs.build-push.outputs.image-full }} \
+              --image agentrc-webapp:${{ needs.build-push.outputs.image-tag }} \
+              --image agentrc-webapp:latest \
+              --force
+          fi
+
       - name: Pre-deploy cleanup (Container Apps storage update limitation)
         run: |
           az containerapp delete \
@@ -121,6 +142,23 @@ jobs:
             containerImageTag=${{ needs.build-push.outputs.image-tag }}
             ghTokenForScan=${{ secrets.GH_TOKEN_FOR_SCAN }}
 
+      - name: Ensure image in ACR
+        run: |
+          ACR_NAME=$(az acr list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+          az acr import \
+            --name "$ACR_NAME" \
+            --source ${{ needs.build-push.outputs.image-full }} \
+            --image agentrc-webapp:${{ needs.build-push.outputs.image-tag }} \
+            --image agentrc-webapp:latest \
+            --force
+
+      - name: Restart container app to pick up new image
+        run: |
+          az containerapp revision restart \
+            --name agentrc-webapp \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --revision "$(az containerapp revision list --name agentrc-webapp --resource-group ${{ env.RESOURCE_GROUP }} --query '[0].name' -o tsv)"
+
       - name: Smoke test
         run: |
           APP_URL=$(az containerapp show \
@@ -128,6 +166,13 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --query "properties.configuration.ingress.fqdn" -o tsv)
           echo "Testing https://${APP_URL}"
+          for i in 1 2 3 4 5; do
+            if curl -sf "https://${APP_URL}/api/health" | grep -q '"ok"'; then
+              break
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
           curl -sf "https://${APP_URL}/api/health" | grep -q '"ok"'
           curl -sf "https://${APP_URL}/" | grep -q "AgentRC"
           echo "Smoke tests passed!"
