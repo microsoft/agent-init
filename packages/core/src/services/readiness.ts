@@ -900,7 +900,7 @@ export function buildCriteria(): ReadinessCriterion[] {
           reason: found
             ? undefined
             : "No APM step found in CI. Add `microsoft/apm-action` to your workflow to audit agent packages on every PR. See: https://github.com/microsoft/apm-action",
-          evidence: [".github/workflows/*.yml"]
+          evidence: [".github/workflows/*.{yml,yaml}"]
         };
       }
     },
