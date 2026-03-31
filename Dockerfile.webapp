@@ -5,7 +5,7 @@ COPY packages/core/package.json ./packages/core/package.json
 COPY packages/core/src ./packages/core/src
 COPY webapp/backend/package.json ./backend/package.json
 COPY webapp/backend/package-lock.json ./backend/package-lock.json
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 RUN cd ./backend && npm ci --omit=dev
 
 FROM node:24-alpine
