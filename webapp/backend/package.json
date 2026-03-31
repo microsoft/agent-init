@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --env-file-if-exists=../.env --watch src/server.js",
+    "start": "node --import tsx src/server.js",
+    "dev": "node --import tsx --env-file-if-exists=../.env --watch src/server.js",
     "test": "vitest run"
   },
   "dependencies": {
@@ -13,10 +13,10 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
-    "tsx": "^4.21.0",
     "vitest": "^3.1.1"
   }
 }

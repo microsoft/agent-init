@@ -41,7 +41,6 @@ export async function scanGitHubRepo(
   repo,
   {
     token,
-    branch,
     timeoutMs = DEFAULT_CLONE_TIMEOUT_MS,
     maxConcurrent = DEFAULT_MAX_CONCURRENT
   } = {}
@@ -73,7 +72,10 @@ export async function scanGitHubRepo(
       if (err.message?.includes("timed out") || err.message?.includes("timeout")) {
         throw new CloneTimeoutError();
       }
-      throw new GitCloneError(`Failed to clone repository: ${err.message || "unknown error"}`);
+      // Strip embedded credentials from error messages to avoid leaking tokens
+      const safeMessage = (err.message || "unknown error")
+        .replace(/https:\/\/[^@]+@/g, "https://***@");
+      throw new GitCloneError(`Failed to clone repository: ${safeMessage}`);
     }
 
     // Run readiness report

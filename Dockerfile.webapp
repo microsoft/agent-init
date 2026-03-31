@@ -3,8 +3,9 @@ WORKDIR /app
 COPY packages/core/package.json ./packages/core/package.json
 COPY packages/core/src ./packages/core/src
 COPY webapp/backend/package.json ./backend/package.json
+COPY webapp/backend/package-lock.json ./backend/package-lock.json
 RUN cd ./packages/core && npm install --omit=dev && npm install simple-git fast-glob --no-save
-RUN cd ./backend && npm install --omit=dev && npm install tsx
+RUN cd ./backend && npm ci --omit=dev
 
 FROM node:24-alpine
 RUN apk add --no-cache git

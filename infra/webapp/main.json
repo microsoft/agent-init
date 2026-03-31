@@ -53,7 +53,7 @@
     },
     "containerStartupStrategy": {
       "type": "string",
-      "defaultValue": "scale-to-zero",
+      "defaultValue": "keep-warm",
       "allowedValues": ["scale-to-zero", "keep-warm"],
       "metadata": {
         "description": "Container startup strategy"

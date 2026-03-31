@@ -10,7 +10,7 @@ export function createScanRouter(runtime) {
 
   router.post("/", async (req, res, next) => {
     try {
-      const { repo_url, branch } = req.body;
+      const { repo_url } = req.body;
 
       // Validate URL
       const { owner, repo } = parseRepoUrl(repo_url);
@@ -18,7 +18,6 @@ export function createScanRouter(runtime) {
       // Run scan
       const report = await scanGitHubRepo(owner, repo, {
         token: runtime.githubToken,
-        branch,
         timeoutMs: runtime.cloneTimeoutMs,
         maxConcurrent: runtime.maxConcurrentScans
       });

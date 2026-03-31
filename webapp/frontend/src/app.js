@@ -56,7 +56,11 @@ function setupForm() {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = document.getElementById("repo-input").value.trim();
-    const ref = parseGitHubReference(input) || input;
+    const ref = parseGitHubReference(input);
+    if (!ref) {
+      showError('Invalid repository. Enter "owner/repo" or a GitHub URL.');
+      return;
+    }
     await executeScan(ref);
   });
 
@@ -80,11 +84,11 @@ async function executeScan(repoRef) {
   setFormBusy(true);
 
   try {
-    syncRepoPathInBrowser(repoRef);
     showProgress("Running readiness scan…", 45);
 
     const report = await scanRepo(repoRef, currentAbortController.signal);
 
+    syncRepoPathInBrowser(repoRef);
     showProgress("Rendering report…", 90);
     renderReport(report, { sharingEnabled: appConfig.sharingEnabled });
 
