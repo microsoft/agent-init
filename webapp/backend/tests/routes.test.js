@@ -220,4 +220,62 @@ describe("API routes", () => {
       expect(getBody.achievedLevel).toBe(0);
     });
   });
+
+  describe("index.html templating (%SITE_URL% replacement)", () => {
+    it("replaces %SITE_URL% with runtime.siteUrl when CUSTOM_DOMAIN is configured", async () => {
+      server?.close();
+      runtime.siteUrl = "https://app.example.com";
+      app = createApp(runtime);
+      ({ base, server } = await listen(app));
+
+      const res = await fetch(`${base}/`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain('content="https://app.example.com"');
+      expect(html).toContain('content="https://app.example.com/assets/og-image.jpg"');
+      expect(html).not.toContain("%SITE_URL%");
+    });
+
+    it("derives %SITE_URL% from the request host when siteUrl is empty", async () => {
+      server?.close();
+      runtime.siteUrl = "";
+      app = createApp(runtime);
+      ({ base, server } = await listen(app));
+
+      const res = await fetch(`${base}/`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      // Should derive from localhost + the ephemeral port
+      const url = new URL(base);
+      expect(html).toContain(`http://localhost:${runtime.port}`);
+      expect(html).not.toContain("%SITE_URL%");
+    });
+
+    it("replaces %SITE_URL% on SPA catch-all routes", async () => {
+      server?.close();
+      runtime.siteUrl = "https://spa.example.com";
+      app = createApp(runtime);
+      ({ base, server } = await listen(app));
+
+      const res = await fetch(`${base}/some/spa/route`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain('content="https://spa.example.com"');
+      expect(html).toContain('content="https://spa.example.com/assets/og-image.jpg"');
+      expect(html).not.toContain("%SITE_URL%");
+    });
+
+    it("derives %SITE_URL% from request host on SPA catch-all when siteUrl is empty", async () => {
+      server?.close();
+      runtime.siteUrl = "";
+      app = createApp(runtime);
+      ({ base, server } = await listen(app));
+
+      const res = await fetch(`${base}/report/abc`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain(`http://localhost:${runtime.port}`);
+      expect(html).not.toContain("%SITE_URL%");
+    });
+  });
 });
