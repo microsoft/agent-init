@@ -137,7 +137,21 @@ export function createApp(runtime) {
     if (hostHeader) {
       // Host header is typically "hostname" or "hostname:port".
       const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
-      const [hostname] = host.split(":");
+      let hostname;
+      try {
+        // Use URL parsing to correctly handle IPv6, ports, etc.
+        const parsed = new URL(`${req.protocol}://${host}`);
+        hostname = parsed.hostname;
+      } catch {
+        // If the header is malformed, fall back to a safe default.
+        hostname = "localhost";
+      }
+
+      // Allow only safe hostname characters (alnum, dot, hyphen, colon for IPv6).
+      const safeHostnamePattern = /^[0-9A-Za-z.\-:]+$/;
+      if (!safeHostnamePattern.test(hostname)) {
+        hostname = "localhost";
+      }
       const isDevHost = allowedDevHosts.has(hostname);
       const isAzureContainerApp = /\.azurecontainerapps\.io$/i.test(hostname);
 
