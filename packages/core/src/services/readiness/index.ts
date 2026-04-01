@@ -118,7 +118,8 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
         effort: criterion.effort,
         status: result.status,
         reason: result.reason,
-        evidence: result.evidence
+        evidence: result.evidence,
+        docUrl: criterion.docUrl
       });
       continue;
     }
@@ -136,7 +137,8 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
         impact: criterion.impact,
         effort: criterion.effort,
         status: "skip",
-        reason: "Run with --per-area for area breakdown."
+        reason: "Run with --per-area for area breakdown.",
+        docUrl: criterion.docUrl
       });
       continue;
     }
@@ -158,7 +160,8 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
         impact: criterion.impact,
         effort: criterion.effort,
         status: "skip",
-        reason: "No application packages detected."
+        reason: "No application packages detected.",
+        docUrl: criterion.docUrl
       });
       continue;
     }
@@ -181,6 +184,7 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
       effort: criterion.effort,
       status,
       reason: status === "pass" ? undefined : `Only ${passed}/${total} apps pass this check.`,
+      docUrl: criterion.docUrl,
       passRate,
       appSummary: { passed, total },
       appFailures: failures
@@ -217,7 +221,8 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
           effort: criterion.effort,
           status: result.status,
           reason: result.reason,
-          evidence: result.evidence
+          evidence: result.evidence,
+          docUrl: criterion.docUrl
         });
       }
 

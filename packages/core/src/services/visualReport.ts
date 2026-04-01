@@ -171,6 +171,8 @@ export function generateVisualReport(options: VisualReportOptions): string {
     .fix-item-title { font-weight: 600; font-size: 13px; color: var(--color-fg-default); }
     .fix-item-reason { font-size: 12px; color: var(--color-fg-muted); margin-top: 2px; }
     .fix-item-badges { display: flex; gap: 6px; margin-top: 4px; }
+    .doc-link { font-size: 12px; color: var(--color-accent-fg); text-decoration: none; }
+    .doc-link:hover { text-decoration: underline; }
     .fix-badge {
       font-size: 11px;
       padding: 1px 8px;
@@ -561,7 +563,7 @@ export function generateVisualReport(options: VisualReportOptions): string {
                           .map(
                             (c) => `
                           <div class="criterion-row">
-                            <span>${escapeHtml(c.title)}</span>
+                            <span>${escapeHtml(c.title)}${c.status === "fail" && c.docUrl ? ` <a class="doc-link" href="${escapeHtml(c.docUrl)}" target="_blank" rel="noopener noreferrer">docs</a>` : ""}</span>
                             <span class="criterion-status ${c.status}">${c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail" : "Skip"}</span>
                           </div>
                         `
@@ -749,6 +751,8 @@ function buildFixFirstHtml(reports: Array<{ repo: string; report: ReadinessRepor
                 <span class="fix-badge effort-${c.effort}">${c.effort} effort</span>
                 ${multiRepo ? `<span class="fix-badge impact-low">${repos.length} repo${repos.length > 1 ? "s" : ""}</span>` : ""}
               </div>
+              ${c.docUrl ? `<a class="doc-link" href="${escapeHtml(c.docUrl)}" target="_blank" rel="noopener noreferrer">Learn more &rarr;</a>` : ""}
+              </div>
             </div>
           </div>
         `
@@ -855,6 +859,7 @@ type AiToolingCriterionSummary = {
   status: "pass" | "fail";
   evidence: string[];
   reason: string;
+  docUrl?: string;
 };
 
 type AiToolingData = {
@@ -885,7 +890,8 @@ function calculateAiToolingData(
           totalRepos: 1,
           status: c.status === "pass" ? "pass" : "fail",
           evidence: c.evidence ? [...c.evidence] : [],
-          reason: c.reason || ""
+          reason: c.reason || "",
+          docUrl: c.docUrl
         });
       }
     }
@@ -992,7 +998,7 @@ function buildAiToolingHeroHtml(
                     ? `${c.passCount}/${c.totalRepos} repos`
                     : "Detected"
                   : escapeHtml(c.reason)
-              }</div>
+              }${c.status !== "pass" && c.docUrl ? ` <a class="doc-link" href="${escapeHtml(c.docUrl)}" target="_blank" rel="noopener noreferrer">Learn more &rarr;</a>` : ""}</div>
             </div>
           </div>
         `

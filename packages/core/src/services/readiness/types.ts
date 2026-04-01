@@ -46,6 +46,7 @@ export type ReadinessCriterionResult = {
   status: ReadinessStatus;
   reason?: string;
   evidence?: string[];
+  docUrl?: string;
   passRate?: number;
   appSummary?: { passed: number; total: number };
   appFailures?: string[];
@@ -134,6 +135,7 @@ export type ReadinessCriterion = {
   scope: ReadinessScope;
   impact: "high" | "medium" | "low";
   effort: "low" | "medium" | "high";
+  docUrl?: string;
   check: (context: ReadinessContext, app?: RepoApp, area?: Area) => Promise<CheckResult>;
 };
 

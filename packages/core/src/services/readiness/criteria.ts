@@ -287,6 +287,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "low",
+      docUrl: "https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot",
       check: async (context) => {
         const rootFound = await hasCustomInstructions(context.repoPath);
         if (rootFound.length === 0) {
@@ -399,6 +400,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "low",
+      docUrl: "https://code.visualstudio.com/docs/copilot/chat/mcp-servers",
       check: async (context) => {
         const found = await hasMcpConfig(context.repoPath);
         return {
@@ -419,6 +421,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "medium",
+      docUrl: "https://docs.github.com/en/copilot/customizing-copilot/copilot-extensibility-overview",
       check: async (context) => {
         const found = await hasCustomAgents(
           context.repoPath,
@@ -442,6 +445,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "medium",
+      docUrl: "https://docs.github.com/en/copilot/customizing-copilot/copilot-extensibility-overview",
       check: async (context) => {
         const found = await hasCopilotSkills(
           context.repoPath,
@@ -463,6 +467,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
+      docUrl: "https://microsoft.github.io/apm",
       check: async (context) => {
         const found = await hasApmConfig(context.repoPath);
         return {
@@ -482,6 +487,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "medium",
       effort: "low",
+      docUrl: "https://microsoft.github.io/apm",
       check: async (context) => {
         const hasConfig = await hasApmConfig(context.repoPath);
         if (!hasConfig) {
@@ -505,6 +511,7 @@ export function buildCriteria(): ReadinessCriterion[] {
       scope: "repo",
       impact: "high",
       effort: "medium",
+      docUrl: "https://microsoft.github.io/apm",
       check: async (context) => {
         const hasConfig = await hasApmConfig(context.repoPath);
         if (!hasConfig) {
