@@ -190,7 +190,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           {
             name: customDomain
             bindingType: customDomainCertReady ? 'SniEnabled' : 'Disabled'
-            certificateId: customDomainCertReady ? managedCert.id : null
+            ...(customDomainCertReady ? {
+              certificateId: managedCert.id
+            } : {})
           }
         ] : []
       }
