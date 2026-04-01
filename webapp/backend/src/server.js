@@ -222,8 +222,8 @@ export function createApp(runtime) {
     return rawIndexHtml.replaceAll("%SITE_URL%", baseUrl);
   }
 
-  // Serve processed index.html for root requests
-  app.get("/", (req, res) => {
+  // Serve processed index.html for root and /index.html requests
+  app.get(["/", "/index.html"], (req, res) => {
     res.type("html").send(renderIndex(req));
   });
 
@@ -234,8 +234,10 @@ export function createApp(runtime) {
     next();
   });
 
-  // Static frontend files (other assets)
-  app.use(express.static(runtime.frontendPath));
+  // Static frontend files (other assets).
+  // index: false prevents express.static from serving /index.html directly,
+  // ensuring all HTML responses go through renderIndex() with replaced placeholders.
+  app.use(express.static(runtime.frontendPath, { index: false }));
 
   // SPA catch-all: serve processed index.html for non-API routes
   app.get(/^\/(?!api\/).*/, (req, res) => {
