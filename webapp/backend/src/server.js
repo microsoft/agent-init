@@ -181,6 +181,13 @@ export function createApp(runtime) {
     res.type("html").send(renderIndex(req));
   });
 
+  // Allow cross-origin access to static assets (OG images, favicons, manifest)
+  // so social-media crawlers and cross-origin embeds can load them.
+  app.use("/assets", (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  });
+
   // Static frontend files (other assets)
   app.use(express.static(runtime.frontendPath));
 
