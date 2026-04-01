@@ -203,17 +203,22 @@ export function createApp(runtime) {
       }
       const isDevHost = allowedDevHosts.has(hostname);
       const isAzureContainerApp = /\.azurecontainerapps\.io$/i.test(hostname);
+      // For IPv6 literals, URL.hostname omits brackets; add them back when
+      // constructing absolute URLs so they remain syntactically valid.
+      const needsIpv6Brackets =
+        hostname.includes(":") && !hostname.startsWith("[") && !hostname.endsWith("]");
+      const formattedHostname = needsIpv6Brackets ? `[${hostname}]` : hostname;
 
       if (isDevHost) {
         // In true local-dev, keep using the configured runtime.port.
         baseUrl = `${req.protocol}://localhost:${runtime.port}`;
       } else if (isAzureContainerApp) {
         // For default Container Apps FQDNs, trust the hostname and omit port.
-        baseUrl = `${req.protocol}://${hostname}`;
+        baseUrl = `${req.protocol}://${formattedHostname}`;
       } else {
         // For any other host, be conservative: use the hostname without an
         // explicit port to avoid leaking internal ports in absolute URLs.
-        baseUrl = `${req.protocol}://${hostname}`;
+        baseUrl = `${req.protocol}://${formattedHostname}`;
       }
     } else {
       // Last-resort fallback when no host information is available.
