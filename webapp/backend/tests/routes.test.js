@@ -241,11 +241,14 @@ describe("API routes", () => {
       runtime.siteUrl = "";
       app = createApp(runtime);
       ({ base, server } = await listen(app));
+      // Align runtime.port with the actual ephemeral port so renderIndex
+      // produces a URL that matches the real server origin.
+      runtime.port = server.address().port;
 
       const res = await fetch(`${base}/`);
       expect(res.status).toBe(200);
       const html = await res.text();
-      // Should derive from localhost + the runtime port
+      // Should derive from localhost + the actual bound port
       expect(html).toContain(`http://localhost:${runtime.port}`);
       expect(html).not.toContain("%SITE_URL%");
     });
@@ -269,6 +272,9 @@ describe("API routes", () => {
       runtime.siteUrl = "";
       app = createApp(runtime);
       ({ base, server } = await listen(app));
+      // Align runtime.port with the actual ephemeral port so renderIndex
+      // produces a URL that matches the real server origin.
+      runtime.port = server.address().port;
 
       const res = await fetch(`${base}/report/abc`);
       expect(res.status).toBe(200);
