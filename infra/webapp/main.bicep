@@ -325,7 +325,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       }
     }
   }
-  dependsOn: enableSharing ? [acrPullRoleAssignment, envStorage] : [acrPullRoleAssignment]
+  dependsOn: enableSharing
+    ? (useAcrAdminCredentials ? [envStorage] : [acrPullRoleAssignment, envStorage])
+    : (useAcrAdminCredentials ? [] : [acrPullRoleAssignment])
 }
 
 // ===== Outputs =====
