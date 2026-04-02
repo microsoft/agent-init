@@ -146,7 +146,7 @@ jobs:
             customDomainCertReady=false
 
       - name: Deploy infrastructure (step 2 — bind managed certificate)
-        if: vars.CUSTOM_DOMAIN != '' && vars.CUSTOM_DOMAIN_CERT_READY == 'true'
+        if: vars.CUSTOM_DOMAIN && vars.CUSTOM_DOMAIN_CERT_READY == 'true'
         uses: azure/arm-deploy@v2
         with:
           resourceGroupName: ${{ env.RESOURCE_GROUP }}
