@@ -173,7 +173,9 @@ export function isNativePlugin(obj: unknown): obj is PolicyPlugin {
   const record = obj as Record<string, unknown>;
   if (typeof record.meta !== "object" || record.meta === null) return false;
   const meta = record.meta as Record<string, unknown>;
-  return typeof meta.name === "string" && meta.name.trim().length > 0;
+  return (
+    typeof meta.name === "string" && meta.name.trim().length > 0 && typeof record.name !== "string"
+  );
 }
 
 /**

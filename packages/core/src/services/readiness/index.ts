@@ -97,8 +97,8 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
       // The legacy resolveChain path only supports PolicyConfig objects.
       if (isNativePlugin(loaded)) {
         throw new Error(
-          `Policy "${source}" exports a native PolicyPlugin and cannot be used with the legacy criteria path. ` +
-            `Native plugins are supported through the plugin engine — this is an internal error.`
+          `Policy "${source}" exports a native PolicyPlugin, which is only supported via the plugin engine path. ` +
+            `The legacy readiness criteria path used for --policies only supports PolicyConfig objects.`
         );
       }
       policyConfigs.push(loaded);

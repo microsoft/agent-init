@@ -1,7 +1,6 @@
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
-import { pathToFileURL } from "url";
 
 import { executePlugins } from "@agentrc/core/services/policy/engine";
 import { buildBuiltinPlugin, loadPluginChain } from "@agentrc/core/services/policy/loader";

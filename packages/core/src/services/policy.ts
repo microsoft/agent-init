@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { pathToFileURL } from "url";
 
 import { readJson, stripJsonComments } from "../utils/fs";
 
@@ -191,7 +192,10 @@ export async function loadPolicy(
         );
       }
       try {
-        const mod = (await import(resolved)) as Record<string, unknown>;
+        // Use pathToFileURL to convert filesystem paths to file:// URLs.
+        // On Windows, path.resolve() returns paths like C:\... which dynamic
+        // import() treats as a URL scheme (c:), causing ERR_UNSUPPORTED_ESM_URL_SCHEME.
+        const mod = (await import(pathToFileURL(resolved).href)) as Record<string, unknown>;
         const config = (mod.default ?? mod) as unknown;
         // Native PolicyPlugin exports have a `meta` property instead of a root-level `name`.
         // Detect and return them directly without PolicyConfig validation.
