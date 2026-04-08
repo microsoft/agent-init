@@ -166,7 +166,14 @@ export function parsePolicySources(raw: string | undefined): string[] | undefine
  *
  * Returns either a PolicyConfig (for traditional criteria-based policies)
  * or a PolicyPlugin (for native plugins that export the full plugin contract).
- * Native plugins are detected by the presence of a `meta` property.
+ * Native plugins are detected via `isNativePlugin()`: they must have a `meta`
+ * object with a non-empty `meta.name` string, and must NOT have a root-level
+ * `name` string (which would indicate a PolicyConfig).
+ *
+ * Note: Native plugin exports may omit `meta.sourceType` and `meta.trust`.
+ * The loader in `loadPluginChain()` normalises these to "module" and
+ * "trusted-code" respectively before adding the plugin to the chain.
+ * Callers should not access these fields on the raw return value.
  */
 export async function loadPolicy(
   source: string,

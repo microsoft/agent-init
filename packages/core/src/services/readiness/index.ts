@@ -91,23 +91,33 @@ export async function runReadinessReport(options: ReadinessOptions): Promise<Rea
 
   if (policySources?.length) {
     const policyConfigs: PolicyConfig[] = [];
+    let hasNativePlugin = false;
     for (const source of policySources) {
       const loaded = await loadPolicy(source, { jsonOnly: isConfigSourced });
-      // Native PolicyPlugin exports require the engine path (loadPluginChain + executePlugins).
-      // The legacy resolveChain path only supports PolicyConfig objects.
+      // Native PolicyPlugin exports are handled by the engine path (loadPluginChain).
+      // Skip them here — they'll be loaded by loadPluginChain below.
       if (isNativePlugin(loaded)) {
-        throw new Error(
-          `Policy "${source}" exports a native PolicyPlugin, which is only supported via the plugin engine path. ` +
-            `The legacy readiness criteria path used for --policies only supports PolicyConfig objects.`
-        );
+        hasNativePlugin = true;
+        continue;
       }
       policyConfigs.push(loaded);
     }
-    const resolved = resolveChain(baseCriteria, baseExtras, policyConfigs);
-    resolvedCriteria = resolved.criteria;
-    resolvedExtras = resolved.extras;
-    passRateThreshold = resolved.thresholds.passRate;
-    policyInfo = { chain: resolved.chain, criteriaCount: resolved.criteria.length };
+    if (policyConfigs.length > 0) {
+      const resolved = resolveChain(baseCriteria, baseExtras, policyConfigs);
+      resolvedCriteria = resolved.criteria;
+      resolvedExtras = resolved.extras;
+      passRateThreshold = resolved.thresholds.passRate;
+      policyInfo = { chain: resolved.chain, criteriaCount: resolved.criteria.length };
+    } else {
+      resolvedCriteria = baseCriteria;
+      resolvedExtras = baseExtras;
+    }
+    // When native plugins are present, automatically enable the engine path
+    // so their detectors, hooks, and recommenders execute.
+    // Use a local copy to avoid mutating the caller's options object.
+    if (hasNativePlugin && !options.shadow) {
+      options = { ...options, shadow: true };
+    }
   } else {
     resolvedCriteria = baseCriteria;
     resolvedExtras = baseExtras;
