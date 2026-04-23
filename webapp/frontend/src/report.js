@@ -174,6 +174,7 @@ function buildFixFirst(report) {
               ${c.impact ? `<span class="fix-badge impact-${safeClass(c.impact, ALLOWED_IMPACT)}">${esc(c.impact)} impact</span>` : ""}
               ${c.effort ? `<span class="fix-badge effort-${safeClass(c.effort, ALLOWED_EFFORT)}">${esc(c.effort)} effort</span>` : ""}
             </div>
+            ${c.docUrl && isSafeDocUrl(c.docUrl) ? `<a class="doc-link" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">Learn more →</a>` : ""}
           </div>
         </div>
       `
@@ -226,7 +227,7 @@ function buildAiToolingHero(report) {
             <div class="ai-criterion-icon ${safeClass(c.status, ALLOWED_STATUS)}">${c.status === "pass" ? "✓" : "✗"}</div>
             <div class="ai-criterion-text">
               <div class="ai-criterion-title">${icon} ${esc(c.title)}</div>
-              <div class="ai-criterion-reason">${c.status === "pass" ? "Detected" : esc(c.reason || "")}</div>
+              <div class="ai-criterion-reason">${c.status === "pass" ? "Detected" : esc(c.reason || "")}${c.status !== "pass" && c.docUrl && isSafeDocUrl(c.docUrl) ? ` <a class="doc-link" href="${esc(c.docUrl)}" target="_blank" rel="noopener noreferrer">Learn more →</a>` : ""}</div>
             </div>
           </div>`;
         })
@@ -584,6 +585,15 @@ function isGitHubUrl(url) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" && parsed.hostname === "github.com";
+  } catch {
+    return false;
+  }
+}
+
+function isSafeDocUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
   } catch {
     return false;
   }
